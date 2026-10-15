@@ -35,7 +35,7 @@ fn field(
         n_bands: 500,
         ..Default::default()
     };
-    let bands = Bands::new([0.0; 3], [200.0; 3], &vg, &params, &mut rng);
+    let bands = Bands::new([0.0; 3], [200.0; 3], &vg, &params, &mut rng).unwrap();
     let values = bands.field(&points);
     (points, values)
 }

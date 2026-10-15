@@ -2177,7 +2177,9 @@ impl TurningBands {
     }
 
     /// `bands` lines, each discretized every `step` meters along the major axis
-    /// (default: a fiftieth of the shortest range). `search` is the
+    /// (default: each nested structure on lines of its own, a fiftieth of its
+    /// range apart; a run whose lines would take more than 8 GiB raises
+    /// InvalidInput). `search` is the
     /// neighborhood of the conditioning kriging (default: the 32 nearest
     /// data at any distance); a radius near the range skips nodes far from
     /// the data, where conditioning changes nothing. `classes` are the trend
