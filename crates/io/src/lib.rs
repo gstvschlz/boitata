@@ -8,6 +8,7 @@ mod geotiff;
 mod gslib;
 mod mesh;
 mod parquet;
+mod ply;
 mod segy;
 mod shapefile;
 

@@ -1,6 +1,6 @@
 # mesh files
 
-`read_mesh` and `write_mesh` handle OBJ, STL (binary or ASCII) and DXF, chosen by the file extension.
+`read_mesh` and `write_mesh` handle OBJ, STL and PLY (binary or ASCII), OFF and DXF, chosen by the file extension.
 `Mesh.validate` reports what keeps a mesh from being a solid, and `Mesh.repair` and `Mesh.fill_holes` fix what
 they can. you read the four gold veins of the grade-control dataset from their STL files, write them back in each
 format, break one into loose triangles and repair it, then take a small solid apart problem by problem.
@@ -71,15 +71,19 @@ save(fig, "veins")
 each format round-trips the vein. binary STL stores single precision, so vertices can move by a fraction of a
 millimeter at mine coordinates. these files were written in single precision and come back unchanged. DXF
 writes one 3D face per triangle, or with `dxf_entity="polyface"` polyface meshes that share vertices. both read
-back with a `layer` column per triangle.
+back with a `layer` column per triangle. PLY keeps numeric vertex and face columns, here the elevation of each
+vertex; OFF keeps only the geometry.
 
 <details><summary>Python</summary>
 
 ```python
-v1 = veins["V1"]
+v1 = veins["V1"].with_vertex_column("elevation", veins["V1"].coords[:, 2])
 files = {
     "v1.stl": {},
     "v1_ascii.stl": {"ascii": True},
+    "v1.ply": {},
+    "v1_ascii.ply": {"ascii": True},
+    "v1.off": {},
     "v1.obj": {},
     "v1.dxf": {},
     "v1_polyface.dxf": {"dxf_entity": "polyface"},
@@ -92,7 +96,8 @@ with tempfile.TemporaryDirectory() as folder:
         shift = np.abs(back.coords[back.triangles] - v1.coords[v1.triangles]).max()
         print(
             f"{file:>15}: {path.stat().st_size / 1e6:5.1f} MB, {len(back.triangles)} triangles,"
-            f" {back.volume:,.0f} m3, largest shift {shift * 1000:.3f} mm, columns {back.face_attributes.column_names}"
+            f" {back.volume:,.0f} m3, largest shift {shift * 1000:.3f} mm,"
+            f" columns {back.vertex_attributes.column_names + back.face_attributes.column_names}"
         )
 ```
 
@@ -101,6 +106,9 @@ with tempfile.TemporaryDirectory() as folder:
 ```text
          v1.stl:   2.7 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
    v1_ascii.stl:   9.8 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
+         v1.ply:   1.6 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation']
+   v1_ascii.ply:   2.8 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation']
+         v1.off:   2.3 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
          v1.obj:   2.4 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
          v1.dxf:  18.5 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['layer']
 v1_polyface.dxf:  12.1 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['layer']

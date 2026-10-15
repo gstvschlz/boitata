@@ -15,7 +15,7 @@ the kind of object sets the format. parameters fit in a short JSON string; colum
 | containers: `PointSet`, `BlockModel`, `Polylines`, `Table` | parquet | `bt.write_parquet(path, data)` | `bt.read_parquet(path)` |
 | fitted estimators and simulators: `OrdinaryKriging`, `SGS`, …, `ImplicitModel`, `LocalAnisotropy` | parquet | `obj.to_parquet(path)` | `OrdinaryKriging.from_parquet(path)` |
 | results: `SimulationSummary`, `CategoricalIndicatorSummary`, … | parquet | `obj.to_parquet(path)` | `SimulationSummary.from_parquet(path)` |
-| `Mesh` | OBJ, STL, DXF | `bt.write_mesh(path, mesh)` | `bt.read_mesh(path)` |
+| `Mesh` | OBJ, STL, PLY, OFF, DXF | `bt.write_mesh(path, mesh)` | `bt.read_mesh(path)` |
 
 </div>
 
@@ -104,4 +104,4 @@ True
 !!! pitfall "pitfall"
     `write_csv` keeps the block centers and the columns and drops block size, rotation, CRS and layout. use CSV to hand data to someone else, and parquet to keep your own work.
 
-the first-steps examples rerun [a saved five-piece workflow](../examples/01-first-steps/03-saving-and-loading/example_01_03.md) to the same estimate and [store masked models, fitted estimators, categorical results and polylines in parquet](../examples/01-first-steps/04-parquet/example_01_04.md). [models larger than memory](../examples/02-data-and-geometry/10-large-models/example_02_10.md) processes a parquet block model chunk by chunk, and [mesh files](../examples/02-data-and-geometry/07-mesh-files/example_02_07.md) covers OBJ, STL and DXF.
+the first-steps examples rerun [a saved five-piece workflow](../examples/01-first-steps/03-saving-and-loading/example_01_03.md) to the same estimate and [store masked models, fitted estimators, categorical results and polylines in parquet](../examples/01-first-steps/04-parquet/example_01_04.md). [models larger than memory](../examples/02-data-and-geometry/10-large-models/example_02_10.md) processes a parquet block model chunk by chunk, and [mesh files](../examples/02-data-and-geometry/07-mesh-files/example_02_07.md) covers OBJ, STL, PLY, OFF and DXF.
