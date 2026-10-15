@@ -43,7 +43,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 26 | [local mine grid](02-data-and-geometry/26-local-grid/README.md) | Synthetic | `LocalGrid`, `BlockModel`, `Drillholes` |
 | 27 | [coordinate reference systems](02-data-and-geometry/27-coordinate-systems/README.md) | Synthetic | `Polylines`, `PointSet`, `BlockModel`, `InvalidInput` |
 | 28 | [GeoJSON](02-data-and-geometry/28-geojson/README.md) | Synthetic | `PointSet`, `Polylines`, `write_geojson`, `read_geojson` |
-| 29 | [VTK files](02-data-and-geometry/29-vtk-files/README.md) | Vein gold grade control | `read_mesh`, `PointSet`, `write_vtk`, `read_vtk` |
+| 29 | [VTK files](02-data-and-geometry/29-vtk-files/README.md) | Vein gold grade control | `read_mesh`, `PointSet`, `write_vtk`, `read_vtk`, `BlockModel` |
 
 ## exploratory analysis
 
