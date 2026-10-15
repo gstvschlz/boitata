@@ -314,6 +314,31 @@ def test_geotiff_round_trip(tmp_path):
         bt.write_geotiff(tmp_path / "clash.tif", turned, nodata=5.0)
 
 
+def test_jpeg_round_trip(tmp_path):
+    x, y = np.meshgrid(np.arange(32), np.arange(16))
+    gray = np.round(127.5 + 100 * np.sin(x.ravel() / 5) * np.cos(y.ravel() / 4))
+    photo = bt.BlockModel(
+        origin=(500000.0, 7000000.0),
+        size=(0.5, 0.5),
+        count=(32, 16),
+        rotation=(30, 0, 0),
+        attributes={"r": gray, "g": 255 - gray, "b": np.full(512, 128.0)},
+        crs="EPSG:31982",
+    )
+    bt.write_jpeg(tmp_path / "photo.jpg", photo, quality=100)
+    assert (tmp_path / "photo.jgw").exists()
+    back = bt.read_jpeg(tmp_path / "photo.jpg")
+    np.testing.assert_allclose(back.coords, photo.coords)
+    assert back.crs == photo.crs
+    np.testing.assert_allclose(back["band_1"], photo["r"], atol=3)
+    np.testing.assert_allclose(back["band_3"], photo["b"], atol=3)
+
+    with pytest.raises(bt.InvalidInput):
+        bt.write_jpeg(tmp_path / "bad.jpg", photo.with_column("r", gray + 0.5))
+    with pytest.raises(bt.InvalidInput):
+        bt.read_jpeg(tmp_path / "missing.jpg")
+
+
 def test_segy_round_trip(tmp_path):
     amplitude = np.arange(60, dtype=np.float32) - 20
     amplitude[[4, 31]] = np.nan

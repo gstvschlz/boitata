@@ -7,6 +7,7 @@ mod geojson;
 mod geopackage;
 mod geotiff;
 mod gslib;
+mod jpeg;
 mod mesh;
 mod parquet;
 mod ply;
@@ -20,6 +21,7 @@ pub use geojson::{read_geojson, write_geojson, write_polylines_geojson};
 pub use geopackage::{Geometry, decode_geometry, encode_parts, encode_point};
 pub use geotiff::{read_geotiff, write_geotiff};
 pub use gslib::{read_gslib, write_gslib};
+pub use jpeg::{read_jpeg, write_jpeg};
 pub use mesh::{DxfEntity, read_mesh, write_mesh};
 pub use parquet::{
     BlockChunks, BlockModelReader, BlockModelWriter, FileLayout, Stored, read_model, read_parquet,

@@ -585,6 +585,63 @@ fn write_geotiff(path: PathBuf, model: PyRef<PyBlockModel>, nodata: f64) -> PyRe
     boitata_io::write_geotiff(path, &model.0, nodata).map_err(io_error)
 }
 
+/// Reads a georeferenced JPEG as a 2D BlockModel.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     A `.jpg` or `.jpeg` with a world file of the same stem (`.jgw`, else
+///     `.wld`) and optionally a `<path>.aux.xml` sidecar holding the CRS.
+///
+/// Returns
+/// -------
+/// BlockModel
+///     A regular grid with nz = 1: one float64 column `band_1` for grayscale,
+///     `band_1` to `band_3` (red, green, blue) otherwise, values 0 to 255 and
+///     never null. The world file gives the pixel size, the rotation (as
+///     azimuth) and the center of the top-left pixel; the sidecar's `SRS` is
+///     the CRS.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     Without a world file, or for skewed or mirrored world files.
+#[pyfunction]
+#[pyo3(signature = (path, *, length_unit=None))]
+fn read_jpeg(path: PathBuf, length_unit: Option<String>) -> PyResult<PyBlockModel> {
+    let mut model = boitata_io::read_jpeg(path).map_err(io_error)?;
+    model.length_unit = crate::table::length_unit(length_unit)?;
+    Ok(PyBlockModel(model))
+}
+
+/// Writes a 2D BlockModel as a JPEG with a `.jgw` world file.
+///
+/// JPEG is lossy and 8-bit: values come back close to, not equal to, what was
+/// written, even at `quality=100`. Scale or classify data to 0-255 first.
+///
+/// Parameters
+/// ----------
+/// path : str or Path
+///     The `.jpg` file; the world file and sidecar go next to it.
+/// model : BlockModel
+///     A regular grid with nz = 1, rotated by azimuth only, with one column
+///     (grayscale) or three (red, green, blue) of whole numbers from 0 to 255
+///     and no nulls. A CRS goes to the `SRS` of a `<path>.aux.xml` sidecar,
+///     which is removed when the model has none.
+/// quality : int, default 95
+///     JPEG quality from 1 to 100. Chroma is never subsampled.
+///
+/// Raises
+/// ------
+/// InvalidInput
+///     For nulls, masked, sub-blocked or 3D models, dip or rake rotations,
+///     values outside 0-255 or with a fraction, and other column counts.
+#[pyfunction]
+#[pyo3(signature = (path, model, *, quality=95))]
+fn write_jpeg(path: PathBuf, model: PyRef<PyBlockModel>, quality: u8) -> PyResult<()> {
+    boitata_io::write_jpeg(path, &model.0, quality).map_err(io_error)
+}
+
 /// Reads a post-stack SEG-Y cube as a 3D BlockModel.
 ///
 /// Parameters
@@ -832,6 +889,8 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(_encode_geometries, m)?)?;
     m.add_function(wrap_pyfunction!(read_geotiff, m)?)?;
     m.add_function(wrap_pyfunction!(write_geotiff, m)?)?;
+    m.add_function(wrap_pyfunction!(read_jpeg, m)?)?;
+    m.add_function(wrap_pyfunction!(write_jpeg, m)?)?;
     m.add_function(wrap_pyfunction!(read_segy, m)?)?;
     m.add_function(wrap_pyfunction!(write_segy, m)?)?;
     Ok(())

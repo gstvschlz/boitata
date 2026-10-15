@@ -1,6 +1,7 @@
-# shapefiles, geopackage and GeoTIFF
+# shapefiles, geopackage, GeoTIFF and JPEG
 
-GIS software exchanges points, lines and polygons as shapefiles or geopackages, and rasters as GeoTIFF.
+GIS software exchanges points, lines and polygons as shapefiles or geopackages, and rasters as GeoTIFF or
+georeferenced JPEG.
 `write_shapefile`, `write_geopackage` and `write_geotiff` write a `PointSet`, `Polylines` or 2D `BlockModel` with
 its CRS. `read_shapefile`, `read_geopackage` and `read_geotiff` return the same container.
 
@@ -200,5 +201,60 @@ save(fig, "gis")
 </details>
 
 ![gis](gis.png)
+
+## JPEG
+
+a georeferenced JPEG is an 8-bit image with a `.jgw` world file (pixel size, rotation and the center of the
+top-left pixel) and an `.aux.xml` sidecar holding the CRS. `write_jpeg` takes one column (gray) or three (red,
+green, blue) of whole numbers from 0 to 255 with no nulls, so the magnetics are scaled to that range first. JPEG is
+lossy: even at `quality=100` some levels change. `read_jpeg` names the bands `band_1`, `band_2`, ...
+
+<details><summary>Python</summary>
+
+```python
+mag = covariates["MAG_NT"]
+gray = bt.BlockModel(
+    covariates.origin,
+    covariates.size,
+    covariates.count,
+    attributes={"MAG": np.round(255 * (mag - mag.min()) / (mag.max() - mag.min()))},
+    crs="local survey grid",
+)
+bt.write_jpeg(folder / "magnetics.jpg", gray, quality=100)
+photo = bt.read_jpeg(folder / "magnetics.jpg")
+print(photo)
+print(sorted(p.name for p in folder.glob("magnetics.*")))
+error = np.abs(photo["band_1"] - gray["MAG"])
+print(
+    f"same origin: {photo.origin == gray.origin} | CRS: {photo.crs} | largest change: {error.max():.0f} levels"
+)
+```
+
+</details>
+
+```text
+BlockModel(regular, 9600 of 9600 cells, count [120, 80, 1], size [50.0, 50.0, 1.0], rotation [0.0, 0.0, 0.0])
+  band_1: Float64
+['magnetics.jgw', 'magnetics.jpg', 'magnetics.jpg.aux.xml']
+same origin: True | CRS: local survey grid | largest change: 1 levels
+```
+
+<details><summary>Python</summary>
+
+```python
+fig, (left, right) = plt.subplots(1, 2, figsize=(10, 4.2), layout="constrained")
+image = left.imshow(photo.grid("band_1")[0], origin="lower", extent=(x0, x1, y0, y1), cmap="gray")
+fig.colorbar(image, ax=left, shrink=0.8, label="level")
+map_axes(left, "JPEG magnetics")
+change = np.abs(photo.grid("band_1")[0] - gray.grid("MAG")[0])
+image = right.imshow(change, origin="lower", extent=(x0, x1, y0, y1), cmap="cividis")
+fig.colorbar(image, ax=right, shrink=0.8, label="levels")
+map_axes(right, "change after the JPEG round trip")
+save(fig, "jpeg")
+```
+
+</details>
+
+![jpeg](jpeg.png)
 
 Full script: [`example_02_09.py`](example_02_09.py)
