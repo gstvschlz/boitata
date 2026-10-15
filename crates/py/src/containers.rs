@@ -142,6 +142,32 @@ impl PyPointSet {
         self.0.length_unit.clone()
     }
 
+    /// A copy in the CRS `target`, an EPSG code such as ``EPSG:4326``.
+    ///
+    /// Geographic and UTM CRSs on WGS 84, SIRGAS 2000, SAD69, NAD83, ETRS89 and
+    /// GDA2020 are supported, with datum changes by the published EPSG
+    /// 7-parameter Helmert transformations. Geographic coordinates are
+    /// longitude and latitude in degrees, projected ones are in metres; heights
+    /// are kept.
+    ///
+    /// Parameters
+    /// ----------
+    /// target : str
+    ///     The CRS to convert to, ``EPSG:n``.
+    ///
+    /// Returns
+    /// -------
+    /// PointSet
+    ///     The points in `target`.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a CRS, or with a CRS outside the supported set.
+    fn to_crs(&self, target: &str) -> PyResult<Self> {
+        Ok(Self(self.0.to_crs(target).map_err(invalid)?))
+    }
+
     /// A copy with the coordinates converted to `unit`, the new length unit.
     ///
     /// Parameters
@@ -452,6 +478,32 @@ impl PyPolylines {
     #[getter]
     fn length_unit(&self) -> Option<String> {
         self.0.length_unit.clone()
+    }
+
+    /// A copy in the CRS `target`, an EPSG code such as ``EPSG:4326``.
+    ///
+    /// Geographic and UTM CRSs on WGS 84, SIRGAS 2000, SAD69, NAD83, ETRS89 and
+    /// GDA2020 are supported, with datum changes by the published EPSG
+    /// 7-parameter Helmert transformations. Geographic coordinates are
+    /// longitude and latitude in degrees, projected ones are in metres; heights
+    /// are kept.
+    ///
+    /// Parameters
+    /// ----------
+    /// target : str
+    ///     The CRS to convert to, ``EPSG:n``.
+    ///
+    /// Returns
+    /// -------
+    /// Polylines
+    ///     The lines in `target`.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a CRS, or with a CRS outside the supported set.
+    fn to_crs(&self, target: &str) -> PyResult<Self> {
+        Ok(Self(self.0.to_crs(target).map_err(invalid)?))
     }
 
     /// A copy with the coordinates converted to `unit`, the new length unit.
@@ -819,6 +871,36 @@ impl PyBlockModel {
     #[getter]
     fn length_unit(&self) -> Option<String> {
         self.0.length_unit.clone()
+    }
+
+    /// A copy in the CRS `target`, an EPSG code such as ``EPSG:4326``.
+    ///
+    /// Geographic and UTM CRSs on WGS 84, SIRGAS 2000, SAD69, NAD83, ETRS89 and
+    /// GDA2020 are supported, with datum changes by the published EPSG
+    /// 7-parameter Helmert transformations. Geographic coordinates are
+    /// longitude and latitude in degrees, projected ones are in metres; heights
+    /// are kept.
+    ///
+    /// Parameters
+    /// ----------
+    /// target : str
+    ///     The CRS to convert to, ``EPSG:n``.
+    ///
+    /// Returns
+    /// -------
+    /// BlockModel or PointSet
+    ///     The model when its coordinates do not move (same projection, null
+    ///     datum change), else its centroids with the attributes.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     Without a CRS, or with a CRS outside the supported set.
+    fn to_crs(&self, py: Python<'_>, target: &str) -> PyResult<Py<PyAny>> {
+        Ok(match self.0.to_crs(target).map_err(invalid)? {
+            boitata_core::Reprojected::Blocks(m) => Py::new(py, Self(m))?.into_any(),
+            boitata_core::Reprojected::Points(p) => Py::new(py, PyPointSet(p))?.into_any(),
+        })
     }
 
     /// A copy with the coordinates converted to `unit`, the new length unit.

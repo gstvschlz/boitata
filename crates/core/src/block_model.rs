@@ -213,7 +213,33 @@ pub struct BlockModel {
     pub length_unit: Option<String>,
 }
 
+/// What [`BlockModel::to_crs`] gives.
+#[derive(Debug, Clone)]
+pub enum Reprojected {
+    /// The model, when its coordinates stay as they are.
+    Blocks(BlockModel),
+    /// Its centroids with the attributes, when the change moves them off the grid.
+    Points(crate::PointSet),
+}
+
 impl BlockModel {
+    /// The model in `target`, an EPSG CRS (see [`crate::crs`]): the model
+    /// itself when the coordinates do not move, else its centroids.
+    pub fn to_crs(&self, target: &str) -> Result<Reprojected> {
+        if let Some(crs) = &self.crs {
+            let transform = crate::crs::Transform::new(crs, target)?;
+            if !transform.moves() {
+                let mut out = self.clone();
+                out.crs = Some(transform.target());
+                return Ok(Reprojected::Blocks(out));
+            }
+        }
+        let mut points = crate::PointSet::new(self.centroids(), self.attributes.clone())?;
+        points.crs.clone_from(&self.crs);
+        points.length_unit.clone_from(&self.length_unit);
+        Ok(Reprojected::Points(points.to_crs(target)?))
+    }
+
     /// The model with coordinates converted to `unit`, which becomes the length
     /// unit; `crs` names their CRS, required when they had one.
     pub fn to_length_unit(&self, unit: &str, crs: Option<String>) -> Result<Self> {

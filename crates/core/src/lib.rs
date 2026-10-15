@@ -2,6 +2,7 @@
 
 mod block_model;
 mod categories;
+pub mod crs;
 mod error;
 mod local_grid;
 mod mesh;
@@ -13,7 +14,7 @@ mod rotation;
 pub mod units;
 
 pub use arrow_array::RecordBatch;
-pub use block_model::{BlockModel, Geometry, Layout};
+pub use block_model::{BlockModel, Geometry, Layout, Reprojected};
 pub use categories::Categories;
 pub use error::{Error, Result};
 pub use local_grid::LocalGrid;

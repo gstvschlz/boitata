@@ -37,6 +37,20 @@ impl PointSet {
         out
     }
 
+    /// The points in `target`, an EPSG CRS (see [`crate::crs`]).
+    pub fn to_crs(&self, target: &str) -> Result<Self> {
+        let mut out = self.clone();
+        let (crs, unit) = crate::crs::reproject(
+            self.crs.as_deref(),
+            self.length_unit.as_deref(),
+            target,
+            &mut out.coords,
+        )?;
+        out.crs = Some(crs);
+        out.length_unit = unit;
+        Ok(out)
+    }
+
     pub fn new(coords: Vec<[f64; 3]>, attributes: RecordBatch) -> Result<Self> {
         check_rows(coords.len(), &attributes)?;
         Ok(Self {
