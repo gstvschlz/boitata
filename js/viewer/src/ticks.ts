@@ -45,3 +45,19 @@ export function formatTicks(ticks: number[]): string[] {
   const step = ticks.length > 1 ? ticks[1] - ticks[0] : Math.abs(ticks[0] ?? 1) || 1;
   return ticks.map((t) => formatTick(t, step));
 }
+
+/** Ticks of a log scale over `[lo, hi]`, both above 0: the decades, with 2 and 5 times them when it spans fewer than two. */
+export function logTicks(lo: number, hi: number): number[] {
+  if (!(lo > 0) || !(hi > lo)) return [];
+  const steps = Math.log10(hi / lo) < 2 ? [1, 2, 5] : [1];
+  const out: number[] = [];
+  for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++)
+    for (const f of steps) {
+      const t = Number((f * 10 ** e).toPrecision(12));
+      if (t >= lo * (1 - 1e-9) && t <= hi * (1 + 1e-9)) out.push(t);
+    }
+  return out;
+}
+
+/** A tick of a log scale: its value to three significant digits. */
+export const formatLogTick = (value: number): string => String(Number(value.toPrecision(3)));

@@ -53,6 +53,12 @@ export interface VariableSpec {
   cmap?: string | null;
   clim?: [number, number] | null;
   label?: string | null;
+  /** Log scale: values at or below 0 fall below the range. */
+  log?: boolean | null;
+  /** Cutoffs, ascending, that step the colors into classes. */
+  bins?: number[] | null;
+  /** Run the colormap from its high end down. */
+  reverse?: boolean | null;
 }
 
 export interface SceneSpec {

@@ -6,7 +6,7 @@ import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeome
 import { Axes } from "./axes";
 import { blocksBox, type Box, diagonal, lerpBox, maskedBox, triangleMask, union, visibleBox, type Vec3 } from "./bounds";
 import { f32, i32, u32 } from "./buffers";
-import { categoryColor, COLORMAPS, cssToRgb, DEFAULT_COLORMAP, lut, type RGB, rgbToHex } from "./color";
+import { categoryColor, COLORMAPS, cssToRgb, DEFAULT_COLORMAP, lut, parseCutoffs, type RGB, rgbToHex } from "./color";
 import { colorBarSvg } from "./colorbar";
 import { Gizmo, type Snap } from "./gizmo";
 import { hostIsDark, watchHost } from "./host";
@@ -30,6 +30,7 @@ import {
   formatBound,
   fromState,
   histogram,
+  percentileRange,
   LayerFilter,
   openCondition,
   passMask,
@@ -60,7 +61,7 @@ import { HALO_ORDER, shared } from "./shaders";
 import { CSS } from "./styles";
 import { resolveTheme, type Theme, type ThemeSpec, themeBase, withBase } from "./theme";
 import { formatRange } from "./ticks";
-import type { Buffers, ColumnSpec, Kind, LayerSpec, SceneSpec } from "./types";
+import type { Buffers, ColumnSpec, Kind, LayerSpec, SceneSpec, VariableSpec } from "./types";
 
 const KINDS: [Kind, string][] = [
   ["drillholes", "Drill holes"],
@@ -117,7 +118,19 @@ interface Variable {
   cmap: string;
   clim: [number, number] | null;
   label: string | null;
+  log: boolean;
+  bins: number[] | null;
+  reverse: boolean;
 }
+
+const newVariable = (v: VariableSpec = {}): Variable => ({
+  cmap: v.cmap ?? DEFAULT_COLORMAP,
+  clim: v.clim ?? null,
+  label: v.label ?? null,
+  log: !!v.log,
+  bins: v.bins?.length ? [...v.bins].sort((a, b) => a - b) : null,
+  reverse: !!v.reverse,
+});
 
 /** A picked element as Python reads it: real-world position, values by column, null for nulls. */
 export interface PickState {
@@ -140,7 +153,7 @@ export interface ViewState {
   panel: boolean;
   show: { box: boolean; grid: boolean; ticks: boolean; gizmo: boolean; edl: boolean };
   layers: Record<string, { visible: boolean; representation: string; values: string | null; color: string | null; opacity: number }>;
-  variables: Record<string, { cmap: string; clim: [number, number] | null }>;
+  variables: Record<string, { cmap: string; clim: [number, number] | null; log: boolean; bins: number[] | null; reverse: boolean }>;
 }
 
 export interface MountOptions {
@@ -337,7 +350,7 @@ export class Viewer {
     });
     this.surfaceBias = surfaceBias(spec.layers, buffers);
     for (const [name, v] of Object.entries(spec.variables)) {
-      this.variables.set(name, { cmap: v.cmap ?? DEFAULT_COLORMAP, clim: v.clim ?? null, label: v.label ?? null });
+      this.variables.set(name, newVariable(v));
     }
     for (const [name, v] of Object.entries(state?.variables ?? {})) Object.assign(this.variable(name), v);
 
@@ -481,7 +494,8 @@ export class Viewer {
         opacity: l.opacity,
       };
     const variables: ViewState["variables"] = {};
-    for (const [name, v] of this.variables) variables[name] = { cmap: v.cmap, clim: v.clim };
+    for (const [name, v] of this.variables)
+      variables[name] = { cmap: v.cmap, clim: v.clim, log: v.log, bins: v.bins, reverse: v.reverse };
     return {
       size: [this.width, this.height],
       camera: {
@@ -642,7 +656,7 @@ export class Viewer {
   private variable(name: string): Variable {
     let v = this.variables.get(name);
     if (!v) {
-      v = { cmap: DEFAULT_COLORMAP, clim: null, label: null };
+      v = newVariable();
       this.variables.set(name, v);
     }
     return v;
@@ -661,7 +675,7 @@ export class Viewer {
       }
     if (v.clim) [lo, hi] = v.clim;
     const { categories, colors } = reconcileCategories(textColumns);
-    return { cmap: v.cmap, lo, hi, categories, colors };
+    return { cmap: v.cmap, lo, hi, categories, colors, log: v.log, bins: v.bins, reverse: v.reverse };
   }
 
   private solid(layer: Layer): RGB {
@@ -1033,6 +1047,29 @@ export class Viewer {
     return key;
   }
 
+  /** Sets a variable's range to the 2nd and 98th percentiles of the values of every layer it colors. */
+  private autoRange(name: string): void {
+    const parts = this.layers.filter((l) => l.column?.name === name).map((l) => this.columnData(l, l.column!));
+    const all = new Float32Array(parts.reduce((n, p) => n + p.length, 0));
+    parts.reduce((at, p) => (all.set(p, at), at + p.length), 0);
+    const range = percentileRange(all);
+    if (range && range[1] > range[0]) this.variable(name).clim = range;
+    this.refresh(new Set([name]));
+  }
+
+  private percentileButton(name: string): HTMLButtonElement {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "btv-chip";
+    b.textContent = "p2–p98";
+    b.title = "Range from the 2nd to the 98th percentile";
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.autoRange(name);
+    });
+    return b;
+  }
+
   private layerRow(layer: Layer): HTMLElement[] {
     const row = document.createElement("div");
     row.className = "btv-row";
@@ -1115,7 +1152,43 @@ export class Viewer {
         v.cmap = cmap.value;
         this.refresh(new Set([c.name]));
       });
-      field("Colormap", cmap);
+      const reverse = document.createElement("label");
+      reverse.className = "btv-check";
+      const flip = document.createElement("input");
+      flip.type = "checkbox";
+      flip.checked = v.reverse;
+      flip.addEventListener("change", () => {
+        v.reverse = flip.checked;
+        this.refresh(new Set([c.name]));
+      });
+      reverse.append(flip, "reversed");
+      const maps = document.createElement("div");
+      maps.className = "btv-range";
+      maps.append(cmap, reverse);
+      field("Colormap", maps);
+      const scaleKind = segmented(
+        [
+          { value: "linear", text: "Linear", title: "Linear color scale" },
+          { value: "log", text: "Log", title: "Log color scale; values at or below 0 fall below the range" },
+        ],
+        v.log ? "log" : "linear",
+        (value) => {
+          v.log = value === "log";
+          this.refresh(new Set([c.name]));
+        },
+      );
+      scaleKind.setAttribute("aria-label", "Color scale");
+      field("Scale", scaleKind);
+      const bins = document.createElement("input");
+      bins.type = "text";
+      bins.placeholder = "e.g. 0.3, 0.5, 1";
+      bins.title = "Cutoffs that step the colors into classes; empty for a continuous scale";
+      bins.value = v.bins?.join(", ") ?? "";
+      bins.addEventListener("change", () => {
+        v.bins = parseCutoffs(bins.value);
+        this.refresh(new Set([c.name]));
+      });
+      field("Bins", bins);
       const s = this.scale(c.name);
       const range = document.createElement("div");
       range.className = "btv-range";
@@ -1142,7 +1215,7 @@ export class Viewer {
         v.clim = this.spec.variables[c.name]?.clim ?? null;
         this.refresh(new Set([c.name]));
       });
-      range.append(lo, hi, reset);
+      range.append(lo, hi, this.percentileButton(c.name), reset);
       field("Range", range);
     }
 
@@ -1430,17 +1503,47 @@ export class Viewer {
           cmap: s.cmap,
           lo: s.lo,
           hi: s.hi,
+          log: s.log,
+          bins: s.bins,
+          reverse: s.reverse,
           categories: text ? s.categories : null,
           colors: text ? s.colors : null,
         },
         this.theme,
         `btv-${this.uid}-${i}`,
       );
+      if (!text) el.appendChild(this.barRange(name));
     });
+  }
+
+  /** The range of a color bar's variable, editable in place, with the percentile auto-range. */
+  private barRange(name: string): HTMLElement {
+    const box = document.createElement("div");
+    box.className = "btv-bar-edit";
+    const s = this.scale(name);
+    const v = this.variable(name);
+    const [loText, hiText] = formatRange(s.lo, s.hi);
+    const ends = [loText, hiText].map((text, k) => {
+      const el = document.createElement("input");
+      el.type = "number";
+      el.step = "any";
+      el.value = text;
+      el.setAttribute("aria-label", k ? "Maximum of the color range" : "Minimum of the color range");
+      return el;
+    });
+    const apply = () => {
+      const [a, b] = ends.map((el) => Number(el.value));
+      if (Number.isFinite(a) && Number.isFinite(b) && b > a) v.clim = [a, b];
+      this.refresh(new Set([name]));
+    };
+    ends.forEach((el) => el.addEventListener("change", apply));
+    box.append(ends[0], this.percentileButton(name), ends[1]);
+    return box;
   }
 
   private draggable(el: HTMLDivElement): void {
     el.addEventListener("pointerdown", (e) => {
+      if ((e.target as HTMLElement).closest("input, button")) return;
       e.preventDefault();
       el.setPointerCapture(e.pointerId);
       const root = this.root.getBoundingClientRect();

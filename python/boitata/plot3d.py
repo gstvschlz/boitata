@@ -545,6 +545,9 @@ class Scene:
         contour_step=None,
         scheme=None,
         radius_by=None,
+        log=None,
+        bins=None,
+        reverse=None,
     ):
         """Adds a layer.
 
@@ -615,6 +618,15 @@ class Scene:
             Order and colors of a text `values`: the legend and the layer's colors follow `scheme.names` and
             `scheme.colors` instead of the column's own sorted categories and the built-in palette. Values not
             in the scheme are not drawn, unless it has an `other` bucket. Describes `values`; pass values too.
+        log : bool, optional
+            Log color scale of `values` for every layer it colors: values at or below 0 fall below the range and
+            take its low end's color, and the color bar ticks at decades. Default linear.
+        bins : sequence of float, optional
+            Cutoffs of `values` that step its colors into classes (below the first, between two, from the last
+            up), each the colormap's color at the middle of its class, with a binned legend; for every layer it
+            colors. For example ``[0.3, 0.5, 1.0]``.
+        reverse : bool, optional
+            Runs the colormap of `values` from its high end down, for every layer it colors.
         radius_by : str, optional
             Numeric column of drill holes that scales each interval's tube: its range maps from a third of
             `radius` to all of it, nulls the thinnest. The column is sent to the viewer.
@@ -659,8 +671,20 @@ class Scene:
             or label is not None
             or contour_step is not None
             or scheme is not None
+            or log is not None
+            or bins is not None
+            or reverse is not None
         ):
-            raise ValueError("cmap, clim, label, contour_step and scheme describe `values`; pass values too")
+            raise ValueError(
+                "cmap, clim, label, contour_step, scheme, log, bins and reverse describe `values`; pass values too"
+            )
+        for key, flag in (("log", log), ("reverse", reverse)):
+            if flag is not None and not isinstance(flag, bool):
+                raise TypeError(f"{key} must be a bool, got {flag!r}")
+        if bins is not None:
+            bins = sorted({float(b) for b in bins})
+            if not bins or not all(math.isfinite(b) for b in bins):
+                raise ValueError("bins must be one or more finite cutoffs")
         if scheme is not None and not isinstance(scheme, Categories):
             raise TypeError(f"scheme must be a Categories, got {type(scheme).__name__}")
         available = [n for table in tables.values() for n in _names(table)]
@@ -761,7 +785,18 @@ class Scene:
         if values is not None:
             variable = self._variables.setdefault(values, {})
             variable.update(
-                {k: v for k, v in (("cmap", cmap), ("clim", clim), ("label", label)) if v is not None}
+                {
+                    k: v
+                    for k, v in (
+                        ("cmap", cmap),
+                        ("clim", clim),
+                        ("label", label),
+                        ("log", log),
+                        ("bins", bins),
+                        ("reverse", reverse),
+                    )
+                    if v is not None
+                }
             )
         self._layers.append(layer)
         self._buffers.update({k: np.ascontiguousarray(v).tobytes() for k, v in buffers.items()})

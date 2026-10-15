@@ -247,6 +247,23 @@ def test_representation_is_validated_per_kind(data, valid):
         Scene().add(data, representation="tubes")
 
 
+def test_log_bins_and_reverse_describe_the_variable():
+    points = bt.PointSet(rng.uniform(0, 1, (4, 3)), {"cu": [0.1, 1.0, 10.0, 100.0]})
+    scene = Scene().add(points, "cu", log=True, bins=[1.0, 0.3, 0.5, 1.0], reverse=True, cmap="magma")
+    assert scene._spec()["variables"]["cu"] == {
+        "cmap": "magma",
+        "log": True,
+        "bins": [0.3, 0.5, 1.0],
+        "reverse": True,
+    }
+    with pytest.raises(ValueError, match="pass values too"):
+        Scene().add(points, log=True)
+    with pytest.raises(TypeError, match="log must be a bool"):
+        Scene().add(points, "cu", log="yes")
+    with pytest.raises(ValueError, match="finite cutoffs"):
+        Scene().add(points, "cu", bins=[np.nan])
+
+
 def test_radius_by_names_a_drill_hole_column_and_sends_it():
     collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}
     survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}

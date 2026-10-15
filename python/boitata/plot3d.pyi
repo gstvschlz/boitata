@@ -47,6 +47,9 @@ class Scene:
         contour_step: float | None = None,
         scheme: Categories | None = None,
         radius_by: str | None = None,
+        log: bool | None = None,
+        bins: Sequence[float] | None = None,
+        reverse: bool | None = None,
     ) -> Self: ...
     def view(self, *, azimuth: float = 45.0, dip: float = 30.0) -> Self: ...
     def section(self, points: Any | None, *, width: float | None = None, dip: float = 90.0) -> Self: ...

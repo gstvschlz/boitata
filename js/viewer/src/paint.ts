@@ -1,4 +1,4 @@
-import { categoryColor, hexToRgb, lut, lutIndex, type RGB } from "./color";
+import { categoryColor, hexToRgb, lut, type Mapping, mapIndex, type RGB } from "./color";
 import { meanOf, modeOf } from "./lod";
 import type { ColumnSpec } from "./types";
 
@@ -13,7 +13,7 @@ export interface Paint {
   colorOf?: (value: number, out: Uint8Array, at: number) => void;
 }
 
-export interface Scale {
+export interface Scale extends Mapping {
   cmap: string;
   lo: number;
   hi: number;
@@ -49,7 +49,7 @@ export function columnPaint(column: ColumnSpec, data: Float32Array | Int32Array,
   } else {
     const table = lut(scale.cmap);
     colorOf = (v, out, at) => {
-      const j = 3 * lutIndex(v, scale.lo, scale.hi);
+      const j = 3 * mapIndex(v, scale);
       out[at] = table[j];
       out[at + 1] = table[j + 1];
       out[at + 2] = table[j + 2];
