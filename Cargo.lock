@@ -1205,8 +1205,10 @@ name = "modeling"
 version = "0.5.0"
 dependencies = [
  "estimation",
+ "kiddo",
  "nalgebra",
  "rand 0.8.8",
+ "rayon",
  "thiserror",
  "variogram",
 ]

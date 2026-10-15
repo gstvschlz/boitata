@@ -13,7 +13,27 @@ def test_rbf_is_exact_at_data():
     np.testing.assert_allclose(model.predict(coords), distance, atol=1e-6)
     _, gradients = model.predict(coords[:5], gradient=True)
     assert gradients.shape == (5, 3)
-    assert model.report is None
+    assert model.report == {"solver": "dense", "patches": 1}
+
+
+def test_partition_of_unity_matches_the_dense_solve():
+    points = rng.uniform(0, 100, (2000, 3))
+    smooth = np.sin(points[:, 0] / 20) * np.cos(points[:, 1] / 30) + 0.01 * points[:, 2]
+    dense = bt.ImplicitModel(kernel="triharmonic").fit(points, smooth)
+    patched = bt.ImplicitModel(kernel="triharmonic", patch=300).fit(points, smooth)
+    assert dense.report["solver"] == "dense"
+    assert patched.report["solver"] == "partition of unity" and patched.report["patches"] > 8
+    np.testing.assert_allclose(patched.predict(points), smooth, atol=1e-6)
+    grid = np.stack(np.meshgrid(*[np.linspace(5, 95, 15)] * 3), -1).reshape(-1, 3)
+    reference = dense.predict(grid)
+    assert np.sqrt(np.mean((patched.predict(grid) - reference) ** 2)) < 1e-3 * reference.std()
+    _, gradients = patched.predict(grid[:3], gradient=True)
+    _, reference_gradients = dense.predict(grid[:3], gradient=True)
+    np.testing.assert_allclose(gradients, reference_gradients, rtol=0.05, atol=1e-3)
+    with pytest.raises(bt.InvalidInput, match="patch"):
+        bt.ImplicitModel(patch=3)
+    with pytest.raises(bt.InvalidInput, match="patch"):
+        bt.ImplicitModel("gp", patch=100)
 
 
 def test_cutoff_codes_grades():

@@ -8,9 +8,11 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+kiddo.workspace = true
 nalgebra.workspace = true
 thiserror.workspace = true
 rand.workspace = true
+rayon.workspace = true
 variogram.workspace = true
 estimation.workspace = true
 
