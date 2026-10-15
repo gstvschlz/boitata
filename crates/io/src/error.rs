@@ -22,6 +22,8 @@ pub enum Error {
     GeoJson(String),
     #[error("GeoTIFF: {0}")]
     GeoTiff(String),
+    #[error("JPEG: {0}")]
+    Jpeg(String),
     #[error("SEG-Y: {0}")]
     Segy(String),
     #[error("VTK: {0}")]

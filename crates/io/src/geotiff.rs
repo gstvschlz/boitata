@@ -165,31 +165,14 @@ pub fn read_geotiff(path: impl AsRef<Path>, nodata: Option<f64>) -> Result<Block
             ));
         }
     };
-    let world = |c: f64, r: f64| {
-        let (c, r) = (c - s - tie[0], r - s - tie[1]);
-        [0, 1].map(|a| tie[2 + a] + c * along[a] + r * down[a])
-    };
-    let (sx, sy) = (along[0].hypot(along[1]), down[0].hypot(down[1]));
-    let ux = [along[0] / sx, along[1] / sx];
-    let uy = [-ux[1], ux[0]];
-    let dot = |d: [f64; 2]| (uy[0] * d[0] + uy[1] * d[1]) / sy;
-    let north_up = if dot(down) < -1.0 + 1e-9 {
-        true
-    } else if dot(down) > 1.0 - 1e-9 {
-        false
-    } else {
-        return Err(bad("skewed or mirrored rasters are not supported"));
-    };
-    let origin = world(0.0, if north_up { h as f64 } else { 0.0 });
+    let corner = [0, 1].map(|a| tie[2 + a] - (s + tie[0]) * along[a] - (s + tie[1]) * down[a]);
+    let (origin, size, azimuth, north_up) = raster_geometry(along, down, corner, h)
+        .ok_or_else(|| bad("skewed or mirrored rasters are not supported"))?;
     let geometry = Geometry {
         origin: [origin[0], origin[1], z0],
-        size: [sx, sy, if dz > 0.0 { dz } else { 1.0 }],
+        size: [size[0], size[1], if dz > 0.0 { dz } else { 1.0 }],
         count: [w, h, 1],
-        rotation: [
-            uy[0].atan2(uy[1]).to_degrees().rem_euclid(360.0) + 0.0,
-            0.0,
-            0.0,
-        ],
+        rotation: [azimuth, 0.0, 0.0],
     };
 
     let names = band_names(&metadata, bands);
@@ -213,6 +196,43 @@ pub fn read_geotiff(path: impl AsRef<Path>, nodata: Option<f64>) -> Result<Block
     let mut model = BlockModel::regular(geometry, RecordBatch::try_from_iter(columns)?)?;
     model.crs = crs(&key, &ascii);
     Ok(model)
+}
+
+/// Grid origin, cell size, azimuth and whether rows run north to south, from the
+/// world offsets of one column (`along`) and one row (`down`) and the world
+/// position of the outer corner of pixel (0, 0). `None` for skewed or mirrored
+/// rasters.
+pub(crate) fn raster_geometry(
+    along: [f64; 2],
+    down: [f64; 2],
+    corner: [f64; 2],
+    h: usize,
+) -> Option<([f64; 2], [f64; 2], f64, bool)> {
+    let (sx, sy) = (along[0].hypot(along[1]), down[0].hypot(down[1]));
+    let ux = [along[0] / sx, along[1] / sx];
+    let uy = [-ux[1], ux[0]];
+    let dot = (uy[0] * down[0] + uy[1] * down[1]) / sy;
+    let north_up = if dot < -1.0 + 1e-9 {
+        true
+    } else if dot > 1.0 - 1e-9 {
+        false
+    } else {
+        return None;
+    };
+    let r = if north_up { h as f64 } else { 0.0 };
+    let origin = [0, 1].map(|a| corner[a] + r * down[a]);
+    let azimuth = uy[0].atan2(uy[1]).to_degrees().rem_euclid(360.0) + 0.0;
+    Some((origin, [sx, sy], azimuth, north_up))
+}
+
+/// The inverse of [`raster_geometry`] for north-up rows: column and row offsets
+/// and the world position of the top-left outer corner.
+pub(crate) fn raster_transform(g: &Geometry) -> ([f64; 2], [f64; 2], [f64; 2]) {
+    let (s, c) = g.rotation[0].to_radians().sin_cos();
+    let (ux, uy) = ([c, -s], [s, c]);
+    let ny = g.count[1] as f64;
+    let top = [0, 1].map(|a| g.origin[a] + ny * g.size[1] * uy[a]);
+    (ux.map(|u| g.size[0] * u), uy.map(|u| -g.size[1] * u), top)
 }
 
 fn crs(key: &dyn Fn(u16) -> Option<(u16, usize, u16)>, ascii: &str) -> Option<String> {
@@ -393,13 +413,11 @@ impl Tags {
                 vec![],
             )
         } else {
-            let (s, c) = g.rotation[0].to_radians().sin_cos();
-            let (ux, uy) = ([c, -s], [s, c]);
-            let top = [0, 1].map(|a| g.origin[a] + ny * g.size[1] * uy[a]);
+            let (along, down, top) = raster_transform(g);
             #[rustfmt::skip]
             let m = vec![
-                g.size[0] * ux[0], -g.size[1] * uy[0], 0.0, top[0],
-                g.size[0] * ux[1], -g.size[1] * uy[1], 0.0, top[1],
+                along[0], down[0], 0.0, top[0],
+                along[1], down[1], 0.0, top[1],
                 0.0, 0.0, g.size[2], g.origin[2],
                 0.0, 0.0, 0.0, 1.0,
             ];
