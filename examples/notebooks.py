@@ -22,10 +22,10 @@ SETUP = f"""import importlib.util
 import urllib.request
 
 if importlib.util.find_spec("boitata") is None:
-    %pip install -q "boitata[plot]>=0.5.0"
+    %pip install -q "boitata[plot]>=0.6.0"
 if importlib.util.find_spec("common") is None:
     urllib.request.urlretrieve("{RAW}examples/common.py", "common.py")"""
-SETUP_3D = SETUP.replace('"boitata[plot]>=0.5.0"', '"boitata[all]>=0.5.0"')
+SETUP_3D = SETUP.replace('"boitata[plot]>=0.6.0"', '"boitata[all]>=0.6.0"')
 ADMONITION = re.compile(r'^(?:!!!|\?\?\?\+?) (\w+)(?: "(.*)")?$')
 FIGURE = re.compile(
     r'<figure[^>]*>\s*--8<-- "([^"]+)"\s*<figcaption>(.*?)</figcaption>\s*</figure>', re.DOTALL

@@ -1,5 +1,57 @@
 # Changelog
 
+## 0.6.0 - 2026-10-15
+
+### Features
+
+- **viewer:** section contours, Categories scheme parity, and a view-cube gizmo (#534)
+- **blocks:** from_extents buffer as text
+- **io:** PLY and OFF meshes
+- **core:** LocalGrid transform between mine grid and projected coordinates
+- **core:** to_crs for geographic and UTM/Transverse Mercator
+- **io:** GeoJSON reader and writer
+- **io:** read and write VTK XML polydata and unstructured grids (vtp, vtu)
+- **io:** georeferenced JPEG rasters
+- **core:** CRS compatibility check
+- **core:** CRS check for drill holes on surfaces and in LocalGrid
+- **coda:** units in replace_below_detection
+- **io:** Gmsh MSH meshes
+- **io:** VTK XML grids (vti, vtr, vts) and block models as hexahedra
+- **eda:** ensemble spatial clustering for domains
+- **core:** section meshes to polylines
+- **core:** mesh booleans and plane cuts
+- **modeling:** partition-of-unity RBF for large implicit models
+- **viewer:** draw only the exposed sides of a regular block model
+- **viewer:** distance level of detail for large point and block layers
+- **viewer:** eye-dome lighting post pass
+- **viewer:** drill-hole tubes near the camera, lines further off
+- **viewer:** log, binned and reversed color scales with a percentile range
+- **viewer:** column and length units, a scale bar and a measure tool
+- **viewer:** section presets, stepping, plan and orthogonal views, PNG export
+- **estimation:** sector and hole rules, ranges, passes and suggested searches
+
+### Fixes
+
+- **simulation:** one cutoff rule in the simulation summary
+- **transforms:** bootstrap counts values at a cutoff as above it
+- **simulation:** turning bands keep their resolution on large domains
+- **viewer:** start eye-dome lighting only for point sets drawn as points
+
+### Documentation
+
+- **examples:** number the VTK page after the newer data pages
+- **examples:** index the VTK grid section
+- **examples:** large implicit models with the partition-of-unity RBF
+- **examples:** log and binned scales, tubes and eye-dome lighting in 3D views
+- sentence case and American spelling across docs and examples
+
+### CI
+
+- run tests and wheel builds only on tags
+
+### Tests
+
+- **plot3d:** wait for the fullscreen button to come back
 ## 0.5.0 - 2026-10-07
 
 ### Features
@@ -173,69 +225,6 @@
 
 ### Features
 
-- **io:** read SEG-Y cubes into block models
-- **io:** write block models as SEG-Y
-- **py:** bind read_segy and write_segy
-- **simulation:** training images from block model columns
-- **simulation:** object-based training images
-- **py:** bind object_training_image
-- **datasets:** Strebelle training image and an F3 seismic crop
-- **simulation:** consistency of a training image with the hard data
-- **py:** bind training_image_consistency
-- **simulation:** SNESIM with search trees, multigrid and servosystem
-- **py:** bind SNESIM
-- **simulation:** seam cuts for image quilting
-- **simulation:** image quilting
-- **py:** bind ImageQuilting
-- **simulation:** soft probabilities in SNESIM
-- **py:** SNESIM.simulate takes soft probabilities
-- **simulation:** FFT correlations for image-quilting patch costs
-- **simulation:** FFT path, soft and secondary data in image quilting
-- **py:** soft and secondary data in ImageQuilting
-- **simulation:** local anisotropy and per-zone training images in SNESIM
-- **py:** SNESIM takes anisotropy and a training image per domain
-- **simulation:** continuous training images in SNESIM through value classes
-- **py:** SNESIM simulates continuous training images
-- **simulation:** continuous SNESIM takes values that match their neighbors, quartile classes by default
-- progress bars know their total and render as widgets in notebooks and filling bars on the docs site
-
-### Performance
-
-- **simulation:** bench image-quilting costs by FFT and direct scan
-
-### Refactor
-
-- **simulation:** let closed name the probabilities it checks
-- [**breaking**] rename ceres to boitata
-
-### Documentation
-
-- add Codecov badge to README
-- **examples:** multiple-point statistics chapter with SNESIM multigrid, conditioning and continuous pages
-- **examples:** SNESIM rotation, affinity and training images by zone; black and white figures
-- **examples:** sub-gallery headers and chapter-style links for multiple-point statistics
-- Boitatá identity with a b-shaped voxel serpent logo, animated README mark and fire palette
-- kriging-node serpent as the logo, animated on the README and site hero
-- name Boitatá in prose docstrings
-- README logo from a relative path so it renders while the repo is private
-- README.md changes
-- README.md changes
-
-### CI
-
-- run pytest with coverage and upload to Codecov
-- run pytest under a virtual display for VTK
-
-### Tests
-
-- xfail the coregionalization azimuth check on Linux
-- **py:** ImageQuilting.fit returns self
-- **simulation:** continuous SNESIM with a training image per zone and local anisotropy
-- **docs:** import mkdocs only where the hook needs it, so the hook test runs without it
-## 0.1.0 - 2026-09-29
-
-### Features
-
 - **variogram:** port variogram crate from ctrl
 - **transforms:** port transforms crate from ctrl
 - **drillholes:** port drillholes crate from ctrl
@@ -406,6 +395,31 @@
 - **estimation:** tqdm progress bar for indicator and categorical predict
 - **estimation:** tqdm progress bar for cokriging and disjunctive predict
 - **simulation:** tqdm progress bar on every simulator
+- **io:** read SEG-Y cubes into block models
+- **io:** write block models as SEG-Y
+- **py:** bind read_segy and write_segy
+- **simulation:** training images from block model columns
+- **simulation:** object-based training images
+- **py:** bind object_training_image
+- **datasets:** Strebelle training image and an F3 seismic crop
+- **simulation:** consistency of a training image with the hard data
+- **py:** bind training_image_consistency
+- **simulation:** SNESIM with search trees, multigrid and servosystem
+- **py:** bind SNESIM
+- **simulation:** seam cuts for image quilting
+- **simulation:** image quilting
+- **py:** bind ImageQuilting
+- **simulation:** soft probabilities in SNESIM
+- **py:** SNESIM.simulate takes soft probabilities
+- **simulation:** FFT correlations for image-quilting patch costs
+- **simulation:** FFT path, soft and secondary data in image quilting
+- **py:** soft and secondary data in ImageQuilting
+- **simulation:** local anisotropy and per-zone training images in SNESIM
+- **py:** SNESIM takes anisotropy and a training image per domain
+- **simulation:** continuous training images in SNESIM through value classes
+- **py:** SNESIM simulates continuous training images
+- **simulation:** continuous SNESIM takes values that match their neighbors, quartile classes by default
+- progress bars know their total and render as widgets in notebooks and filling bars on the docs site
 
 ### Fixes
 
@@ -460,6 +474,7 @@
 - **simulation:** condition a batch of turning-bands realizations with one search
 - **simulation:** sweep bands over a tile, bench many realizations, exact f64 quantiles
 - **simulation:** batch the turning-bands factors of a multivariate simulation
+- **simulation:** bench image-quilting costs by FFT and direct scan
 
 ### Refactor
 
@@ -480,6 +495,8 @@
 - **estimation:** [**breaking**] per-target rows in continuous summaries
 - **estimation:** stream the neighbor selection
 - rename realizations= to keep=
+- **simulation:** let closed name the probabilities it checks
+- [**breaking**] rename ceres to boitata
 
 ### Documentation
 
@@ -608,6 +625,16 @@
 - **examples:** from variogram to search plan
 - **examples:** fix search-plan page links for the docs site
 - **examples:** fix parquet link on saving page
+- add Codecov badge to README
+- **examples:** multiple-point statistics chapter with SNESIM multigrid, conditioning and continuous pages
+- **examples:** SNESIM rotation, affinity and training images by zone; black and white figures
+- **examples:** sub-gallery headers and chapter-style links for multiple-point statistics
+- Boitatá identity with a b-shaped voxel serpent logo, animated README mark and fire palette
+- kriging-node serpent as the logo, animated on the README and site hero
+- name Boitatá in prose docstrings
+- README logo from a relative path so it renders while the repo is private
+- README.md changes
+- README.md changes
 
 ### Build
 
@@ -620,6 +647,8 @@
 
 - build wheels and GitHub releases
 - publish wheels to PyPI as ceresgeo
+- run pytest with coverage and upload to Codecov
+- run pytest under a virtual display for VTK
 
 ### Tests
 
@@ -631,3 +660,7 @@
 - **simulation:** categorical probabilities as (targets, categories)
 - **plot:** check section colors on the block collection
 - **estimation:** benchmark searches among drill holes
+- xfail the coregionalization azimuth check on Linux
+- **py:** ImageQuilting.fit returns self
+- **simulation:** continuous SNESIM with a training image per zone and local anisotropy
+- **docs:** import mkdocs only where the hook needs it, so the hook test runs without it
