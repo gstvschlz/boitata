@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::args::{array1, array2, floats, optional_finite, rows, same_length};
+use crate::args::{array1, array2, optional_finite, rows, same_length};
 use crate::invalid;
 
 fn by_row<'py>(
@@ -146,10 +146,16 @@ fn aitchison_distance<'py>(
 /// ----------
 /// parts : array_like
 ///     ``(n, D)`` non-negative parts; zeros count as below any positive limit.
-/// detection_limit : float or array_like
-///     One limit, or one per part.
+/// detection_limit : float, str or sequence of float or str
+///     One limit, or one per part; text such as ``"0.01 g/t"`` is converted
+///     to the grade unit of each part.
 /// fraction : float, default 0.65
 ///     Share of the limit a value below it takes.
+///
+/// Returns
+/// -------
+/// ndarray
+///     ``(n, D)`` parts, a `UnitArray` when every part has one unit.
 #[pyfunction]
 #[pyo3(signature = (parts, *, detection_limit, fraction=0.65))]
 fn replace_below_detection<'py>(
@@ -160,16 +166,46 @@ fn replace_below_detection<'py>(
 ) -> PyResult<Bound<'py, PyAny>> {
     let rows = rows(parts, "parts")?;
     let d = rows.first().map_or(0, Vec::len);
-    let limits = match detection_limit.extract::<f64>() {
-        Ok(l) => vec![l; d],
-        Err(_) => floats(detection_limit, "detection_limit")?,
+    let units = match parts.cast::<crate::table::Table>() {
+        Ok(t) => {
+            let batch = &t.get().0;
+            crate::table::names(batch)
+                .iter()
+                .map(|n| boitata_core::units::unit(batch, n).map_err(invalid))
+                .collect::<PyResult<Vec<_>>>()?
+        }
+        Err(_) => vec![crate::units::of(parts, None)?; d],
     };
+    let given: Vec<Bound<PyAny>> = match detection_limit.extract::<String>() {
+        Ok(_) => vec![detection_limit.clone(); d],
+        Err(_) => match detection_limit.extract::<f64>() {
+            Ok(_) => vec![detection_limit.clone(); d],
+            Err(_) => detection_limit
+                .try_iter()
+                .map_err(|_| {
+                    invalid("detection_limit must be numbers or texts such as '0.01 g/t'")
+                })?
+                .collect::<PyResult<_>>()?,
+        },
+    };
+    let limits = given
+        .iter()
+        .enumerate()
+        .map(|(i, l)| {
+            let unit = units.get(i).and_then(Option::as_deref);
+            crate::units::value(l, unit, "detection_limit")
+        })
+        .collect::<PyResult<Vec<_>>>()?;
     let out = rows
         .iter()
         .map(|r| coda::replace_below_detection(r, &limits, fraction))
         .collect::<Result<Vec<_>, _>>()
         .map_err(invalid)?;
-    Ok(array2(py, &out).into_any())
+    let unit = match &units[..] {
+        [first, rest @ ..] if rest.iter().all(|u| u == first) => first.as_deref(),
+        _ => None,
+    };
+    crate::units::tag(array2(py, &out).into_any(), unit)
 }
 
 /// Perturbation, the simplex sum: the closed product of paired rows.
