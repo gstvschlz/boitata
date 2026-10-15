@@ -7,11 +7,14 @@
 //! ## Method
 //!
 //! For an isotropic 3-D correlogram `C₃(r)`, the covariance of the process
-//! restricted to a line is `C₁(r) = d/dr[r·C₃(r)]` (Lantuéjoul). We simulate
-//! each band as a stationary 1-D Gaussian vector with covariance `C₁` on a fine
-//! grid (one dense Cholesky shared by all bands and realizations), project
-//! every 3-D point onto the band direction, and average `1/√L` over `L`
-//! uniformly-oriented bands. Conditioning uses
+//! restricted to a line is `C₁(r) = d/dr[r·C₃(r)]` (Lantuéjoul). Each nested
+//! structure is simulated on its own: every band carries, per structure, a
+//! stationary 1-D Gaussian vector with that structure's `C₁` on a grid a
+//! fiftieth of its range apart (one banded Cholesky per structure, shared by
+//! all bands and realizations, as `C₁` vanishes or dies out within a few
+//! ranges). A point sums its projections onto the bands, `1/√L` over `L`
+//! uniformly-oriented bands, and the independent structures weighted by the
+//! square roots of their sills. Conditioning uses
 //! `Zc = Zk(data) + [Zu − Zk(Zu@data)]` (kriging of the residual).
 //!
 //! Anisotropy is handled by running the bands in the space where the variogram
@@ -59,8 +62,9 @@ pub struct TurningBandsParams {
     /// Number of bands (lines). More bands → less striping; 300–1000 typical.
     pub n_bands: usize,
     /// Band discretization in the variogram's isotropic space (meters along
-    /// the major axis); `None` is a fiftieth of the shortest range. The step
-    /// widens if a band would need more than 4000 nodes.
+    /// the major axis), for every structure; `None` is a fiftieth of each
+    /// structure's range. Bands that would take more than 8 GiB over a run
+    /// are an error, never a coarser step.
     pub step: Option<f64>,
     /// Neighborhood for conditioning by kriging.
     pub search: Search,
@@ -99,94 +103,65 @@ fn c1(vg: &Variogram, r: f64) -> f64 {
 }
 
 /// Rows of the lower Cholesky factor of the `C₁` covariance on `n` band
-/// nodes spaced `step`; its leading `m` rows factor the covariance of `m`
-/// nodes. The identity if the covariance is not positive definite.
+/// nodes spaced `step`, row `i` holding its last `min(i + 1, width)`
+/// entries: `C₁` is taken as zero from lag `width` on, so the factor is
+/// banded and costs `O(n·width²)`. Its leading `m` rows factor the
+/// covariance of `m` nodes. The identity if the covariance is not positive
+/// definite.
 ///
-/// Every entry subtracts its products in column order, so the factor does
-/// not depend on the tiling or the thread count.
-fn band_factor(vg: &Variogram, n: usize, step: f64) -> Vec<Vec<f64>> {
-    const BLOCK: usize = 64;
-    const TILE: usize = 256;
-    let c: Vec<f64> = (0..n).map(|d| c1(vg, d as f64 * step)).collect();
-    let mut rows: Vec<Vec<f64>> = (0..n)
-        .map(|i| c[..=i].iter().rev().copied().collect())
-        .collect();
-    for j0 in (0..n).step_by(BLOCK) {
-        let j1 = (j0 + BLOCK).min(n);
-        let (head, tail) = rows.split_at_mut(j1);
-        for j in j0..j1 {
-            let (pivot, below) = head[j..].split_first_mut().expect("j < j1");
-            let mut d = pivot[j] + 1e-9;
-            for l in &pivot[..j] {
-                d -= l * l;
+/// Every entry subtracts its products in column order, so with `width ≥ n`
+/// the rows are those of the dense Cholesky, bit for bit.
+fn band_factor(vg: &Variogram, n: usize, step: f64, width: usize) -> Vec<Vec<f64>> {
+    let width = width.clamp(1, n.max(1));
+    let c: Vec<f64> = (0..width).map(|d| c1(vg, d as f64 * step)).collect();
+    let mut rows: Vec<Vec<f64>> = Vec::with_capacity(n);
+    for i in 0..n {
+        let lo = (i + 1).saturating_sub(width);
+        let mut row: Vec<f64> = c[..=i - lo].iter().rev().copied().collect();
+        for j in lo..i {
+            let (pivot, plo) = (&rows[j], (j + 1).saturating_sub(width));
+            let (done, rest) = row.split_at_mut(j - lo);
+            let mut y = rest[0];
+            for (a, b) in done.iter().zip(&pivot[lo - plo..]) {
+                y -= a * b;
             }
-            if d.is_nan() || d <= 0.0 {
-                return (0..n)
-                    .map(|i| (0..=i).map(|k| f64::from(u8::from(i == k))).collect())
-                    .collect();
-            }
-            pivot[j] = d.sqrt();
-            for row in below {
-                let row = std::slice::from_mut(row);
-                subtract(&pivot[..j], row, 0, j);
-                row[0][j] /= pivot[j];
-            }
+            rest[0] = y / pivot[j - plo];
         }
-        let pivots = &head[j0..j1];
-        tail.par_chunks_mut(32).for_each(|chunk| {
-            for k0 in (0..j0).step_by(TILE) {
-                let k1 = (k0 + TILE).min(j0);
-                for group in chunk.chunks_mut(8) {
-                    for (j, p) in (j0..).zip(pivots) {
-                        subtract(&p[k0..k1], group, k0, j);
-                    }
-                }
-            }
-            for group in chunk.chunks_mut(8) {
-                for (j, p) in (j0..).zip(pivots) {
-                    subtract(&p[j0..j], group, j0, j);
-                    for row in group.iter_mut() {
-                        row[j] /= p[j];
-                    }
-                }
-            }
-        });
+        let mut d = row[i - lo] + 1e-9;
+        for l in &row[..i - lo] {
+            d -= l * l;
+        }
+        if d.is_nan() || d <= 0.0 {
+            return (0..n)
+                .map(|i| {
+                    let len = (i + 1).min(width);
+                    (0..len)
+                        .map(|k| f64::from(u8::from(k + 1 == len)))
+                        .collect()
+                })
+                .collect();
+        }
+        row[i - lo] = d.sqrt();
+        rows.push(row);
     }
     rows
 }
 
-/// Subtracts from entry `j` of each of `rows` its products with `p`, the
-/// entries `k0..` of a finished row, in order.
-fn subtract(p: &[f64], rows: &mut [Vec<f64>], k0: usize, j: usize) {
-    const R: usize = 8;
-    let k1 = k0 + p.len();
-    for group in rows.chunks_mut(R) {
-        if group.len() == R {
-            let r: [&[f64]; R] = std::array::from_fn(|g| &group[g][k0..k1]);
-            let mut y: [f64; R] = std::array::from_fn(|g| group[g][j]);
-            for (i, pk) in p.iter().enumerate() {
-                for g in 0..R {
-                    y[g] -= pk * r[g][i];
-                }
-            }
-            for (row, y) in group.iter_mut().zip(y) {
-                row[j] = y;
-            }
-        } else {
-            for row in group {
-                let mut y = row[j];
-                for (pk, a) in p.iter().zip(&row[k0..k1]) {
-                    y -= pk * a;
-                }
-                row[j] = y;
-            }
-        }
-    }
+/// Nodes spanned by the `C₁` of `vg` on a band spaced `step`, up to `n`:
+/// one past the last lag where `|C₁|` reaches `1e-12`. Exact for the
+/// models of bounded support; for the others the lags dropped sum to far
+/// less than the `1e-9` added to the diagonal, so the truncated covariance
+/// stays positive definite wherever the whole one is.
+fn band_width(vg: &Variogram, n: usize, step: f64) -> usize {
+    (0..n)
+        .rev()
+        .find(|&d| c1(vg, d as f64 * step).abs() >= 1e-12)
+        .map_or(1, |d| d + 1)
 }
 
 /// The band processes of the white noises `noise`, each on its first
-/// `w.len()` nodes: `L·w`, every row summed in order. Eight bands at a time
-/// share each row of `factor`.
+/// `w.len()` nodes: `L·w` for the banded `factor` of [`band_factor`], every
+/// row summed in order. Eight bands at a time share each row of `factor`.
 fn simulate_bands(factor: &[Vec<f64>], noise: &[Vec<f64>]) -> Vec<Vec<f64>> {
     const G: usize = 8;
     noise
@@ -203,9 +178,10 @@ fn simulate_bands(factor: &[Vec<f64>], noise: &[Vec<f64>]) -> Vec<Vec<f64>> {
                 .map(|k| std::array::from_fn(|g| group[g][k]))
                 .collect();
             for (i, row) in factor[..n].iter().enumerate() {
+                let lo = i + 1 - row.len();
                 if i < shared {
                     let mut y = [-0.0; G];
-                    for (l, w) in row.iter().zip(&interleaved) {
+                    for (l, w) in row.iter().zip(&interleaved[lo..]) {
                         for g in 0..G {
                             y[g] += l * w[g];
                         }
@@ -215,7 +191,7 @@ fn simulate_bands(factor: &[Vec<f64>], noise: &[Vec<f64>]) -> Vec<Vec<f64>> {
                     }
                 } else {
                     for (out, w) in out.iter_mut().zip(group).filter(|(_, w)| w.len() > i) {
-                        out.push(row.iter().zip(w).map(|(l, w)| l * w).sum());
+                        out.push(row.iter().zip(&w[lo..]).map(|(l, w)| l * w).sum());
                     }
                 }
             }
@@ -233,18 +209,6 @@ fn unit_direction(rng: &mut StdRng, normal: &Normal<f64>) -> (f64, f64, f64) {
             return (x / n, y / n, z / n);
         }
     }
-}
-
-/// Band spacing: the given step, or a fiftieth of the shortest range.
-fn band_step(vg: &Variogram, params: &TurningBandsParams) -> f64 {
-    params.step.unwrap_or_else(|| {
-        vg.structures
-            .iter()
-            .map(|s| s.range)
-            .fold(f64::INFINITY, f64::min)
-            .min(1e12)
-            / 50.0
-    })
 }
 
 /// A standard-normal draw fixed by `key` and the coordinates of `p`.
@@ -272,28 +236,42 @@ pub fn bounds(points: &[(f64, f64, f64)]) -> ([f64; 3], [f64; 3]) {
     )
 }
 
-/// What every realization over one box shares: the band spacing, the
-/// corners in isotropic space, the band factorization of the structures and
-/// the nugget's share of the sill.
+/// Bytes the band factors and the bands of every realization may take.
+const BAND_BYTES: usize = 8 << 30;
+
+/// One structure's bands: their node spacing, the square root of the
+/// structure's share of the structures' sill, and the banded factor of its
+/// `C₁`.
+struct BandGrid {
+    step: f64,
+    weight: f64,
+    factor: Vec<Vec<f64>>,
+}
+
+/// What every realization over one box shares: the corners in isotropic
+/// space, the band grid of each structure and the nugget's share of the
+/// sill.
 struct Layout {
     to_isotropic: Matrix3<f64>,
     corners: Vec<Vector3<f64>>,
-    step: f64,
-    factor: Vec<Vec<f64>>,
+    grids: Vec<BandGrid>,
     nugget: f64,
 }
 
 impl Layout {
-    fn new(lo: [f64; 3], hi: [f64; 3], vg: &Variogram, params: &TurningBandsParams) -> Self {
+    /// The layout of `realizations` realizations over the box `lo..hi`;
+    /// an error when their bands would take more than [`BAND_BYTES`].
+    fn new(
+        lo: [f64; 3],
+        hi: [f64; 3],
+        vg: &Variogram,
+        params: &TurningBandsParams,
+        realizations: usize,
+    ) -> Result<Self> {
         let to_isotropic = vg
             .anisotropy
             .as_ref()
             .map_or_else(Matrix3::identity, |a| a.matrix());
-        let isotropic = Variogram {
-            anisotropy: None,
-            nugget: 0.0,
-            ..vg.clone()
-        };
         let corners: Vec<Vector3<f64>> = (0..8)
             .map(|c| {
                 let pick = |axis: usize| {
@@ -313,17 +291,51 @@ impl Layout {
             ),
             |(lo, hi), p| (lo.inf(p), hi.sup(p)),
         );
-        const MAX_NODES: usize = 4000;
         let diameter = (chi - clo).norm();
-        let step = band_step(&isotropic, params).max(diameter / (MAX_NODES - 2) as f64);
-        let longest = ((diameter / step).ceil() as usize + 2).clamp(2, MAX_NODES);
-        Self {
+        let sill: f64 = vg.structures.iter().map(|s| s.sill).sum();
+        let per_node = 1 + realizations.max(1) * params.n_bands.max(1);
+        let too_big = |bytes: f64, step: f64| {
+            SimError::InvalidParameters(format!(
+                "turning bands with a step of {step} over this box need about {:.1} GB for {realizations} realizations of {} bands, above {} GB; give a larger step, fewer bands or realizations, or a smaller box",
+                bytes / 1e9,
+                params.n_bands,
+                BAND_BYTES >> 30,
+            ))
+        };
+        let (mut plans, mut bytes) = (vec![], 0.0);
+        for s in vg.structures.iter().filter(|s| s.sill > 0.0) {
+            let step = params.step.unwrap_or(s.range / 50.0);
+            if !(step.is_finite() && step > 0.0) {
+                return Err(SimError::InvalidParameters(format!(
+                    "the band step is {step}; give a positive step or structures of positive range"
+                )));
+            }
+            let nodes = (diameter / step).ceil() + 2.0;
+            if bytes + nodes * per_node as f64 * 8.0 > BAND_BYTES as f64 {
+                return Err(too_big(bytes + nodes * per_node as f64 * 8.0, step));
+            }
+            let (unit, n) = (Variogram::single(s.model, 1.0, s.range), nodes as usize);
+            let width = band_width(&unit, n, step);
+            bytes += (n * (width + per_node - 1)) as f64 * 8.0;
+            if bytes > BAND_BYTES as f64 {
+                return Err(too_big(bytes, step));
+            }
+            plans.push((unit, step, n, width, (s.sill / sill).sqrt()));
+        }
+        let grids = plans
+            .into_par_iter()
+            .map(|(unit, step, n, width, weight)| BandGrid {
+                step,
+                weight,
+                factor: band_factor(&unit, n, step, width),
+            })
+            .collect();
+        Ok(Self {
             to_isotropic,
             corners,
-            step,
-            factor: band_factor(&isotropic, longest, step),
+            grids,
             nugget: (vg.nugget / vg.total_sill()).clamp(0.0, 1.0),
-        }
+        })
     }
 
     /// The bands of a realization seeded by each of `seeds`, and their
@@ -344,11 +356,12 @@ impl Layout {
             .unzip()
     }
 
-    /// The bands of one realization, drawn from `rng`.
+    /// The bands of one realization, drawn from `rng`: each band takes its
+    /// direction, then the white noise of every structure's grid in turn.
     fn bands(&self, n_bands: usize, rng: &mut StdRng) -> Bands {
         let normal = Normal::new(0.0, 1.0).unwrap();
-        let step = self.step;
-        let (mut directions, mut origins, mut noise) = (vec![], vec![], vec![]);
+        let (mut directions, mut origins) = (vec![], vec![]);
+        let mut noise: Vec<Vec<Vec<f64>>> = vec![vec![]; self.grids.len()];
         for _ in 0..n_bands.max(1) {
             let dir = unit_direction(rng, &normal);
             let dir = Vector3::new(dir.0, dir.1, dir.2);
@@ -359,18 +372,25 @@ impl Layout {
                 .fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), t| {
                     (a.min(t), b.max(t))
                 });
-            let n1 =
-                (((tmax - tmin).max(step) / step).ceil() as usize + 2).clamp(2, self.factor.len());
-            noise.push((0..n1).map(|_| normal.sample(rng)).collect());
+            for (grid, noise) in self.grids.iter().zip(&mut noise) {
+                let step = grid.step;
+                let n1 = (((tmax - tmin).max(step) / step).ceil() as usize + 2)
+                    .clamp(2, grid.factor.len());
+                noise.push((0..n1).map(|_| normal.sample(rng)).collect());
+            }
             directions.push(dir);
             origins.push(tmin);
         }
         Bands {
             to_isotropic: self.to_isotropic,
-            step,
             directions,
             origins,
-            values: simulate_bands(&self.factor, &noise),
+            grids: self
+                .grids
+                .iter()
+                .zip(&noise)
+                .map(|(g, w)| (g.step, g.weight, simulate_bands(&g.factor, w)))
+                .collect(),
             nugget: self.nugget,
             key: if self.nugget > 0.0 { rng.next_u64() } else { 0 },
         }
@@ -383,10 +403,10 @@ impl Layout {
 #[derive(Debug, Clone)]
 pub struct Bands {
     to_isotropic: Matrix3<f64>,
-    step: f64,
     directions: Vec<Vector3<f64>>,
     origins: Vec<f64>,
-    values: Vec<Vec<f64>>,
+    /// Per structure: node spacing, weight and the values of every band.
+    grids: Vec<(f64, f64, Vec<Vec<f64>>)>,
     nugget: f64,
     key: u64,
 }
@@ -400,8 +420,8 @@ impl Bands {
         vg: &Variogram,
         params: &TurningBandsParams,
         rng: &mut StdRng,
-    ) -> Self {
-        Layout::new(lo, hi, vg, params).bands(params.n_bands, rng)
+    ) -> Result<Self> {
+        Ok(Layout::new(lo, hi, vg, params, 1)?.bands(params.n_bands, rng))
     }
 
     /// Standard-Gaussian unconditional field at `points` (inside the box).
@@ -412,20 +432,26 @@ impl Bands {
             .collect()
     }
 
-    /// As [`Bands::field`] on the calling thread, band by band over the
-    /// points; each point sums its bands in order.
+    /// As [`Bands::field`] on the calling thread, structure by structure and
+    /// band by band over the points; each point sums its bands in order.
     fn field_serial(&self, points: &[(f64, f64, f64)]) -> Vec<f64> {
         let q: Vec<Vector3<f64>> = points
             .iter()
             .map(|p| self.to_isotropic * Vector3::new(p.0, p.1, p.2))
             .collect();
         let mut sum = vec![0.0; points.len()];
-        for ((dir, &tmin), band) in self.directions.iter().zip(&self.origins).zip(&self.values) {
-            for (s, q) in sum.iter_mut().zip(&q) {
-                let x = ((q.dot(dir) - tmin) / self.step).max(0.0);
-                let i0 = (x.floor() as usize).min(band.len() - 2);
-                let frac = x - i0 as f64;
-                *s += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
+        for (step, weight, values) in &self.grids {
+            let mut part = vec![0.0; points.len()];
+            for ((dir, &tmin), band) in self.directions.iter().zip(&self.origins).zip(values) {
+                for (s, q) in part.iter_mut().zip(&q) {
+                    let x = ((q.dot(dir) - tmin) / step).max(0.0);
+                    let i0 = (x.floor() as usize).min(band.len() - 2);
+                    let frac = x - i0 as f64;
+                    *s += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
+                }
+            }
+            for (s, p) in sum.iter_mut().zip(part) {
+                *s += weight * p;
             }
         }
         let inv = 1.0 / (self.directions.len() as f64).sqrt();
@@ -446,11 +472,15 @@ impl Bands {
         let inv = 1.0 / (self.directions.len() as f64).sqrt();
         let q = self.to_isotropic * Vector3::new(p.0, p.1, p.2);
         let mut sum = 0.0;
-        for ((dir, &tmin), band) in self.directions.iter().zip(&self.origins).zip(&self.values) {
-            let x = ((q.dot(dir) - tmin) / self.step).max(0.0);
-            let i0 = (x.floor() as usize).min(band.len() - 2);
-            let frac = x - i0 as f64;
-            sum += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
+        for (step, weight, values) in &self.grids {
+            let mut part = 0.0;
+            for ((dir, &tmin), band) in self.directions.iter().zip(&self.origins).zip(values) {
+                let x = ((q.dot(dir) - tmin) / step).max(0.0);
+                let i0 = (x.floor() as usize).min(band.len() - 2);
+                let frac = x - i0 as f64;
+                part += band[i0] * (1.0 - frac) + band[i0 + 1] * frac;
+            }
+            sum += weight * part;
         }
         if self.nugget > 0.0 {
             sum * inv * (1.0 - self.nugget).sqrt() + white(self.key, p) * self.nugget.sqrt()
@@ -469,7 +499,7 @@ fn unconditional(
     rng: &mut StdRng,
 ) -> Vec<f64> {
     let (lo, hi) = bounds(points);
-    Bands::new(lo, hi, vg, params, rng).field(points)
+    Bands::new(lo, hi, vg, params, rng).unwrap().field(points)
 }
 
 /// Simple kriging of residuals at every target, of domain `domains[i]`,
@@ -530,7 +560,7 @@ pub fn conditional_gaussian_field(
         return Ok(vec![]);
     }
     let (lo, hi) = bounds(&[data_locs, grid].concat());
-    let bands = Bands::new(lo, hi, vg, params, rng);
+    let bands = Bands::new(lo, hi, vg, params, rng)?;
     let at_data = bands.field(data_locs);
     let data = data(data_locs, gaussian_data, vec![None; data_locs.len()], None);
     let tree = SearchTree::new(&data, &params.search, Some(vg));
@@ -591,7 +621,7 @@ impl TurningBandsEnsemble {
         let (dlo, dhi) = bounds(data_locs);
         let lo = std::array::from_fn(|i| lo[i].min(dlo[i]));
         let hi = std::array::from_fn(|i| hi[i].max(dhi[i]));
-        let layout = Layout::new(lo, hi, vg_nscore, params);
+        let layout = Layout::new(lo, hi, vg_nscore, params, n)?;
         let seeds: Vec<u64> = (0..n)
             .map(|k| boitata_core::rng::realization_seed(params.seed, k as u64))
             .collect();
@@ -652,8 +682,8 @@ impl TurningBandsEnsemble {
             .iter()
             .map(|&s| boitata_core::rng::realization_seed(s, 0))
             .collect();
-        let (bands, at_data) =
-            Layout::new(lo, hi, vg_nscore, params).simulate(params, data_locs, &seeds);
+        let (bands, at_data) = Layout::new(lo, hi, vg_nscore, params, seeds.len())?
+            .simulate(params, data_locs, &seeds);
         let data = data(data_locs, &data_vals[0], holes, None);
         let tree = SearchTree::new(&data, &params.search, Some(vg_nscore));
         Ok(Self {
@@ -1248,23 +1278,108 @@ mod tests {
             k[(i, i)] += 1e-9;
         }
         let l = k.cholesky().unwrap().l();
-        let rows = band_factor(&vg, n, step);
-        for (i, row) in rows.iter().enumerate() {
-            assert_eq!(row.len(), i + 1);
-            for (j, v) in row.iter().enumerate() {
-                assert_eq!(v.to_bits(), l[(i, j)].to_bits(), "({i}, {j})");
-            }
-        }
+        let width = band_width(&vg, n, step);
+        assert_eq!(width, (30.0f64 / step).ceil() as usize);
         let w: Vec<f64> = (0..n - 2).map(|i| (i as f64 * 0.37).sin()).collect();
         let noise: Vec<Vec<f64>> = (0..11)
             .map(|b| w[..w.len() - 5 * (b % 4)].to_vec())
             .collect();
-        for (band, w) in simulate_bands(&rows, &noise).iter().zip(&noise) {
-            assert_eq!(band.len(), w.len());
-            for (i, v) in band.iter().enumerate() {
-                let want: f64 = (0..=i).map(|j| l[(i, j)] * w[j]).sum();
-                assert_eq!(v.to_bits(), want.to_bits());
+        for width in [n, width] {
+            let rows = band_factor(&vg, n, step, width);
+            for (i, row) in rows.iter().enumerate() {
+                let lo = (i + 1).saturating_sub(width);
+                assert_eq!(row.len(), i + 1 - lo);
+                for j in 0..=i {
+                    let want = if j < lo { 0.0 } else { row[j - lo] };
+                    assert_eq!(want.to_bits(), l[(i, j)].to_bits(), "({i}, {j})");
+                }
             }
+            for (band, w) in simulate_bands(&rows, &noise).iter().zip(&noise) {
+                assert_eq!(band.len(), w.len());
+                for (i, v) in band.iter().enumerate() {
+                    let lo = (i + 1).saturating_sub(width);
+                    let want: f64 = (lo..=i).map(|j| l[(i, j)] * w[j]).sum();
+                    assert_eq!(v.to_bits(), want.to_bits());
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn each_structure_keeps_its_step_on_a_large_box() {
+        let vg = Variogram {
+            nugget: 0.0,
+            structures: vec![
+                variogram::Structure::new(Model::Spherical, 0.6, 20.0),
+                variogram::Structure::new(Model::Gaussian, 0.4, 2.0),
+            ],
+            anisotropy: None,
+        };
+        let params = TurningBandsParams {
+            n_bands: 100,
+            ..Default::default()
+        };
+        let layout = Layout::new([0.0; 3], [2000.0, 0.0, 0.0], &vg, &params, 1).unwrap();
+        let steps: Vec<f64> = layout.grids.iter().map(|g| g.step).collect();
+        assert_eq!(steps, [0.4, 0.04]);
+        assert!(layout.grids[1].factor.len() >= 50_002);
+        let tiny = TurningBandsParams {
+            step: Some(1e-6),
+            ..params
+        };
+        let err = Layout::new([0.0; 3], [2000.0, 0.0, 0.0], &vg, &tiny, 1).err();
+        assert!(err.unwrap().to_string().contains("larger step"));
+    }
+
+    #[test]
+    fn nested_structures_reproduce_the_covariance_far_beyond_the_short_range() {
+        let vg = Variogram {
+            nugget: 0.0,
+            structures: vec![
+                variogram::Structure::new(Model::Spherical, 0.6, 20.0),
+                variogram::Structure::new(Model::Gaussian, 0.4, 2.0),
+            ],
+            anisotropy: None,
+        };
+        let lags = [0.5, 1.0, 2.0, 5.0, 10.0];
+        let mut rng = StdRng::seed_from_u64(4);
+        let normal = Normal::new(0.0, 1.0).unwrap();
+        let mut points = vec![];
+        for a in 0..80 * 80 {
+            let anchor = ((a % 80) as f64 * 25.0, (a / 80) as f64 * 25.0, 0.0);
+            points.push(anchor);
+            for h in lags {
+                let (x, y, z) = unit_direction(&mut rng, &normal);
+                points.push((anchor.0 + h * x, anchor.1 + h * y, h * z));
+            }
+        }
+        let (lo, hi) = bounds(&points);
+        let params = TurningBandsParams {
+            n_bands: 100,
+            ..Default::default()
+        };
+        let layout = Layout::new(lo, hi, &vg, &params, 1).unwrap();
+        let (runs, k) = (4, lags.len() + 1);
+        let (mut var, mut gamma) = (0.0, [0.0; 5]);
+        for r in 0..runs {
+            let z = layout
+                .bands(params.n_bands, &mut StdRng::seed_from_u64(r))
+                .field(&points);
+            for p in z.chunks(k) {
+                var += p[0] * p[0];
+                for (g, v) in gamma.iter_mut().zip(&p[1..]) {
+                    *g += (v - p[0]).powi(2) / 2.0;
+                }
+            }
+        }
+        let pairs = (runs * 80 * 80) as f64;
+        let var = var / pairs;
+        // Interpolating between band nodes a fiftieth of the range apart
+        // takes about 2 % of the spherical sill, 0.012, off the variance.
+        assert!((var - 1.0).abs() < 0.03, "variance {var}");
+        for (h, g) in lags.iter().zip(gamma) {
+            let (g, want) = (g / pairs, vg.gamma(*h));
+            assert!((g - want).abs() < 0.03, "γ({h}) {g} vs {want}");
         }
     }
 
@@ -1331,7 +1446,7 @@ mod tests {
             n_bands: 200,
             ..Default::default()
         };
-        let layout = Layout::new(lo, hi, &vg, &params);
+        let layout = Layout::new(lo, hi, &vg, &params, 1).unwrap();
         let (mut near, mut across, mut var, runs) = (0.0, 0.0, 0.0, 200);
         for k in 0..runs {
             let z = layout
@@ -2018,7 +2133,7 @@ mod tests {
             .collect();
         let (lo, hi) = bounds(&points);
         let params = TurningBandsParams::default();
-        let bands = Bands::new(lo, hi, &vg, &params, &mut StdRng::seed_from_u64(3));
+        let bands = Bands::new(lo, hi, &vg, &params, &mut StdRng::seed_from_u64(3)).unwrap();
         let want: Vec<f64> = points.iter().map(|p| bands.at(p)).collect();
         assert_eq!(bands.field_serial(&points), want);
         assert_eq!(bands.field(&points), want);

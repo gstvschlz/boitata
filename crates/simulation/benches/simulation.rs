@@ -122,9 +122,10 @@ fn phases(c: &mut Criterion) {
                 &params,
                 &mut StdRng::seed_from_u64(1),
             ))
+            .unwrap()
         })
     });
-    let bands = Bands::new(lo, hi, &vg, &params, &mut StdRng::seed_from_u64(1));
+    let bands = Bands::new(lo, hi, &vg, &params, &mut StdRng::seed_from_u64(1)).unwrap();
     group.bench_function("evaluate field", |b| {
         b.iter(|| black_box(bands.field(&grid)))
     });
