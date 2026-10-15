@@ -31,6 +31,7 @@ drillholes: drill holes and domains
     Drillholes merge_intervals check_drillholes fix_drillholes duplicates hole_distance
     PolygonSelector point_in_polygon polygon_distance assign_domain block_shell contact_distance
     buffer_domains remove_small_units smooth_classes map_blocks domain_change transition_matrix
+    domains Domains
     vertical_proportions combine_proportions planned_drillholes snap_to_surface
 eda: exploratory analysis
     Categories describe describe_by correlation swath contact soft_boundary capping capping_report

@@ -6,6 +6,7 @@ use arrow_array::{ArrayRef, Float64Array, RecordBatch, StringArray, UInt64Array}
 use arrow_schema::DataType;
 use boitata_core::PointSet;
 use eda::{Along, Direction, Merge, Method};
+use numpy::PyArray1;
 use pyo3::IntoPyObjectExt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -2161,7 +2162,153 @@ fn required_spacing(curve: &Bound<PyAny>, column: &str, threshold: f64) -> PyRes
     Ok(spacing)
 }
 
+/// Domains of samples from ensemble spatial clustering of their values, after
+/// Martin and Boisvert (2018), doi:10.1016/j.cageo.2018.08.005.
+///
+/// The columns are standardized and every clustering is k-means. Each
+/// sample's features come from its spatial neighbors, so the domains follow
+/// the values and stay contiguous in space.
+///
+/// Parameters
+/// ----------
+/// data : PointSet or Drillholes
+///     Samples, e.g. composites, holding `columns`.
+/// columns : sequence of str
+///     Numeric columns clustered; a sample with NaN in any gets no domain.
+/// k : int
+///     Number of domains.
+/// method : {"consensus", "autocorrelation", "dual"}
+///     ``"autocorrelation"`` clusters, for each column, the value and the
+///     mean of the `neighbors` nearest samples. ``"dual"`` clusters means
+///     over a dual-space neighborhood: of the nearest samples in space, those
+///     nearest in the columns. Both ``"dual"`` and ``"consensus"`` repeat the
+///     clustering `realizations` times with random neighborhood sizes and
+///     column subsets (``"consensus"`` alternating the two clusterings), then
+///     cluster how often each pair of samples shares a cluster.
+/// neighbors : int
+///     Spatial neighbors of a sample; realizations draw between half and
+///     twice as many. Also the neighborhood of the spatial entropy.
+/// realizations : int
+///     Clusterings in the ensemble; unused by ``"autocorrelation"``.
+/// seed : int
+///     Seed; the domains do not depend on the number of threads.
+///
+/// Returns
+/// -------
+/// Domains
+///     ``labels`` (codes ``0`` to ``k - 1`` by increasing mean of the first
+///     column, NaN without a domain) for ``domains=`` or a column,
+///     ``scheme``, ``agreement``, ``wcss`` and ``spatial_entropy``.
+#[pyfunction]
+#[pyo3(signature = (data, columns, k, *, method="consensus", neighbors=16, realizations=100, seed=0))]
+#[allow(clippy::too_many_arguments)]
+fn domains(
+    py: Python,
+    data: &Bound<PyAny>,
+    columns: Vec<String>,
+    k: usize,
+    method: &str,
+    neighbors: usize,
+    realizations: usize,
+    seed: u64,
+) -> PyResult<Domains> {
+    let method = match method {
+        "consensus" => eda::Clustering::Consensus,
+        "autocorrelation" => eda::Clustering::Autocorrelation,
+        "dual" => eda::Clustering::Dual,
+        _ => {
+            return Err(invalid(
+                "method must be 'consensus', 'autocorrelation' or 'dual'",
+            ));
+        }
+    };
+    let coords = if data.cast::<PyPointSet>().is_ok() {
+        coords_arg(data)?
+    } else {
+        let coords = data
+            .getattr("coords")
+            .map_err(|_| invalid("data must be a PointSet or Drillholes"))?;
+        coords_arg(&coords)?
+    };
+    let values: Vec<Vec<f64>> = columns
+        .iter()
+        .map(|c| floats(&named(Some(data), c, "columns")?, c))
+        .collect::<PyResult<_>>()?;
+    let result = py
+        .detach(|| eda::domains(&coords, &values, k, method, neighbors, realizations, seed))
+        .map_err(invalid)?;
+    let names = (1..=k).map(|c| format!("D{c}")).collect();
+    let scheme =
+        boitata_core::Categories::new(names, None, Default::default(), None).map_err(invalid)?;
+    Ok(Domains {
+        result,
+        scheme: Categories(scheme),
+    })
+}
+
+/// Result of `domains`: a domain per sample and the metrics of the domaining.
+#[pyclass(module = "boitata", name = "Domains", frozen)]
+pub struct Domains {
+    result: eda::Domains,
+    scheme: Categories,
+}
+
+#[pymethods]
+impl Domains {
+    /// Code of each sample's domain, ``0`` to ``k - 1`` by increasing mean of
+    /// the first column; float so that samples without a domain are NaN, as
+    /// `Categories.decode` and ``domains=`` take it.
+    #[getter]
+    fn labels<'py>(&self, py: Python<'py>) -> Bound<'py, PyArray1<f64>> {
+        let codes = self.result.labels.iter();
+        array1(py, codes.map(|c| c.map_or(f64::NAN, f64::from)).collect())
+    }
+
+    /// Names ``D1`` to ``Dk`` of the codes.
+    #[getter]
+    fn scheme(&self) -> Categories {
+        self.scheme.clone()
+    }
+
+    /// Mean share of the realizations in which a sample shares a cluster with
+    /// each other sample of its domain: low near contacts the ensemble
+    /// disagrees on. None for ``"autocorrelation"``; NaN without a domain.
+    #[getter]
+    fn agreement<'py>(&self, py: Python<'py>) -> Option<Bound<'py, PyArray1<f64>>> {
+        let a = self.result.agreement.as_ref()?;
+        Some(array1(
+            py,
+            a.iter().map(|a| a.unwrap_or(f64::NAN)).collect(),
+        ))
+    }
+
+    /// Within-domain sum of squares of the standardized columns per sample:
+    /// the number of columns for one domain, lower for more compact domains.
+    #[getter]
+    fn wcss(&self) -> f64 {
+        self.result.wcss
+    }
+
+    /// Mean entropy of the domains among each sample and its neighbors,
+    /// scaled to [0, 1]: 0 when no neighborhood crosses a contact.
+    #[getter]
+    fn spatial_entropy(&self) -> f64 {
+        self.result.spatial_entropy
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "Domains(k={}, wcss={:.3}, spatial_entropy={:.3})",
+            self.scheme.0.len(),
+            self.result.wcss,
+            self.result.spatial_entropy
+        )
+    }
+}
+
 pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(domains, m)?)?;
+    m.add_class::<Domains>()?;
     m.add_function(wrap_pyfunction!(uncertainty_curve, m)?)?;
     m.add_function(wrap_pyfunction!(required_spacing, m)?)?;
     m.add_function(wrap_pyfunction!(pairs, m)?)?;
