@@ -1,7 +1,8 @@
 import * as THREE from "three";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
-import { boxOf, diagonal } from "../bounds";
+import { type Box, boxOf, diagonal } from "../bounds";
+import { projectedPixels, viewKey } from "../lod";
 import { f32, u32 } from "../buffers";
 import { midpoints, stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
@@ -14,6 +15,10 @@ import type { Representation } from "./index";
 const WIDTH = 2.5;
 const RADIUS_SHARE = 1 / 400;
 const SIDES = 10;
+/** Tubes narrower than this on screen, in CSS pixels, draw as lines. */
+export const TUBE_PIXELS = 3;
+/** The thinnest tube `radiusBy` draws, as a share of the radius. */
+const THINNEST = 1 / 3;
 
 /** Segments split at survey stations, each with the interval row it belongs to, in a spatially even order. */
 function segments(layer: LayerSpec, buffers: Buffers) {
@@ -92,10 +97,90 @@ export function lines(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
   return api;
 }
 
-/** Drill-hole intervals as shaded cylinders, `radius` meters, one per segment between survey stations. */
+/**
+ * Each interval's tube radius: `radius` meters (default a share of the holes' extent), or with `radiusBy` a
+ * numeric column's range mapped from a third of it to all of it, nulls the thinnest.
+ */
+export function tubeRadii(layer: LayerSpec, buffers: Buffers, box: Box | null, rows: number): Float32Array {
+  const radius = layer.radius ?? Math.max(diagonal(box) * RADIUS_SHARE, 1e-6);
+  const out = new Float32Array(rows).fill(radius);
+  const column = layer.columns.find((c) => c.name === layer.radiusBy && c.type === "number");
+  if (!column) return out;
+  const data = f32(buffers, column.buffer);
+  const [lo, hi] = [column.min ?? 0, column.max ?? 0];
+  for (let r = 0; r < rows; r++) {
+    const t = Number.isFinite(data[r]) ? (hi > lo ? (data[r] - lo) / (hi - lo) : 1) : 0;
+    out[r] = radius * (THINNEST + (1 - THINNEST) * t);
+  }
+  return out;
+}
+
+/**
+ * Drill-hole intervals as shaded tubes near the camera and screen-width lines further off: at rest, an interval
+ * whose tube would be under `TUBE_PIXELS` wide on screen draws as a line.
+ */
 export function tubes(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): Representation {
   const s = segments(layer, buffers);
-  const radius = layer.radius ?? Math.max(diagonal(s.box) * RADIUS_SHARE, 1e-6);
+  const n = s.rows.reduce((m, r) => Math.max(m, r + 1), 0);
+  const radii = tubeRadii(layer, buffers, s.box, n);
+  const near = cylinders(layer, buffers, filter, radii);
+  const far = lines(layer, buffers, filter);
+  const object = new THREE.Group().add(near.object, far.object);
+  let painted: Paint | null = null;
+  let seen = "";
+  const mid = midpoints(s.positions);
+
+  const split = (camera: THREE.PerspectiveCamera | null, height: number) => {
+    const paint = painted!;
+    const close = new Uint8Array(n);
+    const e = camera?.matrixWorld.elements;
+    for (let i = 0; i < s.n; i++) {
+      const r = s.rows[i];
+      if (close[r] || !e) continue;
+      const distance = Math.hypot(mid[3 * i] - e[12], mid[3 * i + 1] - e[13], mid[3 * i + 2] - e[14]);
+      if (projectedPixels(2 * radii[r], distance, camera!.fov, height) >= TUBE_PIXELS) close[r] = 1;
+    }
+    const part = (want: number): Paint => {
+      const keep = new Uint8Array(n);
+      for (let r = 0; r < n; r++) keep[r] = close[r] === want && (!paint.keep || paint.keep[r]) ? 1 : 0;
+      return { ...paint, keep };
+    };
+    near.paint(part(1));
+    far.paint(part(0));
+    if (camera) seen = viewKey(camera, height);
+  };
+
+  return {
+    object,
+    box: s.box,
+    instances: s.n,
+    paint(paint: Paint) {
+      painted = paint;
+      seen = "";
+      split(null, 1);
+    },
+    setOpacity(opacity) {
+      near.setOpacity(opacity);
+      far.setOpacity(opacity);
+    },
+    detail(fraction) {
+      near.detail!(fraction);
+      far.detail!(fraction);
+    },
+    frame(w, h, camera, moving) {
+      far.frame!(w, h, camera, moving);
+      if (painted && (!seen || (!moving && seen !== viewKey(camera, h)))) split(camera, h);
+    },
+    dispose() {
+      near.dispose();
+      far.dispose();
+    },
+  };
+}
+
+/** Drill-hole intervals as shaded cylinders, each its row's radius, one per segment between survey stations. */
+function cylinders(layer: LayerSpec, buffers: Buffers, filter: LayerFilter, radii: Float32Array): Representation {
+  const s = segments(layer, buffers);
   const material = shadedMaterial(true, layer.opacity, filter.uniforms, { whole: true });
   const mesh = new THREE.InstancedMesh(new THREE.CylinderGeometry(1, 1, 1, SIDES), material, Math.max(s.n, 1));
   mesh.frustumCulled = false;
@@ -126,6 +211,7 @@ export function tubes(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
         u.cross(d).normalize();
         w.copy(d).normalize().cross(u);
         const o = 16 * j;
+        const radius = radii[s.rows[i]];
         m.set([u.x * radius, u.y * radius, u.z * radius, 0, d.x, d.y, d.z, 0, w.x * radius, w.y * radius, w.z * radius, 0], o);
         for (let a = 0; a < 3; a++) m[o + 12 + a] = (p[6 * i + a] + p[6 * i + 3 + a]) / 2;
         m[o + 15] = 1;

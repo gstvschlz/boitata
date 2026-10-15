@@ -544,6 +544,7 @@ class Scene:
         filter=None,
         contour_step=None,
         scheme=None,
+        radius_by=None,
     ):
         """Adds a layer.
 
@@ -589,7 +590,8 @@ class Scene:
             Width of lines and wireframe edges, in pixels; default 2.5 for drill holes, 1 for wireframes.
         radius : float, optional
             Radius of drill-hole tubes and of spheres, in the data's length unit; default 1/400 of the diagonal of
-            the holes' bounds for tubes, 1/250 of the points' for spheres.
+            the holes' bounds for tubes, 1/250 of the points' for spheres. Tubes draw near the camera; an
+            interval whose tube would be under 3 pixels wide on screen draws as a line instead.
         label : str, optional
             Title of the color bar of `values`; default the column name.
         visible : bool, default True
@@ -613,6 +615,9 @@ class Scene:
             Order and colors of a text `values`: the legend and the layer's colors follow `scheme.names` and
             `scheme.colors` instead of the column's own sorted categories and the built-in palette. Values not
             in the scheme are not drawn, unless it has an `other` bucket. Describes `values`; pass values too.
+        radius_by : str, optional
+            Numeric column of drill holes that scales each interval's tube: its range maps from a third of
+            `radius` to all of it, nulls the thinnest. The column is sent to the viewer.
 
         Returns
         -------
@@ -666,6 +671,13 @@ class Scene:
             raise KeyError(f"no columns {sorted(wanted - set(available))}; columns: {', '.join(available)}")
         if wanted is not None and holes:
             wanted.add(holes[0])
+        if radius_by is not None:
+            if kind != "drillholes":
+                raise ValueError("radius_by applies to drill holes only")
+            if radius_by not in available:
+                raise KeyError(f"no column {radius_by!r}; columns: {', '.join(available) or 'none'}")
+            if wanted is not None:
+                wanted.add(radius_by)
 
         layer_id = f"l{len(self._layers)}"
         points = geometry.get("positions", geometry.get("centers"))
@@ -708,6 +720,7 @@ class Scene:
             "pointSize": None if point_size is None else float(point_size),
             "lineWidth": None if line_width is None else float(line_width),
             "radius": None if radius is None else float(radius),
+            "radiusBy": radius_by,
             "color": color,
             "opacity": float(opacity),
             "visible": bool(visible),

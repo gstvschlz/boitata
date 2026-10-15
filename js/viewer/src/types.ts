@@ -32,6 +32,8 @@ export interface LayerSpec {
   /** Line width in CSS pixels; null for the representation's default. */
   lineWidth?: number | null;
   /** Tube or sphere radius in meters; null for a share of the layer's extent. */
+  /** Drill holes: a numeric column scaling each interval's tube radius. */
+  radiusBy?: string | null;
   radius?: number | null;
   /** Buffer keys of the geometry, by role (positions, triangles, rows, midpoints, centers, sizes). */
   geometry: Record<string, string>;

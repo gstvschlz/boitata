@@ -247,6 +247,25 @@ def test_representation_is_validated_per_kind(data, valid):
         Scene().add(data, representation="tubes")
 
 
+def test_radius_by_names_a_drill_hole_column_and_sends_it():
+    collar = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}
+    survey = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    intervals = {
+        "HOLE_ID": ["A", "A"],
+        "FROM": [0.0, 5.0],
+        "TO": [5.0, 9.0],
+        "CU": [1.0, 2.0],
+        "AU": [0.1, 0.2],
+    }
+    holes = bt.Drillholes(collar, survey, intervals)
+    layer = Scene().add(holes, "AU", representation="tubes", radius_by="CU", columns=[])._spec()["layers"][0]
+    assert layer["radiusBy"] == "CU" and "CU" in [c["name"] for c in layer["columns"]]
+    with pytest.raises(KeyError, match="nope"):
+        Scene().add(holes, radius_by="nope")
+    with pytest.raises(ValueError, match="drill holes only"):
+        Scene().add(bt.PointSet(np.zeros((2, 3))), radius_by="CU")
+
+
 def test_sizes_reach_the_viewer_and_apply_only_where_they_mean_something():
     points = bt.PointSet(np.zeros((2, 3)))
     layer = Scene().add(points, representation="spheres", radius=2, point_size=9)._spec()["layers"][0]
