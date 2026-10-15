@@ -694,11 +694,10 @@ impl BlockModel {
         if s.rotation != t.rotation {
             return Err(Error::Geometry("models must share the rotation".into()));
         }
-        if let (Some(a), Some(b)) = (&self.crs, &target.crs)
-            && a != b
-        {
-            return Err(Error::Geometry("models must share the CRS".into()));
-        }
+        crate::crs::same_crs(
+            ("source blocks", self.crs.as_deref()),
+            ("target blocks", target.crs.as_deref()),
+        )?;
         crate::units::same_length_unit(
             ("source blocks", self.length_unit.as_deref()),
             ("target blocks", target.length_unit.as_deref()),

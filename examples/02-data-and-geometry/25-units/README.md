@@ -186,6 +186,32 @@ largest difference from the estimate in metres: 1.6e-11 %
 samples are in m and targets in ft; convert one with to_length_unit('m')
 ```
 
+containers may declare a CRS too, as a code such as `EPSG:31982` or as WKT, and the same rule holds: two declared
+CRSs that differ refuse to meet, and a container without one meets any. WKT whose top-level ID names the code
+matches the code.
+
+<details><summary>Python</summary>
+
+```python
+wkt = 'PROJCRS["SIRGAS 2000 / UTM zone 22S", BASEGEOGCRS["SIRGAS 2000", ID["EPSG",4674]], ID["EPSG",31982]]'
+utm = bt.PointSet(composites.coords, {"ZN_PCT": composites["ZN_PCT"]}, crs="EPSG:31982")
+local = bt.OrdinaryKriging(bt.Variogram([("spherical", 1.0, 60.0)]), bt.Search(radius=60, max_samples=12))
+local.fit(utm, "ZN_PCT")
+for crs in (wkt, "EPSG:32722"):
+    target = bt.BlockModel.from_extents(data["lens_1"], size=(10, 10, 5), buffer=20, crs=crs)
+    try:
+        print(f"{np.isfinite(local.predict(target)).sum()} blocks estimated in {target.crs.split(',')[0]}]")
+    except bt.InvalidInput as error:
+        print(error)
+```
+
+</details>
+
+```text
+112293 blocks estimated in PROJCRS["SIRGAS 2000 / UTM zone 22S"]
+samples are in CRS EPSG:31982 and targets in EPSG:32722; give them one CRS
+```
+
 ## tonnage and metal
 
 with the block size in metres and a density in `t/m3`, `grade_tonnage` knows that tonnage is a mass: it reads in

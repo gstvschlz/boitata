@@ -1096,6 +1096,7 @@ pub struct Sgs {
     /// Length unit of the fitted coordinates.
     #[serde(skip)]
     coords_unit: Option<String>,
+    coords_crs: Option<String>,
 }
 
 impl Sgs {
@@ -1194,6 +1195,7 @@ impl Sgs {
         Ok(Self {
             length_unit,
             coords_unit: None,
+            coords_crs: None,
             variogram: variogram.0,
             search: plain_searches(search, "SGS")?,
             classes,
@@ -1334,6 +1336,7 @@ impl Sgs {
         }
         slf.unit = crate::units::of(values, Some(coords))?;
         slf.coords_unit = crate::units::length_of(coords)?;
+        slf.coords_crs = crate::units::crs_of(coords)?;
         boitata_core::units::same_length_unit(
             (
                 "the variogram and search lengths",
@@ -1474,6 +1477,7 @@ impl Sgs {
             ("targets", crate::units::length_of(targets)?.as_deref()),
         )
         .map_err(invalid)?;
+        crate::units::check_crs(self.coords_crs.as_deref(), targets, ("samples", "targets"))?;
         if !matches!(path, None | Some("shared" | "random")) {
             return Err(invalid(format!(
                 "path must be 'shared' or 'random', got {:?}",
@@ -1694,6 +1698,7 @@ pub struct Dss {
     /// Length unit of the fitted coordinates.
     #[serde(skip)]
     coords_unit: Option<String>,
+    coords_crs: Option<String>,
 }
 
 #[pymethods]
@@ -1730,6 +1735,7 @@ impl Dss {
         Ok(Self {
             length_unit,
             coords_unit: None,
+            coords_crs: None,
             variogram: variogram.0,
             search: plain_searches(search, "DSS")?,
             domains: None,
@@ -1864,6 +1870,7 @@ impl Dss {
         }
         slf.unit = crate::units::of(values, Some(coords))?;
         slf.coords_unit = crate::units::length_of(coords)?;
+        slf.coords_crs = crate::units::crs_of(coords)?;
         boitata_core::units::same_length_unit(
             (
                 "the variogram and search lengths",
@@ -1999,6 +2006,7 @@ impl Dss {
             ("targets", crate::units::length_of(targets)?.as_deref()),
         )
         .map_err(invalid)?;
+        crate::units::check_crs(self.coords_crs.as_deref(), targets, ("samples", "targets"))?;
         let grid = self::targets(targets)?;
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;
@@ -2140,6 +2148,7 @@ pub struct TurningBands {
     /// Length unit of the fitted coordinates.
     #[serde(skip)]
     coords_unit: Option<String>,
+    coords_crs: Option<String>,
 }
 
 #[pymethods]
@@ -2188,6 +2197,7 @@ impl TurningBands {
         Ok(Self {
             length_unit,
             coords_unit: None,
+            coords_crs: None,
             variogram: variogram.0,
             bands,
             step,
@@ -2242,6 +2252,7 @@ impl TurningBands {
     ) -> PyResult<PyRefMut<'py, Self>> {
         slf.unit = crate::units::of(values, Some(coords))?;
         slf.coords_unit = crate::units::length_of(coords)?;
+        slf.coords_crs = crate::units::crs_of(coords)?;
         boitata_core::units::same_length_unit(
             (
                 "the variogram and search lengths",
@@ -2310,6 +2321,7 @@ impl TurningBands {
             ("targets", crate::units::length_of(targets)?.as_deref()),
         )
         .map_err(invalid)?;
+        crate::units::check_crs(self.coords_crs.as_deref(), targets, ("samples", "targets"))?;
         let grid = self::targets(targets)?;
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;

@@ -159,7 +159,7 @@ BlockModel(regular, 12 of 12 cells, count [4, 3, 1], size [10.0, 10.0, 5.0], rot
 
 block 0 has its center 5 m along x and 5 m along y from the origin, turned 30° clockwise: (6.83, 1.83). block 1 is the next one along the rotated x axis.
 
-the rotation is `(azimuth, dip, rake)` in degrees, the same triple the variogram and the search use. the grid also carries a CRS string, which parquet files keep.
+the rotation is `(azimuth, dip, rake)` in degrees, the same triple the variogram and the search use. the grid also carries a CRS string, which parquet files keep. containers with different declared CRSs refuse to meet; an `EPSG:` code matches WKT whose top-level ID names it.
 
 ### three layouts
 

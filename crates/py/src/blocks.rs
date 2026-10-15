@@ -296,6 +296,7 @@ impl Mesh {
     fn contains<'py>(&self, py: Python<'py>, points: &Bound<PyAny>) -> PyResult<Bound<'py, PyAny>> {
         crate::units::check_against(
             self.mesh.length_unit.as_deref(),
+            self.mesh.crs.as_deref(),
             points,
             ("mesh vertices", "points"),
         )?;
@@ -333,6 +334,7 @@ impl Mesh {
     ) -> PyResult<Bound<'py, PyAny>> {
         crate::units::check_against(
             self.mesh.length_unit.as_deref(),
+            self.mesh.crs.as_deref(),
             points,
             ("mesh vertices", "points"),
         )?;
@@ -381,6 +383,7 @@ impl Mesh {
     ) -> PyResult<Bound<'py, PyAny>> {
         crate::units::check_against(
             self.mesh.length_unit.as_deref(),
+            self.mesh.crs.as_deref(),
             points,
             ("mesh vertices", "points"),
         )?;
@@ -449,6 +452,7 @@ impl Mesh {
     ) -> PyResult<Bound<'py, PyAny>> {
         crate::units::check_against(
             self.mesh.length_unit.as_deref(),
+            self.mesh.crs.as_deref(),
             targets,
             ("mesh vertices", "targets"),
         )?;
@@ -905,6 +909,7 @@ fn assign_domain<'py>(
     if let Some(m) = &mesh {
         crate::units::check_against(
             m.mesh.length_unit.as_deref(),
+            m.mesh.crs.as_deref(),
             targets,
             ("mesh vertices", "targets"),
         )?;
@@ -912,6 +917,7 @@ fn assign_domain<'py>(
     if let Some(c) = coords {
         crate::units::check_against(
             crate::units::length_of(c)?.as_deref(),
+            crate::units::crs_of(c)?.as_deref(),
             targets,
             ("samples", "targets"),
         )?;

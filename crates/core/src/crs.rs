@@ -376,6 +376,73 @@ pub(crate) fn reproject(
     Ok((transform.target(), (!to_geographic).then(|| "m".into())))
 }
 
+/// What `crs` compares on: `AUTHORITY:code` for a code or for WKT whose
+/// top-level `ID` or `AUTHORITY` gives one, else the WKT upper-cased and
+/// without whitespace outside quotes.
+pub fn crs_key(crs: &str) -> String {
+    let crs = crs.trim();
+    if let Some((authority, code)) = crs.split_once(':')
+        && !authority.is_empty()
+        && authority.chars().all(|c| c.is_ascii_alphanumeric())
+        && !code.trim().is_empty()
+        && code.trim().chars().all(|c| c.is_ascii_alphanumeric())
+    {
+        return format!("{}:{}", authority.to_uppercase(), code.trim());
+    }
+    let mut text = String::new();
+    let mut quoted = false;
+    for c in crs.chars() {
+        if c == '"' {
+            quoted = !quoted;
+        }
+        if quoted {
+            text.push(c);
+        } else if !c.is_whitespace() {
+            text.extend(c.to_uppercase());
+        }
+    }
+    top_level_id(&text).unwrap_or(text)
+}
+
+/// `AUTHORITY:code` from the last `ID[...]` or `AUTHORITY[...]` directly
+/// inside the outer brackets of normalized WKT.
+fn top_level_id(wkt: &str) -> Option<String> {
+    let (mut depth, mut quoted, mut found) = (0, false, None);
+    for (i, c) in wkt.char_indices() {
+        match c {
+            '"' => quoted = !quoted,
+            '[' | '(' if !quoted => depth += 1,
+            ']' | ')' if !quoted => depth -= 1,
+            ',' if !quoted && depth == 1 => {
+                let rest = &wkt[i + 1..];
+                if let Some(inner) = rest
+                    .strip_prefix("ID[")
+                    .or_else(|| rest.strip_prefix("AUTHORITY["))
+                {
+                    found = Some(inner);
+                }
+            }
+            _ => {}
+        }
+    }
+    let mut parts = found?.split([',', ']']).map(|p| p.trim_matches('"'));
+    let (authority, code) = (parts.next()?, parts.next()?);
+    Some(format!("{}:{code}", authority.to_uppercase()))
+}
+
+/// Errors when `a` and `b` (what each holds, such as "samples" and
+/// "targets") both declare a CRS and they differ; an undeclared one matches
+/// any.
+pub fn same_crs(a: (&str, Option<&str>), b: (&str, Option<&str>)) -> Result<()> {
+    match (a.1, b.1) {
+        (Some(x), Some(y)) if crs_key(x) != crs_key(y) => Err(Error::Units(format!(
+            "{} are in CRS {x} and {} in {y}; give them one CRS",
+            a.0, b.0
+        ))),
+        _ => Ok(()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -499,5 +566,55 @@ mod tests {
             .unwrap_err()
             .to_string();
         assert!(error.contains("SIRGAS 2000"), "{error}");
+    }
+}
+
+#[cfg(test)]
+mod compat_tests {
+    use super::*;
+
+    const WKT2: &str = r#"PROJCRS["SIRGAS 2000 / UTM zone 22S",
+        BASEGEOGCRS["SIRGAS 2000", DATUM["Sistema de Referencia Geocentrico para las AmericaS 2000",
+            ELLIPSOID["GRS 1980",6378137,298.257222101]], ID["EPSG",4674]],
+        CONVERSION["UTM zone 22S", METHOD["Transverse Mercator", ID["EPSG",9807]]],
+        CS[Cartesian,2], ID["EPSG",31982]]"#;
+    const WKT1: &str = r#"PROJCS["SIRGAS 2000 / UTM zone 22S",GEOGCS["SIRGAS 2000",
+        AUTHORITY["EPSG","4674"]],PROJECTION["Transverse_Mercator"],AUTHORITY["EPSG","31982"]]"#;
+
+    #[test]
+    fn code_matches_wkt_with_its_id() {
+        assert_eq!(crs_key("EPSG:31982"), "EPSG:31982");
+        assert_eq!(crs_key("epsg:31982"), "EPSG:31982");
+        assert_eq!(crs_key(WKT2), "EPSG:31982");
+        assert_eq!(crs_key(WKT1), "EPSG:31982");
+        assert!(same_crs(("a", Some("EPSG:31982")), ("b", Some(WKT2))).is_ok());
+        assert!(same_crs(("a", Some(WKT1)), ("b", Some(WKT2))).is_ok());
+    }
+
+    #[test]
+    fn other_wkt_compares_on_normalized_text() {
+        let a = r#"LOCAL_CS["Mine grid", UNIT["metre",1]]"#;
+        let b = r#"local_cs["Mine grid",unit["metre", 1]]"#;
+        assert_eq!(crs_key(a), crs_key(b));
+        assert_ne!(
+            crs_key(a),
+            crs_key(r#"LOCAL_CS["mine grid",UNIT["metre",1]]"#)
+        );
+    }
+
+    #[test]
+    fn undeclared_matches_any_and_declared_must_agree() {
+        assert!(same_crs(("a", None), ("b", Some("EPSG:31982"))).is_ok());
+        assert!(same_crs(("a", Some("EPSG:31982")), ("b", None)).is_ok());
+        let e = same_crs(
+            ("samples", Some("EPSG:31982")),
+            ("targets", Some("EPSG:32722")),
+        );
+        assert!(
+            e.unwrap_err()
+                .to_string()
+                .contains("samples are in CRS EPSG:31982")
+        );
+        assert!(same_crs(("a", Some(WKT1)), ("b", Some("EPSG:4674"))).is_err());
     }
 }

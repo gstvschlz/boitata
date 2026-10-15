@@ -622,6 +622,7 @@ impl PyPolylines {
     ) -> PyResult<Bound<'py, PyArray1<bool>>> {
         crate::units::check_against(
             self.0.length_unit.as_deref(),
+            self.0.crs.as_deref(),
             points,
             ("polyline vertices", "points"),
         )?;
@@ -647,6 +648,7 @@ impl PyPolylines {
     ) -> PyResult<Bound<'py, PyArray1<i64>>> {
         crate::units::check_against(
             self.0.length_unit.as_deref(),
+            self.0.crs.as_deref(),
             points,
             ("polyline vertices", "points"),
         )?;
@@ -683,6 +685,7 @@ impl PyPolylines {
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         crate::units::check_against(
             self.0.length_unit.as_deref(),
+            self.0.crs.as_deref(),
             points,
             ("polyline vertices", "points"),
         )?;
@@ -1207,7 +1210,10 @@ impl PyBlockModel {
             .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
         let domains = meshes
             .into_iter()
-            .map(|(mesh, rule, label)| crate::blocks::domain(&mesh, &rule, label))
+            .map(|(mesh, rule, label)| {
+                crate::units::check_crs(self.0.crs.as_deref(), &mesh, ("blocks", "domain meshes"))?;
+                crate::blocks::domain(&mesh, &rule, label)
+            })
             .collect::<PyResult<Vec<_>>>()?;
         let model = py
             .detach(|| blocks::subblock(&self.0, &domains, subgrid, column, fill))
@@ -1259,6 +1265,7 @@ impl PyBlockModel {
     ///     axes, so grids built from different data line up; ``True`` snaps
     ///     to the block size.
     /// crs : str, optional
+    ///     Defaults to the CRS the objects declare, which must agree.
     ///
     /// Returns
     /// -------
@@ -1308,7 +1315,14 @@ impl PyBlockModel {
             .collect::<PyResult<Vec<_>>>()?;
         let buffer = triple(buffer, 0.0, "buffer")?;
         let mut points = Vec::new();
+        let mut crs = crs;
         for object in objects.iter() {
+            crate::units::check_crs(
+                crs.as_deref(),
+                &object,
+                ("the grid and objects", "another object"),
+            )?;
+            crs = crs.or(crate::units::crs_of(&object)?);
             points.extend(extent_points(&object)?);
         }
         let rotation = rotation.map_or([0.0; 3], |r| [r.0, r.1, r.2]);
