@@ -598,6 +598,17 @@ impl Mesh {
         })
     }
 
+    /// The same geometry with other per-vertex and per-triangle attributes.
+    pub fn with_attributes(&self, vertex: RecordBatch, face: RecordBatch) -> Result<Self> {
+        crate::check_rows(self.vertices.len(), &vertex)?;
+        crate::check_rows(self.triangles.len(), &face)?;
+        Ok(Self {
+            vertex_attributes: vertex,
+            face_attributes: face,
+            ..self.clone()
+        })
+    }
+
     /// Degenerate, duplicate, edge, vertex, orientation and crossing problems.
     /// `tolerance` is the distance within which a vertex duplicates an
     /// earlier one.

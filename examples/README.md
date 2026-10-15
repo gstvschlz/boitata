@@ -45,6 +45,7 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 28 | [GeoJSON](02-data-and-geometry/28-geojson/README.md) | Synthetic | `PointSet`, `Polylines`, `write_geojson`, `read_geojson` |
 | 29 | [VTK files](02-data-and-geometry/29-vtk-files/README.md) | Vein gold grade control | `read_mesh`, `PointSet`, `write_vtk`, `read_vtk`, `BlockModel` |
 | 30 | [mesh sections](02-data-and-geometry/30-mesh-sections/README.md) | Stacked sulphide lenses | `write_geojson`, `read_geojson` |
+| 31 | [mesh booleans and cuts](02-data-and-geometry/31-mesh-booleans/README.md) | Stacked sulphide lenses | `Mesh` |
 
 ## exploratory analysis
 
