@@ -165,7 +165,7 @@ def test_mesh_files_round_trip(tmp_path):
     vertices = [[0, 0, 0], [1.5, 0, 0], [0, 1, 0], [0, 0, 1]]
     tetra = bt.Mesh(vertices, [[0, 2, 1], [0, 1, 3], [0, 3, 2], [1, 2, 3]])
     tetra = tetra.with_face_column("layer", ["a", "a", "b", "b"])
-    for name in ("m.obj", "m.stl", "m.dxf"):
+    for name in ("m.obj", "m.stl", "m.ply", "m.off", "m.dxf"):
         bt.write_mesh(tmp_path / name, tetra)
         back = bt.read_mesh(tmp_path / name)
         np.testing.assert_array_equal(back.coords[back.triangles], tetra.coords[tetra.triangles])
@@ -176,8 +176,16 @@ def test_mesh_files_round_trip(tmp_path):
     np.testing.assert_array_equal(
         bt.read_mesh(tmp_path / "a.stl").coords, bt.read_mesh(tmp_path / "m.stl").coords
     )
+    graded = tetra.with_vertex_column("grade", [1.5, np.nan, 3.0, 4.0]).with_face_column(
+        "domain", [1, 2, 2, 3]
+    )
+    for ascii in (False, True):
+        bt.write_mesh(tmp_path / "g.ply", graded, ascii=ascii)
+        back = bt.read_mesh(tmp_path / "g.ply")
+        np.testing.assert_array_equal(back.vertex_attributes["grade"], [1.5, np.nan, 3.0, 4.0])
+        np.testing.assert_array_equal(back.face_attributes["domain"], [1, 2, 2, 3])
     with pytest.raises(bt.InvalidInput):
-        bt.write_mesh(tmp_path / "m.ply", tetra)
+        bt.write_mesh(tmp_path / "m.vtk", tetra)
     with pytest.raises(bt.FileError):
         bt.read_mesh(tmp_path / "missing.obj")
 

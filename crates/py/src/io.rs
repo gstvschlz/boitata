@@ -185,13 +185,14 @@ fn read_parquet(
     })
 }
 
-/// Reads a `.obj`, `.stl` or `.dxf` mesh.
+/// Reads a `.obj`, `.stl`, `.dxf`, `.ply` or `.off` mesh.
 ///
 /// Parameters
 /// ----------
 /// path : str or Path
 ///     The file. OBJ `g` groups become a face column `group` when the file
-///     has any. DXF reads `3DFACE`, polyface `POLYLINE` and `MESH` (level-0
+///     has any. PLY (ASCII or binary) vertex and face properties other than
+///     positions and vertex indices become float columns, NaN as null. DXF reads `3DFACE`, polyface `POLYLINE` and `MESH` (level-0
 ///     cage, ASCII files only) entities as triangles with a face column
 ///     `layer`; `MESH` faces come last.
 ///
@@ -208,17 +209,18 @@ fn read_mesh(py: Python, path: PathBuf, length_unit: Option<String>) -> PyResult
     Ok(Mesh::from_core(mesh))
 }
 
-/// Writes a `.obj`, `.stl` or ASCII R2000 `.dxf` mesh.
+/// Writes a `.obj`, `.stl`, `.ply`, `.off` or ASCII R2000 `.dxf` mesh.
 ///
 /// Parameters
 /// ----------
 /// path : str or Path
 ///     The file; its extension picks the format.
 /// mesh : Mesh
-///     The mesh. OBJ writes the face column `group` as `g` lines; DXF puts
+///     The mesh. OBJ writes the face column `group` as `g` lines; PLY writes
+///     numeric vertex and face columns as properties, nulls as NaN; DXF puts
 ///     faces on the layer named by the face column `layer`, else `0`.
 /// ascii : bool, default False
-///     Write ASCII instead of binary STL.
+///     Write ASCII instead of binary STL or PLY.
 /// dxf_entity : {"3dface", "polyface"}, default "3dface"
 ///     One `3DFACE` per triangle, or one polyface `POLYLINE` with shared
 ///     vertices per layer, split past 32767 vertices or faces.

@@ -37,8 +37,10 @@ impl From<DxfError> for Error {
     }
 }
 
-/// Reads an OBJ, STL (binary or ASCII) or DXF mesh by extension. OBJ `g`
-/// groups become the face column `group` when the file has any. DXF reads
+/// Reads an OBJ, STL (binary or ASCII), DXF, PLY (ASCII or binary) or ASCII
+/// OFF mesh by extension. OBJ `g` groups become the face column `group` when
+/// the file has any. PLY vertex and face properties other than positions and
+/// vertex indices become `Float64` columns, NaN as null. DXF reads
 /// `3DFACE`, polyface `POLYLINE` and `MESH` (level-0 cage, ASCII files only)
 /// entities into triangles with a face column `layer`; `MESH` faces come last.
 pub fn read_mesh(path: impl AsRef<Path>) -> Result<Mesh> {
@@ -46,13 +48,16 @@ pub fn read_mesh(path: impl AsRef<Path>) -> Result<Mesh> {
     match extension(path)? {
         "obj" => parse_obj(&std::fs::read_to_string(path)?),
         "stl" => parse_stl(&std::fs::read(path)?),
+        "ply" => crate::ply::parse_ply(&std::fs::read(path)?),
+        "off" => crate::ply::parse_off(&std::fs::read_to_string(path)?),
         _ => parse_dxf(&std::fs::read(path)?),
     }
 }
 
-/// Writes OBJ, STL (binary unless `ascii`) or ASCII R2000 DXF by extension.
-/// OBJ writes the face column `group` as `g` lines. DXF writes `dxf_entity`
-/// on the layer named by the face column `layer`, else layer `0`.
+/// Writes OBJ, STL or PLY (binary unless `ascii`), OFF or ASCII R2000 DXF by
+/// extension. PLY writes numeric vertex and face columns as properties, nulls
+/// as NaN. OBJ writes the face column `group` as `g` lines. DXF writes
+/// `dxf_entity` on the layer named by the face column `layer`, else layer `0`.
 pub fn write_mesh(
     path: impl AsRef<Path>,
     mesh: &Mesh,
@@ -63,6 +68,8 @@ pub fn write_mesh(
     match extension(path)? {
         "obj" => Ok(std::fs::write(path, obj_string(mesh)?)?),
         "stl" => Ok(std::fs::write(path, stl_bytes(mesh, ascii))?),
+        "ply" => Ok(std::fs::write(path, crate::ply::ply_bytes(mesh, ascii)?)?),
+        "off" => Ok(std::fs::write(path, crate::ply::off_string(mesh))?),
         _ => Ok(std::fs::write(path, dxf_bytes(mesh, dxf_entity)?)?),
     }
 }
@@ -84,12 +91,12 @@ fn text<'a>(column: Option<&'a StringArray>, t: usize, default: &'a str) -> &'a 
 
 fn extension(path: &Path) -> Result<&'static str> {
     let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
-    ["obj", "stl", "dxf"]
+    ["obj", "stl", "dxf", "ply", "off"]
         .into_iter()
         .find(|f| f.eq_ignore_ascii_case(ext))
         .ok_or_else(|| {
             Error::Mesh(format!(
-                "{}: mesh files must be .obj, .stl or .dxf",
+                "{}: mesh files must be .obj, .stl, .dxf, .ply or .off",
                 path.display()
             ))
         })
