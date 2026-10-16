@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { lodItems, meanOf, modeOf, octree, projectedPixels } from "../src/lod";
+import * as THREE from "three";
+import { lodItems, meanOf, modeOf, octree, projectedPixels, screenPixels } from "../src/lod";
 import { mergedColor, solidPaint } from "../src/paint";
 
 function cloud(n: number, side = 100): Float32Array {
@@ -42,6 +43,16 @@ describe("level selection", () => {
     expect(projectedPixels(1, 10, 90, 200)).toBeCloseTo(10);
     expect(projectedPixels(1, 20, 90, 200)).toBeCloseTo(5);
     expect(projectedPixels(5, 4, 30, 600)).toBe(Infinity);
+  });
+
+  it("keeps a cell's screen size at any distance when orthographic, and matches perspective at the frame's depth", () => {
+    const ortho = new THREE.OrthographicCamera(-20, 20, 10, -10, 0.1, 100);
+    expect(screenPixels(ortho, 200)(1, 5)).toBeCloseTo(10);
+    expect(screenPixels(ortho, 200)(1, 50)).toBeCloseTo(10);
+    ortho.zoom = 2;
+    expect(screenPixels(ortho, 200)(1, 5)).toBeCloseTo(20);
+    const perspective = new THREE.PerspectiveCamera(90, 2, 0.1, 100);
+    expect(screenPixels(perspective, 200)(1, 10)).toBeCloseTo(10);
   });
 
   const n = 50_000;

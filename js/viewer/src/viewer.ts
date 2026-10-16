@@ -40,7 +40,8 @@ import {
   toState,
 } from "./filter";
 import { columnPaint, type Paint, solidPaint, type Scale } from "./paint";
-import { type Action, keyAction, SHORTCUTS } from "./keys";
+import { type Action, type Arrow, keyAction, SHORTCUTS } from "./keys";
+import type { ViewCamera } from "./lod";
 import { formatValue, type Hit, isClick, nearestHit, PICK_RADIUS, round7 } from "./pick";
 import { type Renderer, webgl } from "./renderer";
 import {
@@ -89,6 +90,9 @@ const WIDTH_SHARE = 1 / 20;
 /** A pointer moving less than this many pixels between press and release clicks. */
 const CLICK_PX = 5;
 const WHEEL_STEP = 1.15;
+/** Degrees an arrow key orbits the camera by, and the factor Page Up or Down zooms it by. */
+const ORBIT_STEP = 15;
+const ZOOM_STEP = 1.25;
 
 type XY = [number, number];
 interface CameraState {
@@ -157,7 +161,7 @@ export interface ViewState {
   theme: "auto" | "light" | "dark";
   dark: boolean;
   panel: boolean;
-  show: { box: boolean; grid: boolean; ticks: boolean; gizmo: boolean; edl: boolean };
+  show: { box: boolean; grid: boolean; ticks: boolean; gizmo: boolean; edl: boolean; ortho: boolean };
   layers: Record<string, { visible: boolean; representation: string; values: string | null; color: string | null; opacity: number }>;
   variables: Record<string, { cmap: string; clim: [number, number] | null; log: boolean; bins: number[] | null; reverse: boolean }>;
 }
@@ -202,6 +206,7 @@ export class Viewer {
   private renderer: Renderer;
   private scene = new THREE.Scene();
   private camera = new THREE.PerspectiveCamera(30, 1, 0.1, 1e7);
+  private ortho = new THREE.OrthographicCamera();
   private controls: OrbitControls;
   private axes: Axes;
   private gizmo: Gizmo;
@@ -215,7 +220,7 @@ export class Viewer {
   private pending = false;
   private box: Box | null = null;
   private refit: { from: Box; to: Box; start: number } | null = null;
-  private show = { box: true, grid: true, ticks: true, gizmo: true, edl: false };
+  private show = { box: true, grid: true, ticks: true, gizmo: true, edl: false, ortho: false };
   private collapsed = new Set<string>();
   private shot = { scale: 2, panel: false };
   private panel = document.createElement("div");
@@ -325,6 +330,7 @@ export class Viewer {
     const state = options.state;
     this.themeSpec = state && state.theme !== "auto" ? withBase(spec.theme, state.theme) : spec.theme;
     this.show.edl = spec.edl ?? (spec.layers.length > 0 && spec.layers.every((l) => l.kind === "points" && l.representation === "points"));
+    this.show.ortho = !!spec.view.orthographic;
     if (state) this.show = { ...this.show, ...state.show };
     this.axes.show = { box: this.show.box, grid: this.show.grid, ticks: this.show.ticks };
     this.renderer.edl = this.show.edl;
@@ -434,6 +440,7 @@ export class Viewer {
     canvas.addEventListener("pointermove", (e) => this.pointerMove(e));
     canvas.addEventListener("pointerup", (e) => this.pointerUp(e));
     canvas.addEventListener("wheel", (e) => this.wheel(e), { capture: true, passive: false });
+    canvas.addEventListener("dblclick", (e) => this.orbitAt(this.screen(e)));
     this.resize();
   }
 
@@ -493,11 +500,12 @@ export class Viewer {
       }
       this.lastMove = now;
     }
-    this.shareUniforms();
-    this.axes.update(this.camera, this.width, this.height);
-    this.gizmo.update(this.camera);
+    const eye = this.eye();
+    this.shareUniforms(eye);
+    this.axes.update(eye, this.width, this.height);
+    this.gizmo.update(eye);
     this.drawScaleBar();
-    this.renderer.render(this.scene, this.camera);
+    this.renderer.render(this.scene, eye);
     this.trackState();
   }
 
@@ -546,7 +554,7 @@ export class Viewer {
   }
 
   /** Writes this viewer's state into the uniforms its materials share with any other viewer on the page. */
-  private shareUniforms(): void {
+  private shareUniforms(eye: ViewCamera): void {
     const section = this.drawing ? null : this.cutSection;
     writeSection(section, !!this.cut?.unfolded);
     shared.uAccent.value.set(this.theme.accent);
@@ -560,7 +568,7 @@ export class Viewer {
     this.camera.updateMatrixWorld();
     for (const layer of this.layers) {
       layer.rep.section?.(section, !!this.cut?.unfolded);
-      layer.rep.frame?.(this.width, this.height, this.camera, this.settle.moving);
+      layer.rep.frame?.(this.width, this.height, eye, this.settle.moving);
     }
   }
 
@@ -595,7 +603,10 @@ export class Viewer {
     return unit ? `${title} (${unit})` : title;
   }
 
-  /** A round length at the depth the camera orbits, shown with the tick labels; true in a face-on view at that depth. */
+  /**
+   * A round length at the depth the camera orbits, shown with the tick labels; true in a face-on view at that depth,
+   * and at every depth when orthographic.
+   */
   private drawScaleBar(): void {
     this.scaleEl.hidden = !this.axes.show.ticks;
     const perPixel = metersPerPixel(this.camera.position.distanceTo(this.controls.target), this.camera.fov, this.height);
@@ -682,6 +693,7 @@ export class Viewer {
   }
 
   private snap(snap: Snap): void {
+    if (this.cut?.unfolded) return;
     const [azimuth, dip] = {
       up: [0, 90],
       down: [0, -90],
@@ -691,6 +703,61 @@ export class Viewer {
       east: [270, 0],
     }[snap];
     this.setView(azimuth, dip);
+  }
+
+  /**
+   * The camera that draws: the orbiting one, or its orthographic twin, which frames the target's depth the same and
+   * so zooms, pans and fits with it. The twin stands back beyond the shown layers, so none falls behind it when the
+   * orbit comes close.
+   */
+  private eye(): ViewCamera {
+    if (!this.show.ortho) return this.camera;
+    const c = this.camera;
+    const o = this.ortho;
+    const target = this.controls.target;
+    const distance = c.position.distanceTo(target);
+    const half = distance * Math.tan(THREE.MathUtils.degToRad(c.fov / 2));
+    [o.left, o.right, o.top, o.bottom] = [-half * c.aspect, half * c.aspect, half, -half];
+    const box = this.extent();
+    const center = box ? new THREE.Vector3(...box.min).add(new THREE.Vector3(...box.max)).multiplyScalar(0.5) : target;
+    const back = distance + center.distanceTo(target) + diagonal(box) / 2;
+    o.position.copy(target).addScaledVector(c.getWorldDirection(new THREE.Vector3()), -back);
+    o.quaternion.copy(c.quaternion);
+    o.near = c.near;
+    o.far = 2 * back + c.near;
+    o.updateProjectionMatrix();
+    o.updateMatrixWorld();
+    return o;
+  }
+
+  toggleOrtho(): void {
+    this.toggleShow("ortho");
+    this.renderBody();
+  }
+
+  /** Orbits the camera a step: left or right about the vertical through the target, up or down over it. */
+  private orbit(arrow: Arrow): void {
+    const step = THREE.MathUtils.degToRad(ORBIT_STEP);
+    if (arrow === "left" || arrow === "right") this.controls.rotateLeft(arrow === "left" ? step : -step);
+    else this.controls.rotateUp(arrow === "up" ? step : -step);
+  }
+
+  /** Moves the camera a tenth of the view's height across the screen. */
+  private pan(arrow: Arrow): void {
+    const step = this.height / 10;
+    const [dx, dy] = { left: [step, 0], right: [-step, 0], up: [0, step], down: [0, -step] }[arrow];
+    this.controls.pan(dx, dy);
+  }
+
+  /** From now on the camera orbits the element under CSS pixel `at`, which glides to the middle of the view. */
+  private orbitAt(at: XY): void {
+    if (this.drawing || this.quick || this.measuring) return;
+    const p = this.hitPoint(at);
+    if (!p) return;
+    this.card.hidden = true;
+    const from = this.tween?.to ?? this.cameraState();
+    const target = new THREE.Vector3(...this.place(p));
+    this.glide({ position: from.position.clone().add(target.clone().sub(from.target)), target });
   }
 
   // ---- layers and color ----
@@ -1046,6 +1113,7 @@ export class Viewer {
         ["ticks", "ruler", "Tick labels"],
         ["gizmo", "axes", "Orientation"],
         ["edl", "contrast", "Eye-dome lighting (E)"],
+        ["ortho", "ortho", "Orthographic (O)"],
       ];
       const ruler = iconButton("measure", "Measure: click two points (M)", () => this.toggleMeasure());
       ruler.classList.add("btv-tool");
@@ -2051,7 +2119,7 @@ export class Viewer {
 
   private ray(at: XY): Ray {
     const caster = new THREE.Raycaster();
-    caster.setFromCamera(new THREE.Vector2((at[0] / this.width) * 2 - 1, 1 - (at[1] / this.height) * 2), this.camera);
+    caster.setFromCamera(new THREE.Vector2((at[0] / this.width) * 2 - 1, 1 - (at[1] / this.height) * 2), this.eye());
     return { origin: caster.ray.origin.toArray() as Vec3, direction: caster.ray.direction.toArray() as Vec3 };
   }
 
@@ -2324,7 +2392,8 @@ export class Viewer {
   /** The element under CSS pixel `at`, from an id pass drawn for this click in full detail; null for none. */
   private hitAt(at: XY): Hit | null {
     this.settle.stop();
-    this.shareUniforms();
+    const eye = this.eye();
+    this.shareUniforms(eye);
     const hidden: THREE.Object3D[] = [];
     const hide = (o: THREE.Object3D) => {
       if (!o.visible) return;
@@ -2343,7 +2412,7 @@ export class Viewer {
     });
     shared.uPicking.value = 1;
     shared.uPixelRatio.value = 1;
-    const w = this.renderer.pick(this.scene, this.camera, at[0], at[1], PICK_RADIUS);
+    const w = this.renderer.pick(this.scene, eye, at[0], at[1], PICK_RADIUS);
     shared.uPicking.value = 0;
     shared.uPixelRatio.value = this.pixelRatio;
     for (const [m, blending, colorWrite] of saved.reverse()) {
@@ -2467,7 +2536,7 @@ export class Viewer {
   }
 
   private toScreen(p: Vec3): XY {
-    const v = new THREE.Vector3(...p).project(this.camera);
+    const v = new THREE.Vector3(...p).project(this.eye());
     return [((v.x + 1) / 2) * this.width, ((1 - v.y) / 2) * this.height];
   }
 
@@ -2543,7 +2612,8 @@ export class Viewer {
     const target = e.composedPath()[0] as HTMLElement;
     const inField = /^(INPUT|SELECT|TEXTAREA)$/.test(target?.tagName ?? "");
     const cancellable = !!(this.drawing || this.quick || this.picked || this.measuring || !this.help.hidden);
-    const action = keyAction(e, inField, { drawing: !!this.drawing, cancellable });
+    const inPanel = e.composedPath().includes(this.panel);
+    const action = keyAction(e, inField, { drawing: !!this.drawing, cancellable, inPanel });
     if (!action) return;
     e.preventDefault();
     e.stopPropagation();
@@ -2574,9 +2644,27 @@ export class Viewer {
         else if (this.measuring) this.toggleMeasure(false);
         else this.dismiss();
       },
+      ortho: () => this.toggleOrtho(),
       measure: () => this.toggleMeasure(),
       forward: () => this.stepSection(1),
       back: () => this.stepSection(-1),
+      // three's dollyOut brings the camera closer, and dollyIn backs it away
+      zoomIn: () => this.controls.dollyOut(ZOOM_STEP),
+      zoomOut: () => this.controls.dollyIn(ZOOM_STEP),
+      "orbit-left": () => this.orbit("left"),
+      "orbit-right": () => this.orbit("right"),
+      "orbit-up": () => this.orbit("up"),
+      "orbit-down": () => this.orbit("down"),
+      "pan-left": () => this.pan("left"),
+      "pan-right": () => this.pan("right"),
+      "pan-up": () => this.pan("up"),
+      "pan-down": () => this.pan("down"),
+      "view-up": () => this.snap("up"),
+      "view-down": () => this.snap("down"),
+      "view-north": () => this.snap("north"),
+      "view-south": () => this.snap("south"),
+      "view-west": () => this.snap("west"),
+      "view-east": () => this.snap("east"),
     })[action]();
   }
 
@@ -2592,15 +2680,20 @@ export class Viewer {
     this.renderBody();
   }
 
-  /** The point under CSS pixel `at`: that of the element there, else on the level plane through the top of the box. */
-  private pointAt(at: XY): Vec3 | null {
+  /** The local position of the element under CSS pixel `at`; null over empty space. */
+  private hitPoint(at: XY): Vec3 | null {
     const hit = this.hitAt(at);
     const layer = hit ? this.layers[hit.layer] : undefined;
-    if (hit && layer) {
-      const o = this.spec.origin;
-      const p = this.inspect(layer, hit.row, at).state.position;
-      return [p[0] - o[0], p[1] - o[1], p[2] - o[2]];
-    }
+    if (!hit || !layer) return null;
+    const o = this.spec.origin;
+    const p = this.inspect(layer, hit.row, at).state.position;
+    return [p[0] - o[0], p[1] - o[1], p[2] - o[2]];
+  }
+
+  /** The point under CSS pixel `at`: that of the element there, else on the level plane through the top of the box. */
+  private pointAt(at: XY): Vec3 | null {
+    const hit = this.hitPoint(at);
+    if (hit) return hit;
     const plan = this.planAt(at);
     return plan ? [plan[0], plan[1], (this.box ?? visibleBox(this.layers))?.max[2] ?? 0] : null;
   }
@@ -2709,7 +2802,7 @@ export class Viewer {
     await this.idle();
     this.frame();
     shared.uPixelRatio.value = scale;
-    const canvas = this.renderer.snapshot(this.scene, this.camera, scale, transparent);
+    const canvas = this.renderer.snapshot(this.scene, this.eye(), scale, transparent);
     shared.uPixelRatio.value = this.pixelRatio;
     this.requestRender();
     const ratio = canvas.width / this.width;

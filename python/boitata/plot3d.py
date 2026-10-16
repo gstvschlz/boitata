@@ -495,7 +495,7 @@ class Scene:
         self._theme = _theme(theme)
         self._height = height
         self._motion = _motion_quality(motion_quality)
-        self._view = {"azimuth": 45.0, "dip": 30.0}
+        self._view = {"azimuth": 45.0, "dip": 30.0, "orthographic": False}
         self._layers = []
         self._buffers = {}
         self._variables = {}
@@ -814,10 +814,13 @@ class Scene:
             )
         return self
 
-    def view(self, *, azimuth=45.0, dip=30.0):
+    def view(self, *, azimuth=45.0, dip=30.0, orthographic=False):
         """Sets the direction the camera looks along; the view still frames every shown layer.
 
         It replaces the camera a widget last reported, so screenshots look along it until the view is moved again.
+        While viewing, double-click an element to orbit around it; the arrow keys orbit, Shift+arrows pan, Page Up
+        and Page Down zoom, and the number keys turn to a compass view (8 north, 2 south, 4 west, 6 east, 5 from
+        above, 0 from below).
 
         Parameters
         ----------
@@ -826,6 +829,9 @@ class Scene:
         dip : float, default 30.0
             Angle of the line of sight below horizontal, in degrees: 0 looks level, 90 straight down (a plan
             with north up).
+        orthographic : bool, default False
+            Draw with parallel lines of sight, so a length shows the same size at any depth and the scale bar
+            holds across a face-on view: plans and sections at true scale. The View panel and the O key switch it.
 
         Returns
         -------
@@ -835,9 +841,14 @@ class Scene:
         azimuth, dip = float(azimuth), float(dip)
         if not math.isfinite(azimuth) or not -90.0 <= dip <= 90.0:
             raise ValueError(f"azimuth must be finite and dip in [-90, 90], got {azimuth!r}, {dip!r}")
-        self._view = {"azimuth": azimuth % 360.0, "dip": dip}
+        if not isinstance(orthographic, bool):
+            raise TypeError(f"orthographic must be a bool, got {orthographic!r}")
+        self._view = {"azimuth": azimuth % 360.0, "dip": dip, "orthographic": orthographic}
         if self._state:
-            self._state = {k: v for k, v in self._state.items() if k != "camera"}
+            state = {k: v for k, v in self._state.items() if k != "camera"}
+            if "show" in state:
+                state["show"] = {k: v for k, v in state["show"].items() if k != "ortho"}
+            self._state = state
         return self
 
     def section(self, points, *, width=None, dip=90.0):

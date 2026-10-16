@@ -89,14 +89,28 @@ export function projectedPixels(size: number, distance: number, fov: number, hei
   return (size * height) / (2 * Math.tan((fov * Math.PI) / 360) * distance);
 }
 
+/** A camera that draws the scene, in perspective or orthographic. */
+export type ViewCamera = THREE.PerspectiveCamera | THREE.OrthographicCamera;
+
+/** CSS pixels a length `size` spans `distance` from a camera; an orthographic one draws it the same at any distance. */
+export function screenPixels(camera: ViewCamera, height: number): (size: number, distance: number) => number {
+  if ("isOrthographicCamera" in camera) {
+    const perUnit = (height * camera.zoom) / (camera.top - camera.bottom);
+    return (size) => size * perUnit;
+  }
+  return (size, distance) => projectedPixels(size, distance, camera.fov, height);
+}
+
 /** What a camera makes of a cell: its size on screen, from the cell's center and side. */
-export function cameraPixels(camera: THREE.PerspectiveCamera, height: number): (center: Vec3, size: number) => number {
+export function cameraPixels(camera: ViewCamera, height: number): (center: Vec3, size: number) => number {
   const e = camera.matrixWorld.elements;
-  return (c, size) => projectedPixels(size, Math.hypot(c[0] - e[12], c[1] - e[13], c[2] - e[14]), camera.fov, height);
+  const pixels = screenPixels(camera, height);
+  return (c, size) => pixels(size, Math.hypot(c[0] - e[12], c[1] - e[13], c[2] - e[14]));
 }
 
 /** What a cut depends on from the camera; the same text means the same cut. */
-export const viewKey = (camera: THREE.PerspectiveCamera, height: number) => `${camera.matrixWorld.elements.join()},${camera.fov},${height}`;
+export const viewKey = (camera: ViewCamera, height: number) =>
+  `${camera.matrixWorld.elements.join()},${camera.projectionMatrix.elements.join()},${height}`;
 
 /** Ranges of `order` that draw, as `from`, `to` pairs in `t`: one element each, or a cell standing for its elements. */
 export interface Items {

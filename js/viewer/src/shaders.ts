@@ -126,13 +126,14 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
         vNormal = sectionTurn(mat3(m) * normal, vRef);
         vec4 view = viewMatrix * vec4(sectionPlace(world.xyz, vRef), 1.0);
         #ifdef SURFACE_BIAS
-          view.xyz *= max(0.05, 1.0 - uSurfaceBias / max(length(view.xyz), 1e-6));
+          if (isOrthographic) view.z += uSurfaceBias;
+          else view.xyz *= max(0.05, 1.0 - uSurfaceBias / max(length(view.xyz), 1e-6));
         #endif
         gl_Position = projectionMatrix * view;
         vLocal = position;
         vEyeLocal = vec3(0.0);
         #ifdef SECTION_CAPS
-          vEyeLocal = (inverse(m) * vec4(sectionUnplace(cameraPosition, vRef), 1.0)).xyz;
+          vEyeLocal = (inverse(m) * vec4(sectionUnplace(sectionEye(sectionPlace(world.xyz, vRef)), vRef), 1.0)).xyz;
         #endif
         vPass = filterPass(aFilter) ? 1.0 : 0.0;
         #ifdef USE_INSTANCING
@@ -190,7 +191,7 @@ export function shadedMaterial(instanced: boolean, opacity: number, filter: Filt
           if (!gl_FrontFacing && uSecCount > 0) {
             // the box is seen from inside where its front face was cut away: draw the cut, the nearest point of the
             // ray inside both the box and the slab, unless the front face itself lies in the slab
-            vec3 eye = sectionUnplace(cameraPosition, vRef);
+            vec3 eye = sectionUnplace(sectionEye(sectionPlace(vWorld, vRef)), vRef);
             vec3 dir = vWorld - eye;
             vec3 d = vLocal - vEyeLocal;
             d += vec3(1e-12) * (1.0 - step(1e-12, abs(d)));
