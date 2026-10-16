@@ -68,7 +68,7 @@ export interface SceneSpec {
   axes: [string, string, string];
   theme: ThemeSpec;
   height: number;
-  view: { azimuth: number; dip: number };
+  view: { azimuth: number; dip: number; orthographic?: boolean };
   /** What draws while the camera moves: "auto", "full", or a fixed fraction of each layer's instances. */
   motion?: "auto" | "full" | number;
   /** Eye-dome lighting at the start; null or absent turns it on when every layer is a point set drawn as points. */

@@ -318,6 +318,11 @@ vec3 sectionUnplace(vec3 q, vec3 ref) {
   vec2 r = q.xy - m.zw;
   return vec3(m.x * r.x - m.y * r.y, m.y * r.x + m.x * r.y, q.z);
 }
+vec3 sectionEye(vec3 q) {
+  if (!isOrthographic) return cameraPosition;
+  vec3 back = vec3(viewMatrix[0][2], viewMatrix[1][2], viewMatrix[2][2]);
+  return q + back * dot(cameraPosition - q, back);
+}
 float sectionEdge(vec3 p) {
   int j = secHolding(p);
   if (j < 0) return 1e30;

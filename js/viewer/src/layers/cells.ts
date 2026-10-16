@@ -6,7 +6,7 @@ import { ALL_SIDES, cellCount, exposedSides, type Grid, HIDDEN, MAX_CELLS, SOLID
 import { filterArray, type LayerFilter, passMask, writeFilter } from "../filter";
 import { stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, mergeCounts, mergedColor, type Paint } from "../paint";
-import { cameraPixels, LOD_MIN, lodItems, octree, viewKey } from "../lod";
+import { cameraPixels, LOD_MIN, lodItems, octree, type ViewCamera, viewKey } from "../lod";
 import { pickArray } from "../pick";
 import { boxInSlab, type Section } from "../section";
 import { boxEdgeMaterial, depthMaterial, setOpacity, shadedMaterial } from "../shaders";
@@ -220,7 +220,7 @@ export function cells(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
   let sides: Uint8Array = new Uint8Array(0);
   let counts: Int32Array = new Int32Array(0);
   const tree = b.n >= LOD_MIN ? octree(b.centers, b.n) : null;
-  let view: { camera: THREE.PerspectiveCamera; height: number } | null = null;
+  let view: { camera: ViewCamera; height: number } | null = null;
   let seen = "";
   shell.setWhole(layer.opacity < 1);
 

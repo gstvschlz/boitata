@@ -21,6 +21,7 @@ export class EyeDome {
       tDepth: { value: null as THREE.Texture | null },
       uNear: { value: 0.1 },
       uFar: { value: 1 },
+      uOrtho: { value: false },
       uStep: { value: new THREE.Vector2() },
     },
     depthTest: false,
@@ -37,9 +38,11 @@ export class EyeDome {
       uniform sampler2D tDepth;
       uniform float uNear;
       uniform float uFar;
+      uniform bool uOrtho;
       uniform vec2 uStep;
       varying vec2 vUv;
       float logDistance(float d) {
+        if (uOrtho) return log2(uNear + d * (uFar - uNear));
         float z = 2.0 * d - 1.0;
         return log2(2.0 * uNear * uFar / (uFar + uNear - z * (uFar - uNear)));
       }
@@ -68,7 +71,7 @@ export class EyeDome {
   }
 
   /** Renders `scene` offscreen, then its eye-dome-lit color to the canvas. */
-  render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera): void {
+  render(renderer: THREE.WebGLRenderer, scene: THREE.Scene, camera: THREE.PerspectiveCamera | THREE.OrthographicCamera): void {
     const size = renderer.getDrawingBufferSize(new THREE.Vector2());
     if (this.target.width !== size.x || this.target.height !== size.y) this.target.setSize(size.x, size.y);
     renderer.setRenderTarget(this.target);
@@ -79,6 +82,7 @@ export class EyeDome {
     u.tDepth.value = this.target.depthTexture;
     u.uNear.value = camera.near;
     u.uFar.value = camera.far;
+    u.uOrtho.value = "isOrthographicCamera" in camera;
     u.uStep.value.set((RADIUS * renderer.getPixelRatio()) / size.x, (RADIUS * renderer.getPixelRatio()) / size.y);
     renderer.render(this.scene, this.camera);
   }

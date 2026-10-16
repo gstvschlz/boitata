@@ -39,7 +39,7 @@ export function webgl(): Renderer {
   let size = { width: 1, height: 1, pixelRatio: 1 };
   const eyeDome = new EyeDome();
   const draw = (scene: THREE.Scene, camera: THREE.Camera) =>
-    api.edl && camera instanceof THREE.PerspectiveCamera ? eyeDome.render(renderer, scene, camera) : renderer.render(scene, camera);
+    api.edl && (camera instanceof THREE.PerspectiveCamera || camera instanceof THREE.OrthographicCamera) ? eyeDome.render(renderer, scene, camera) : renderer.render(scene, camera);
   const api: Renderer = {
     canvas: renderer.domElement,
     setSize(width, height, pixelRatio) {

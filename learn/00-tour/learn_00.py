@@ -464,7 +464,8 @@ for p, row in (("P10", p10), ("P50", p50), ("P90", p90)):
 # [filtering block models](../../examples/02-data-and-geometry/23-filtering-block-models/example_02_23.md),
 # [interactive sections](../../examples/02-data-and-geometry/24-interactive-sections/example_02_24.md)):
 #
-# - drag to turn, right-drag to pan, the wheel zooms; `R` fits the view, `P` looks down in plan;
+# - drag to turn, right-drag to pan, the wheel zooms, double-click a block or a hole to turn around it; `R` fits
+#   the view, `P` looks down in plan, `O` draws it orthographic, at true scale at any depth;
 # - the panel at the top right shows or hides each layer, and its settings switch the representation, the colors
 #   and the filter; `H` hides the panel, `T` switches the theme, the header button goes fullscreen;
 # - Shift-drag cuts a straight section; `S` draws one in plan: click to add vertices, hold Shift to lock a segment

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { LineSegments2 } from "three/examples/jsm/lines/LineSegments2.js";
 import { LineSegmentsGeometry } from "three/examples/jsm/lines/LineSegmentsGeometry.js";
 import { type Box, boxOf, diagonal } from "../bounds";
-import { projectedPixels, viewKey } from "../lod";
+import { screenPixels, type ViewCamera, viewKey } from "../lod";
 import { f32, u32 } from "../buffers";
 import { midpoints, stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, type Paint } from "../paint";
@@ -130,15 +130,16 @@ export function tubes(layer: LayerSpec, buffers: Buffers, filter: LayerFilter): 
   let seen = "";
   const mid = midpoints(s.positions);
 
-  const split = (camera: THREE.PerspectiveCamera | null, height: number) => {
+  const split = (camera: ViewCamera | null, height: number) => {
     const paint = painted!;
     const close = new Uint8Array(n);
     const e = camera?.matrixWorld.elements;
+    const pixels = camera && screenPixels(camera, height);
     for (let i = 0; i < s.n; i++) {
       const r = s.rows[i];
       if (close[r] || !e) continue;
       const distance = Math.hypot(mid[3 * i] - e[12], mid[3 * i + 1] - e[13], mid[3 * i + 2] - e[14]);
-      if (projectedPixels(2 * radii[r], distance, camera!.fov, height) >= TUBE_PIXELS) close[r] = 1;
+      if (pixels!(2 * radii[r], distance) >= TUBE_PIXELS) close[r] = 1;
     }
     const part = (want: number): Paint => {
       const keep = new Uint8Array(n);

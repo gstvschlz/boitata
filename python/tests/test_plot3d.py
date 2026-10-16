@@ -152,9 +152,12 @@ def test_theme_dict_and_view_reach_the_viewer():
     scene = Scene(theme={"base": "dark", "accent": "#00ff00"}).view(azimuth=-90, dip=90)
     spec = scene._spec()
     assert spec["theme"] == {"base": "dark", "accent": "#00ff00"}
-    assert spec["view"] == {"azimuth": 270.0, "dip": 90.0}
+    assert spec["view"] == {"azimuth": 270.0, "dip": 90.0, "orthographic": False}
     with pytest.raises(ValueError):
         scene.view(dip=120)
+    assert scene.view(orthographic=True)._spec()["view"]["orthographic"] is True
+    with pytest.raises(TypeError, match="orthographic"):
+        scene.view(orthographic=1)
 
 
 def test_axis_titles_follow_crs_and_unit():
@@ -363,6 +366,12 @@ def test_drill_hole_points_sit_at_interval_midpoints():
 
 def rendered_pixels(scene, points, tmp_path, bare=False):
     """Colors the saved page shows at world `points`, in a headless browser; `bare` hides the box, grid and panel."""
+    shot, at = rendered(scene, points, tmp_path, bare)
+    return [shot.getpixel(tuple(xy)) for xy in at]
+
+
+def rendered(scene, points, tmp_path, bare=False):
+    """The saved page's screenshot in a headless browser, and the pixels world `points` draw at."""
     sync_api = pytest.importorskip("playwright.sync_api")
     image = pytest.importorskip("PIL.Image")
     page = scene.save(tmp_path / "scene.html")
@@ -385,14 +394,30 @@ def rendered_pixels(scene, points, tmp_path, bare=False):
         at = tab.evaluate(
             """(points) => points.map(([x, y, z]) => {
                 const s = window.scene, o = s.spec.origin;
-                const v = s.camera.position.clone().set(x - o[0], y - o[1], z - o[2]).project(s.camera);
+                const eye = s.eye();
+                const v = eye.position.clone().set(x - o[0], y - o[1], z - o[2]).project(eye);
                 return [Math.round((v.x + 1) / 2 * s.width), Math.round((1 - v.y) / 2 * s.height)];
             })""",
             points,
         )
         shot = image.open(io.BytesIO(tab.screenshot())).convert("RGB")
         browser.close()
-    return [shot.getpixel(tuple(xy)) for xy in at]
+    return shot, at
+
+
+def run_width(shot, xy, tolerance=24):
+    """Pixels in the run along the screenshot's row through `xy` whose color stays within `tolerance` of that at `xy`."""
+    color = shot.getpixel(tuple(xy))
+
+    def same(x):
+        return sum(abs(a - b) for a, b in zip(shot.getpixel((x, xy[1])), color, strict=True)) <= tolerance
+
+    left, right = xy[0], xy[0]
+    while left > 0 and same(left - 1):
+        left -= 1
+    while right < shot.width - 1 and same(right + 1):
+        right += 1
+    return right - left + 1
 
 
 @pytest.mark.parametrize(
@@ -441,6 +466,24 @@ def test_rendered_eye_dome_darkens_a_step_and_keeps_flat_faces_exact(tmp_path):
     flat, step = colors[True]
     assert flat == colors[False][0] == lut_rgb("viridis", 0.2, 0.0, 1.0)
     assert sum(step) < sum(colors[False][1]) - 30
+
+
+@pytest.mark.parametrize("orthographic", [False, True])
+def test_rendered_orthographic_draws_a_block_the_same_width_at_any_depth(tmp_path, orthographic):
+    model = bt.BlockModel((0.0, 0.0, 0.0), (10.0, 10.0, 10.0), (3, 3, 1))
+    x, y = model.coords[:, 0], model.coords[:, 1]
+    model = model.filter(((x == 5) & (y == 5)) | ((x == 25) & (y == 25))).with_column("v", [0.5, 0.5])
+    scene = (
+        Scene(theme="light")
+        .add(model, "v", clim=(0.0, 1.0))
+        .view(azimuth=0, dip=0, orthographic=orthographic)
+    )
+    shot, at = rendered(scene, [[5.0, 0.0, 5.0], [25.0, 20.0, 5.0]], tmp_path, bare=True)
+    near, far = (run_width(shot, xy) for xy in at)
+    if orthographic:
+        assert abs(near - far) <= 1
+    else:
+        assert near > 1.1 * far
 
 
 def framed(scene, z=0.0):

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { boxOf } from "../bounds";
 import { f32, u32 } from "../buffers";
 import { filterArray, type LayerFilter, passMask, writeFilter } from "../filter";
-import { cameraPixels, LOD_MIN, lodItems, octree, viewKey } from "../lod";
+import { cameraPixels, LOD_MIN, lodItems, octree, type ViewCamera, viewKey } from "../lod";
 import { stratifiedOrder, subsetCount } from "../motion";
 import { colorAt, kept, mergeCounts, mergedColor, type Paint } from "../paint";
 import { pickArray } from "../pick";
@@ -52,7 +52,7 @@ function sprites(
   let seen = "";
 
   /** Writes the cut the camera calls for: cells too small on screen draw one sprite, at their kept elements' centroid. */
-  const refresh = (camera: THREE.PerspectiveCamera, height: number) => {
+  const refresh = (camera: ViewCamera, height: number) => {
     const paint = lodPaint!;
     const t = tree!;
     use ??= passMask(filter.compiled, filter.slots, "row", n, paint.keep);
