@@ -14,3 +14,5 @@ pixi.lock
 /learn/**/*.png
 /python/boitata/_viewer.js
 node_modules/
+/AGENTS.md
+/CLAUDE.md
