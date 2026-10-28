@@ -130,7 +130,7 @@ def on_page_markdown(markdown, page, **kwargs):
             count=1,
         )
     markdown = CHAPTER.sub(r"](\1/example_\2_\3.md)", markdown)
-    markdown = SOURCE.sub("](https://github.com/gstvschlz/boitata/blob/main/examples/common.py)", markdown)
+    markdown = SOURCE.sub("](https://gitlab.com/scholzegustavo/boitata/-/blob/main/examples/common.py)", markdown)
     return markdown + capitalized_terms(ROOT)
 
 

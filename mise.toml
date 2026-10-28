@@ -79,10 +79,6 @@ run = "uv run --no-sync mkdocs serve"
 depends = ["py:build"]
 run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for p in ('docs/examples', 'site')]\"", "uv run --no-sync mkdocs build --strict"]
 
-[tasks.docs-deploy]
-depends = ["py:build"]
-run = ["uv run --no-sync python -c \"import shutil; [shutil.rmtree(p, True) for p in ('docs/examples', 'site')]\"", "uv run --no-sync mkdocs gh-deploy --force"]
-
 [tasks."conda:recipe"]
 run = "pixi exec rattler-build build -r packaging/conda-forge -m packaging/conda-forge/local-variants.yaml --output-dir .compat/conda-bld"
 
