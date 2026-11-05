@@ -120,6 +120,7 @@ pub fn sis(
     let mut path: Vec<usize> = (0..grid.len()).collect();
     path.shuffle(&mut rng);
 
+    let on_datum = crate::sgs::datum_index(data_locs);
     let mut out = vec![0usize; grid.len()];
     let kind = match local {
         Some(_) => Kind::Simple { mean: 0.0 },
@@ -131,7 +132,11 @@ pub fn sis(
         let prior = local.as_ref().map_or(&marg, |l| &l[node]);
 
         let found = tree.neighbors(&target);
-        if let Some(&k) = found.iter().flatten().find(|&&k| all[k].loc == target) {
+        let datum = match &found {
+            Ok(idx) => idx.iter().copied().find(|&k| all[k].loc == target),
+            Err(_) => on_datum.get(&crate::sgs::location_key(&target)).copied(),
+        };
+        if let Some(k) = datum {
             // A node on a datum takes its category and is not added again.
             out[node] = all[k].value as usize;
             continue;

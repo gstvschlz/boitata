@@ -1438,3 +1438,15 @@ def test_shared_path_keeps_data_below_min_samples():
     node = 20 * 41 + 20
     shared = fitted.simulate(model, n=200, path="shared").mean[node]
     assert shared > 0.5 * fitted.simulate(model, n=200, path="random").mean[node]
+
+
+def test_a_node_on_a_datum_keeps_it_below_min_samples():
+    x = np.c_[np.arange(5) * 100.0, np.zeros((5, 2))]
+    values = np.arange(1.0, 6.0)
+    vg = bt.Variogram([("spherical", 1.0, 10.0)])
+    search = bt.Search(1.0, min_samples=2)
+    runs = bt.SGS(vg, search).fit(x, values).simulate(x, n=20, keep=True).realizations
+    assert (runs == values).all()
+    codes = np.arange(5) % 2
+    cats = bt.SIS([vg] * 2, search).fit(x, codes).simulate(x, n=20, keep=True).realizations
+    assert (cats == codes).all()
