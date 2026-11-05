@@ -139,3 +139,16 @@ def test_anisotropy_variance_and_contact_positions():
     np.testing.assert_allclose(dh.at(["1.0"], [30.0]), [[10.0, 20.0, 70.0]], atol=1e-9)
     with pytest.raises(bt.InvalidInput):
         dh.at(["2.0"], [1.0])
+
+
+@pytest.mark.parametrize("patch", [100, 400])
+def test_vertical_holes_do_not_break_the_linear_drift(patch):
+    c = np.vstack(
+        [
+            np.c_[np.full(300, x + 1234.567), np.full(300, y + 987.654), np.arange(300.0)]
+            for x in (0, 500)
+            for y in (0, 500)
+        ]
+    )
+    model = bt.ImplicitModel(patch=patch).fit(c, np.sin(c[:, 2] / 40))
+    assert np.abs(model.predict(np.array([[1274.567, 1027.654, 150.0]]))).max() < 3

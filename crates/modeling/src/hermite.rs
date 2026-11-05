@@ -222,9 +222,7 @@ impl HermiteKriging {
             rhs[n + j] = set.derivatives[j].value;
         }
 
-        let x = m
-            .lu()
-            .solve(&rhs)
+        let x = crate::rbf::solve_with_drift(m, &rhs, basis_len(degree))
             .ok_or_else(|| ModelError::Singular("potential-field system not invertible".into()))?;
         if x.as_slice().iter().any(|v| !v.is_finite()) {
             return Err(ModelError::Singular(
