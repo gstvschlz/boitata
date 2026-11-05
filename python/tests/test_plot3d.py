@@ -116,11 +116,14 @@ def test_drill_hole_intervals_follow_the_trace_through_survey_stations():
     scene = Scene().add(holes, "CU")
     ends = buffer(scene, "l0/positions", np.float32).reshape(-1, 2, 3) + scene._spec()["origin"]
     rows = buffer(scene, "l0/rows", np.uint32)
-    assert rows.tolist() == [0, 0, 1]
+    assert rows.tolist() == sorted(rows.tolist()) and set(rows.tolist()) == {0, 1}
+    first, second = ends[rows == 0], ends[rows == 1]
     expected = holes.at(["A"] * 4, [5.0, 20.0, 25.0, 38.0])
-    np.testing.assert_allclose(ends[0], expected[[0, 1]], atol=1e-3)
-    np.testing.assert_allclose(ends[1], expected[[1, 2]], atol=1e-3)
-    np.testing.assert_allclose(ends[2, 1], expected[3], atol=1e-3)
+    np.testing.assert_allclose(first[0, 0], expected[0], atol=1e-3)
+    np.testing.assert_allclose(first[-1, 1], expected[2], atol=1e-3)
+    np.testing.assert_allclose(second[-1, 1], expected[3], atol=1e-3)
+    np.testing.assert_allclose(first[1:, 0], first[:-1, 1], atol=1e-3)
+    assert np.linalg.norm(first[:, 1] - expected[1], axis=1).min() < 1e-3
     _, cu = column(scene, 0, "CU")
     assert cu[0] == 1.5 and np.isnan(cu[1])
 

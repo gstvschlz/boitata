@@ -53,7 +53,9 @@ pub enum DesurveyMethod {
 /// segment length: tangential takes `(Δmd, 0)`, balanced tangential
 /// `(Δmd/2, Δmd/2)`, and minimum curvature scales the balanced weights by
 /// `2/β · tan(β/2)` of the dogleg `β`, which puts the segment on a circular
-/// arc.
+/// arc; the path then has a point at least every degree of the arc, so linear
+/// interpolation follows it. A hole surveyed only at its collar gets a point
+/// 1 down its direction, which [`position_at`] extends.
 ///
 /// # References
 /// - Marschall, F. (1988). "Calculation of Hole Trajectories"
@@ -130,6 +132,39 @@ fn tangent(a: f64, i: f64) -> [f64; 3] {
     [i.sin() * a.sin(), i.sin() * a.cos(), -i.cos()]
 }
 
+/// Points inside the circular arc of dogleg `dogleg` from `start`, between
+/// the unit directions `t1` and `t2`, over `length` from depth `from`.
+fn arc_points(
+    start: &WellborePoint,
+    from: f64,
+    length: f64,
+    (t1, t2): ([f64; 3], [f64; 3]),
+    dogleg: f64,
+) -> Vec<WellborePoint> {
+    let parts = (dogleg / 1f64.to_radians()).ceil() as usize;
+    if parts < 2 || dogleg.sin().abs() < 1e-9 {
+        return vec![];
+    }
+    (1..parts)
+        .map(|k| {
+            let f = k as f64 / parts as f64;
+            let b = f * dogleg;
+            let (w1, w2) = (
+                ((1.0 - f) * dogleg).sin() / dogleg.sin(),
+                b.sin() / dogleg.sin(),
+            );
+            let c = f * length / b * (b / 2.0).tan();
+            let at = |a: usize| c * (t1[a] + w1 * t1[a] + w2 * t2[a]);
+            WellborePoint {
+                measured_depth: from + f * length,
+                east: start.east + at(0),
+                north: start.north + at(1),
+                elev: start.elev + at(2),
+            }
+        })
+        .collect()
+}
+
 fn desurvey_segment(
     prev_point: &WellborePoint,
     from: &SurveyStation,
@@ -146,6 +181,7 @@ fn desurvey_segment(
 
     let (a1, i1) = (from.azimuth.to_radians(), from.inclination.to_radians());
     let (a2, i2) = (to.azimuth.to_radians(), to.inclination.to_radians());
+    let mut inside = vec![];
     let (w1, w2) = match method {
         DesurveyMethod::Tangential => (delta_md, 0.0),
         DesurveyMethod::BalancedTangential => (delta_md / 2.0, delta_md / 2.0),
@@ -157,6 +193,13 @@ fn desurvey_segment(
             } else {
                 2.0 / dogleg * (dogleg / 2.0).tan()
             };
+            inside = arc_points(
+                prev_point,
+                md_from,
+                delta_md,
+                (tangent(a1, i1), tangent(a2, i2)),
+                dogleg,
+            );
             (delta_md / 2.0 * ratio, delta_md / 2.0 * ratio)
         }
     };
@@ -164,12 +207,13 @@ fn desurvey_segment(
     let delta_n = w1 * i1.sin() * a1.cos() + w2 * i2.sin() * a2.cos();
     let delta_v = -(w1 * i1.cos() + w2 * i2.cos());
 
-    Ok(vec![WellborePoint {
+    inside.push(WellborePoint {
         measured_depth: md_to,
         east: prev_point.east + delta_e,
         north: prev_point.north + delta_n,
         elev: prev_point.elev + delta_v,
-    }])
+    });
+    Ok(inside)
 }
 
 /// Splits two interval tables of one hole at the union of their boundaries.
