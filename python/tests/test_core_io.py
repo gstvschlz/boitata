@@ -458,3 +458,9 @@ def test_stl_welds_negative_zero(tmp_path):
     path = tmp_path / "a.stl"
     path.write_text("\n".join([*lines, "endsolid a", ""]))
     assert bt.read_mesh(path).is_closed
+
+
+def test_a_crs_name_that_is_not_ascii_is_invalid_not_a_panic():
+    points = bt.PointSet(np.zeros((1, 3)), crs="Amap\u00e1")
+    with pytest.raises(bt.InvalidInput):
+        points.to_crs("EPSG:4326")

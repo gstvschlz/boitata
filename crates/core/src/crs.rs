@@ -246,7 +246,7 @@ fn utm(datum: Datum, zone: u32, south: bool) -> Option<TransverseMercator> {
 /// The EPSG code of `crs`: `EPSG:n`, or WKT ending with an EPSG authority.
 fn code(crs: &str) -> Option<u32> {
     let s = crs.trim();
-    if s.len() > 5 && s[..5].eq_ignore_ascii_case("EPSG:") {
+    if s.len() > 5 && s.get(..5).is_some_and(|p| p.eq_ignore_ascii_case("EPSG:")) {
         return s[5..].trim().parse().ok();
     }
     let rest = s[s.rfind("\"EPSG\"")? + 6..].trim_start_matches([',', ' ', '"']);
