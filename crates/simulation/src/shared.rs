@@ -26,6 +26,9 @@ pub(crate) struct Context<'a> {
     pub scores: Vec<f64>,
     /// One search tree and one template per pass.
     pub trees: Vec<SearchTree>,
+    /// The last pass without its rules on the samples found, for a node no
+    /// pass finds enough data for.
+    pub fallback: SearchTree,
     pub templates: Vec<Template>,
     pub search: &'a [Search],
     pub vg: &'a Variogram,
@@ -67,9 +70,24 @@ pub(crate) fn datum_nodes(
     on
 }
 
-/// The plan of `node`: the pass is the first whose tree finds data, or the
-/// last; its neighbors the nearest `max_samples` of those data and of the
-/// nodes earlier on the path within its template.
+/// [`Context::fallback`] of the `search` passes.
+pub(crate) fn fallback(samples: &[Sample], search: &[Search], vg: &Variogram) -> SearchTree {
+    let last = search.last().expect("at least one search");
+    let loose = Search {
+        min_samples: 1,
+        min_sectors: None,
+        max_empty_sectors: None,
+        min_holes: None,
+        ..last.clone()
+    };
+    tree(samples, &loose, vg, None)
+}
+
+/// The plan of `node`: the pass is the first whose tree finds enough data, or
+/// the last, with whatever data it has then; its neighbors the nearest
+/// `max_samples` of those data and of the nodes earlier on the path within its
+/// template. A multigrid node can have few neighbors in every realization, so
+/// `min_samples` chooses the pass and does not discard the data of a node.
 pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
     let target = ctx.lattice.location(node);
     let domain = ctx.node_domains.map(|d| d[node]);
@@ -84,7 +102,10 @@ pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
                 .filter(|f| !f.is_empty())
                 .map(|f| (p, f))
         })
-        .unwrap_or((last, vec![]));
+        .unwrap_or_else(|| {
+            let found = find(&ctx.fallback, &target, domain, None).unwrap_or_default();
+            (last, found)
+        });
     let tree = &ctx.trees[pass];
     let max = ctx.search[pass].max_samples;
     let own = ctx.rank[node];
@@ -296,6 +317,7 @@ pub fn sgs_shared<'a>(
     }
     let sill = vg_nscore.total_sill();
     let ctx = Context {
+        fallback: fallback(&samples, shared.search, vg_nscore),
         lattice,
         samples,
         scores: transforms.scores.clone(),
@@ -496,6 +518,7 @@ mod tests {
         let skip: Vec<bool> = (0..l.len()).map(|m| on.iter().any(|d| d.0 == m)).collect();
         let (_, rank) = multigrid_path(l, 2, 3, &skip).unwrap();
         Context {
+            fallback: fallback(&samples, search, vg),
             lattice: l,
             samples,
             scores,
