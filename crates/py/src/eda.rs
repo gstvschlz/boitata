@@ -1346,6 +1346,29 @@ impl Capping {
                 removed[c as usize] = Some(1.0 - r.after.mean / r.before.mean);
             }
         }
+        if let (None, None, Some(target)) = (&self.cap, self.quantile, self.metal_removed) {
+            let short: Vec<String> = removed
+                .iter()
+                .enumerate()
+                .filter_map(|(i, r)| {
+                    let r = (*r).filter(|r| target - r > 1e-6)?;
+                    Some(match &labels {
+                        Some(l) => format!("{:?}: {r:.3}", l[i]),
+                        None => format!("{r:.3}"),
+                    })
+                })
+                .collect();
+            if !short.is_empty() {
+                let message = format!(
+                    "metal_removed={target} is out of reach; capping at the lowest value removes {}",
+                    short.join(", ")
+                );
+                Python::attach(|py| {
+                    let category = py.get_type::<pyo3::exceptions::PyUserWarning>();
+                    PyErr::warn(py, &category, &std::ffi::CString::new(message)?, 1)
+                })?;
+            }
+        }
         self.fitted = Some(FittedCaps {
             domains: labels,
             caps: caps.iter().map(|c| c.is_finite().then_some(*c)).collect(),
