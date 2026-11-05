@@ -277,6 +277,7 @@ pub fn sgs_shared<'a>(
             "one secondary value per node".into(),
         ));
     }
+    let vg_nscore = &crate::sgs::unit_sill(vg_nscore);
     let holes = crate::holes(data_holes, data_locs.len())?;
     let transforms = Transforms::fit(
         data_vals,

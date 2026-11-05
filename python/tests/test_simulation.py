@@ -1450,3 +1450,19 @@ def test_a_node_on_a_datum_keeps_it_below_min_samples():
     codes = np.arange(5) % 2
     cats = bt.SIS([vg] * 2, search).fit(x, codes).simulate(x, n=20, keep=True).realizations
     assert (cats == codes).all()
+
+
+@pytest.mark.parametrize("path", ["shared", "random"])
+def test_sgs_depends_on_the_shape_of_the_variogram_only(path):
+    g = np.random.default_rng(0)
+    d = g.uniform(0, 100, (100, 3))
+    d[:, 2] = 0.5
+    values = g.standard_normal(100)
+    model = bt.BlockModel((0, 0, 0), (5, 5, 1), (20, 20, 1))
+    run = lambda sill: (
+        bt.SGS(bt.Variogram([("spherical", sill, 50.0)]), bt.Search(50.0))
+        .fit(d, values)
+        .simulate(model, n=3, seed=1, keep=True, path=path)
+        .realizations
+    )
+    assert run(9.0) == pytest.approx(run(1.0))
