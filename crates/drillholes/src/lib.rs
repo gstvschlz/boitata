@@ -406,6 +406,14 @@ pub fn composite_intervals(
             params.min_fraction
         )));
     }
+    let mut spans: Vec<(f64, f64)> = assays.iter().map(|a| (a.0, a.1)).collect();
+    spans.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if let Some(w) = spans.windows(2).find(|w| w[1].0 < w[0].1) {
+        return Err(DrillholeError::CompositeError(format!(
+            "intervals {}-{} and {}-{} of hole {hole_id} overlap",
+            w[0].0, w[0].1, w[1].0, w[1].1
+        )));
+    }
     let mut targets = params.intervals.clone().unwrap_or_default();
     targets.sort_by(|a, b| a.0.total_cmp(&b.0));
     if targets

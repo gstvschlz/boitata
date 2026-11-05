@@ -569,3 +569,14 @@ def test_planned_drillholes_rotated_inclined_and_bad_input():
         bt.planned_drillholes(points, 10.0, dip=0.0)
     with pytest.raises(bt.InvalidInput, match="no hole reaches"):
         bt.planned_drillholes(points[:, :2], 10.0)
+
+
+VERTICAL_COLLAR = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}
+VERTICAL_SURVEY = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+
+
+def test_composite_rejects_overlapping_intervals():
+    intervals = {"HOLE_ID": ["A", "A"], "FROM": [0.0, 2.0], "TO": [10.0, 4.0], "G": [1.0, 5.0]}
+    holes = bt.Drillholes(VERTICAL_COLLAR, VERTICAL_SURVEY, intervals)
+    with pytest.raises(bt.InvalidInput, match="overlap"):
+        holes.composite(None, ["G"])
