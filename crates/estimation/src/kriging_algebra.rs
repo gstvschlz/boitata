@@ -577,7 +577,7 @@ pub fn krige_factorial(
     let value: f64 = (0..n).map(|i| weights[i] * samples[i].value).sum();
     let sum_wc: f64 = (0..n).map(|i| weights[i] * b[i]).sum();
     let c0_partial = partial_sill(vg, keep_nugget, keep_structures);
-    let variance = (c0_partial - sum_wc - x[n]).max(0.0);
+    let variance = (c0_partial - sum_wc).max(0.0);
     Ok(Estimate {
         value,
         variance,
