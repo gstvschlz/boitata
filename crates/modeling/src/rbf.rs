@@ -270,6 +270,36 @@ pub(crate) fn basis_len(degree: usize) -> usize {
     if degree == 0 { 1 } else { 4 }
 }
 
+/// Solves `a·x = rhs`, the last `p` rows and columns of `a` being the drift.
+/// A drift direction the constraints do not determine, as across one straight
+/// drillhole, gets a coefficient of zero rather than the noise of a near-zero
+/// pivot.
+pub(crate) fn solve_with_drift(
+    a: DMatrix<f64>,
+    rhs: &DVector<f64>,
+    p: usize,
+) -> Option<DVector<f64>> {
+    let free = a.nrows() - p;
+    let svd = a.view((0, free), (free, p)).into_owned().svd(false, true);
+    let largest = svd.singular_values.iter().copied().fold(0.0, f64::max);
+    let kept: Vec<usize> = (0..svd.singular_values.len())
+        .filter(|&i| svd.singular_values[i] > 1e-6 * largest)
+        .collect();
+    if kept.len() == p {
+        return a.lu().solve(rhs);
+    }
+    let v_t = svd.v_t?;
+    let mut q = DMatrix::<f64>::zeros(a.nrows(), free + kept.len());
+    q.view_mut((0, 0), (free, free)).fill_with_identity();
+    for (c, &i) in kept.iter().enumerate() {
+        for l in 0..p {
+            q[(free + l, free + c)] = v_t[(i, l)];
+        }
+    }
+    let reduced = q.transpose() * a * &q;
+    reduced.lu().solve(&(q.transpose() * rhs)).map(|x| q * x)
+}
+
 fn distance(a: &[f64; 3], b: &[f64; 3]) -> f64 {
     let dx = a[0] - b[0];
     let dy = a[1] - b[1];
@@ -463,9 +493,7 @@ impl Rbf {
             rhs[n + j] = set.derivatives[j].value;
         }
 
-        let x = a
-            .lu()
-            .solve(&rhs)
+        let x = solve_with_drift(a, &rhs, p)
             .ok_or_else(|| ModelError::Singular("RBF system not invertible".into()))?;
         let solution = x.as_slice();
         if solution.iter().any(|v| !v.is_finite()) {
