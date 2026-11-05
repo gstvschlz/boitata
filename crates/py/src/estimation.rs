@@ -1,9 +1,9 @@
 use estimation::{
     Calibration, Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode,
     InterpEstimate, InterpOptions, Kind, NeighborhoodStats, PlaneSectors, Sample,
-    Search as CoreSearch, Soft, SoftPair, block_krige, by_pass, estimate_many, estimate_many_ext,
-    k_fold_at, krige, krige_bayesian_polynomial, krige_factorial, krige_universal,
-    leave_one_out_at,
+    Search as CoreSearch, Soft, SoftPair, block_krige_points, by_pass, estimate_many,
+    estimate_many_ext, k_fold_at, krige, krige_bayesian_polynomial, krige_factorial,
+    krige_universal, leave_one_out_at,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -731,6 +731,9 @@ enum Method {
     Block {
         size: Point,
         disc: Discretization,
+        /// Rotation of the target BlockModel; `size` is along its axes.
+        #[serde(default)]
+        rotation: [f64; 3],
     },
     Bayesian {
         degree: usize,
@@ -792,7 +795,16 @@ impl Method {
             Method::Factorial { nugget, structures } => {
                 krige_factorial(t, s, vg(), *nugget, structures)
             }
-            Method::Block { size, disc } => block_krige(t, size, s, disc, vg()),
+            Method::Block {
+                size,
+                disc,
+                rotation,
+            } => block_krige_points(
+                Kind::Ordinary,
+                &block_points(t, size, disc, *rotation),
+                s,
+                vg(),
+            ),
             Method::Bayesian { degree, mean, var } => {
                 krige_bayesian_polynomial(t, s, *degree, vg(), mean, var)
             }
@@ -860,8 +872,13 @@ impl Method {
                 };
                 (rhs(), drift, None)
             }
-            Method::Block { size, disc } => {
-                let (rhs, cbb) = estimation::block_covariances(&disc.points(t, size), s, vg);
+            Method::Block {
+                size,
+                disc,
+                rotation,
+            } => {
+                let pts = block_points(t, size, disc, *rotation);
+                let (rhs, cbb) = estimation::block_covariances(&pts, s, vg);
                 (rhs, DriftSpec::ordinary(s.len()), Some(cbb))
             }
             _ => return (s.len(), None),
@@ -924,6 +941,21 @@ impl Method {
 }
 
 /// Targets from a PointSet, a BlockModel (centroids) or an `(n, 2|3)` array.
+/// Discretization points of the block of `size`, along axes rotated by
+/// `rotation`, centered on `t`.
+fn block_points(t: &Point, size: &Point, disc: &Discretization, rotation: [f64; 3]) -> Vec<Point> {
+    let geometry = boitata_core::Geometry {
+        origin: [0.0; 3],
+        size: [size.0, size.1, size.2],
+        count: [1; 3],
+        rotation,
+    };
+    disc.offsets(&geometry)
+        .into_iter()
+        .map(|p| (t.0 + p.0, t.1 + p.1, t.2 + p.2))
+        .collect()
+}
+
 pub fn targets(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
     let rows = if let Ok(p) = obj.cast::<PyPointSet>() {
         p.get().0.coords().to_vec()
@@ -1345,6 +1377,7 @@ impl Estimator {
                 Method::Block {
                     size: triple(size, 1.0, "size")?,
                     disc: Discretization { nx, ny, nz },
+                    rotation: [0.0; 3],
                 }
             }
             "bayesian" => Method::Bayesian {
@@ -1532,6 +1565,13 @@ impl Estimator {
                 "external-drift kriging does not support local anisotropy",
             ));
         }
+        let mut method = self.method.clone();
+        if let (Method::Block { rotation, .. }, Ok(model)) =
+            (&mut method, targets.cast::<PyBlockModel>())
+        {
+            *rotation = model.get().0.geometry().rotation;
+        }
+        let method = &method;
         let targets = self::targets(targets)?;
         for c in &target_drift {
             same_length(targets.len(), c.len(), "drift")?;
@@ -1597,7 +1637,7 @@ impl Estimator {
                             ))
                         }
                         (None, _) => Ok(estimate_many(&at, codes, samples, search, vg, |t, s| {
-                            self.method.estimate(search, t, s, vg)
+                            method.estimate(search, t, s, vg)
                         })),
                         (Some(local), _) => estimation::lva::estimate_many_local(
                             &at,
@@ -1606,7 +1646,7 @@ impl Estimator {
                             samples,
                             search,
                             &base,
-                            |t, s, v| self.method.estimate(search, t, s, Some(v)),
+                            |t, s, v| method.estimate(search, t, s, Some(v)),
                         ),
                     }
                 })

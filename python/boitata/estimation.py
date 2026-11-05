@@ -467,7 +467,11 @@ class FactorialKriging(_Base):
 
 
 class BlockKriging(_Base):
-    """Ordinary kriging of block averages; targets are block centers of `size`."""
+    """Ordinary kriging of block averages; targets are block centers of `size`.
+
+    `size` runs along the axes of a rotated BlockModel given as targets, and
+    along the world axes for coordinates.
+    """
 
     def __init__(self, variogram: Variogram, search: Searches, size, *, discretization=(4, 4, 1)):
         super().__init__("block", search, variogram, size=list(size), discretization=tuple(discretization))
