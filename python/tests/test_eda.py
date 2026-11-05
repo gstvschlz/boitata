@@ -526,3 +526,10 @@ def test_domains_skip_nan_and_take_drillholes():
         bt.domains(points, ["a"], 0)
     with pytest.raises(bt.MissingColumn):
         bt.domains(points, ["nope"], 2)
+
+
+def test_capping_warns_when_the_metal_target_is_out_of_reach():
+    values = np.linspace(1, 2, 99)
+    with pytest.warns(UserWarning, match="out of reach"):
+        capping = bt.Capping(metal_removed=0.9).fit(values)
+    assert capping.metal_removed_ == pytest.approx(1 / 3)
