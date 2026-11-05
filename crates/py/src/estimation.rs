@@ -2,7 +2,8 @@ use estimation::{
     Calibration, Discretization, DriftSpec, DualKriging, Estimate, HighGrade, HighGradeMode,
     InterpEstimate, InterpOptions, Kind, NeighborhoodStats, PlaneSectors, Sample,
     Search as CoreSearch, Soft, SoftPair, block_krige, by_pass, estimate_many, estimate_many_ext,
-    k_fold_at, krige, krige_bayesian, krige_factorial, krige_universal, leave_one_out_at,
+    k_fold_at, krige, krige_bayesian_polynomial, krige_factorial, krige_universal,
+    leave_one_out_at,
 };
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -793,7 +794,7 @@ impl Method {
             }
             Method::Block { size, disc } => block_krige(t, size, s, disc, vg()),
             Method::Bayesian { degree, mean, var } => {
-                krige_bayesian(t, s, &drift(*degree), vg(), mean, var)
+                krige_bayesian_polynomial(t, s, *degree, vg(), mean, var)
             }
             Method::InverseDistance(power) => {
                 interp(estimation::inverse_distance(t, s, *power, &opts))
@@ -1507,6 +1508,11 @@ impl Estimator {
         domain_column: Option<&str>,
     ) -> PyResult<Bound<'py, PyAny>> {
         let samples = self.fitted()?;
+        if let Method::Bayesian { degree, mean, var } = &self.method {
+            let coords: Vec<Point> = samples.iter().map(|s| s.loc).collect();
+            estimation::check_bayesian_prior(&coords, *degree, mean.len(), var.len())
+                .map_err(invalid)?;
+        }
         let domains = match (domains, domain_column) {
             (d, None) => d,
             (None, Some(c)) => Some(args::named(Some(targets), c, "domain_column")?),
