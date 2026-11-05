@@ -123,6 +123,28 @@ impl PolyBasis {
         }
     }
 
+    /// `T` with `f(x)·β = g(x)·(Tβ)`, `f` the `world` monomials in world
+    /// coordinates and `g` this basis. An inactive axis is constant here, so
+    /// its monomials fold into those of the others.
+    fn world_to_basis(&self, world: &[[u32; 3]]) -> DMatrix<f64> {
+        let axes: Vec<usize> = (0..3).filter(|&a| self.active[a]).collect();
+        let local = monomials(&axes, self.degree);
+        let origin = [self.origin.0, self.origin.1, self.origin.2];
+        let scale = [self.scale.0, self.scale.1, self.scale.2];
+        DMatrix::from_fn(local.len(), world.len(), |l, w| {
+            (0..3)
+                .map(|a| {
+                    let (k, e) = (world[w][a], local[l][a]);
+                    if e > k {
+                        return 0.0;
+                    }
+                    let choose = if k == 2 && e == 1 { 2.0 } else { 1.0 };
+                    choose * origin[a].powi((k - e) as i32) * scale[a].powi(e as i32)
+                })
+                .product()
+        })
+    }
+
     fn eval(&self, p: &(f64, f64, f64)) -> Vec<f64> {
         let c = [
             (p.0 - self.origin.0) / self.scale.0,
@@ -145,6 +167,30 @@ impl PolyBasis {
         }
         m
     }
+}
+
+/// Exponents of the monomials of `degree` over `axes`, in the order of
+/// [`PolyBasis::eval`].
+fn monomials(axes: &[usize], degree: usize) -> Vec<[u32; 3]> {
+    let unit = |a: usize| {
+        let mut e = [0; 3];
+        e[a] = 1;
+        e
+    };
+    let mut m = vec![[0; 3]];
+    if degree >= 1 {
+        m.extend(axes.iter().map(|&a| unit(a)));
+    }
+    if degree >= 2 {
+        for (i, &a) in axes.iter().enumerate() {
+            for &b in &axes[i..] {
+                let mut e = unit(a);
+                e[b] += 1;
+                m.push(e);
+            }
+        }
+    }
+    m
 }
 
 /// Universal / external-drift kriging (also SK when `drift` has no columns).
@@ -472,6 +518,88 @@ pub fn krige_bayesian(
             "Bayesian kriging needs a prior of the drift dimension".into(),
         ));
     }
+    let b0 = DVector::from_row_slice(prior_mean);
+    let s0_inv =
+        DMatrix::from_diagonal(&DVector::from_fn(p, |l, _| 1.0 / prior_var[l].max(1e-300)));
+    bayesian(target, samples, drift, vg, &b0, &s0_inv)
+}
+
+/// [`krige_bayesian`] with a polynomial drift of total `degree` and a prior
+/// on its coefficients in world coordinates, whatever the basis the
+/// neighborhood is solved in. `prior_mean` and `prior_var` follow the monomials
+/// `1, x, y, z, x², xy, xz, y², yz, z²` over the first one, two or three axes,
+/// which their length selects; every axis the neighborhood spans must be
+/// among them.
+pub fn krige_bayesian_polynomial(
+    target: &(f64, f64, f64),
+    samples: &[Sample],
+    degree: usize,
+    vg: &Variogram,
+    prior_mean: &[f64],
+    prior_var: &[f64],
+) -> Result<Estimate> {
+    if samples.is_empty() {
+        return Err(EstimError::InsufficientData("no samples".into()));
+    }
+    let coords: Vec<(f64, f64, f64)> = samples.iter().map(|s| s.loc).collect();
+    let prior_axes = check_bayesian_prior(&coords, degree, prior_mean.len(), prior_var.len())?;
+    let basis = PolyBasis::new(&coords, degree);
+    let t = basis.world_to_basis(&monomials(&prior_axes, degree));
+    let b0 = &t * DVector::from_row_slice(prior_mean);
+    let var = DVector::from_fn(prior_var.len(), |l, _| prior_var[l].max(1e-300));
+    let s0 = &t * DMatrix::from_diagonal(&var) * t.transpose();
+    let d = s0.diagonal().map(f64::sqrt);
+    let correlation = DMatrix::from_fn(s0.nrows(), s0.ncols(), |i, j| s0[(i, j)] / (d[i] * d[j]));
+    let inverse = correlation
+        .try_inverse()
+        .ok_or_else(|| EstimError::Singular("Bayesian prior covariance singular".into()))?;
+    let s0_inv = DMatrix::from_fn(s0.nrows(), s0.ncols(), |i, j| {
+        inverse[(i, j)] / (d[i] * d[j])
+    });
+    let drift = DriftSpec {
+        data: coords.iter().map(|c| basis.eval(c)).collect(),
+        target: basis.eval(target),
+    };
+    bayesian(target, samples, &drift, vg, &b0, &s0_inv)
+}
+
+/// The axes of a prior of `n_mean` means and `n_var` variances at `degree`,
+/// or an error if they are not one per monomial or `coords` span other axes.
+pub fn check_bayesian_prior(
+    coords: &[(f64, f64, f64)],
+    degree: usize,
+    n_mean: usize,
+    n_var: usize,
+) -> Result<Vec<usize>> {
+    let axes = (0..=3)
+        .map(|d| (0..d).collect::<Vec<usize>>())
+        .find(|axes| monomials(axes, degree).len() == n_mean && n_var == n_mean)
+        .ok_or_else(|| {
+            EstimError::InvalidParameters(format!(
+                "a degree-{degree} Bayesian prior has one mean and variance per monomial; got {n_mean} and {n_var}"
+            ))
+        })?;
+    if degree > 0 && (axes.len()..3).any(|a| PolyBasis::new(coords, degree).active[a]) {
+        return Err(EstimError::InvalidParameters(format!(
+            "the data span more axes than the {} of the Bayesian prior",
+            axes.len()
+        )));
+    }
+    Ok(axes)
+}
+
+/// The posterior of `β` from its prior mean `b0` and precision `s0_inv` in
+/// the basis of `drift`, and the estimate from it.
+fn bayesian(
+    target: &(f64, f64, f64),
+    samples: &[Sample],
+    drift: &DriftSpec,
+    vg: &Variogram,
+    b0: &DVector<f64>,
+    s0_inv: &DMatrix<f64>,
+) -> Result<Estimate> {
+    let n = samples.len();
+    let p = drift.p();
 
     // Covariance C (n×n) and drift F (n×p).
     let mut c = DMatrix::<f64>::zeros(n, n);
@@ -486,9 +614,6 @@ pub fn krige_bayesian(
         cvec[i] = vg.cov_points(&samples[i].loc, target);
     }
     let f0 = DVector::from_row_slice(&drift.target);
-    let b0 = DVector::from_row_slice(prior_mean);
-    let s0_inv =
-        DMatrix::from_diagonal(&DVector::from_fn(p, |l, _| 1.0 / prior_var[l].max(1e-300)));
 
     let c_lu = c.clone().lu();
     let c_inv = c_lu
@@ -498,8 +623,8 @@ pub fn krige_bayesian(
     // Posterior of β: precision = S₀⁻¹ + Fᵀ C⁻¹ F ; mean solves
     // precision·β̂ = S₀⁻¹ β₀ + Fᵀ C⁻¹ z.
     let ftci = f.transpose() * &c_inv;
-    let precision = &s0_inv + &ftci * &f;
-    let rhs = &s0_inv * &b0 + &ftci * &z;
+    let precision = s0_inv + &ftci * &f;
+    let rhs = s0_inv * b0 + &ftci * &z;
     let prec_lu = precision.clone().lu();
     let beta = prec_lu
         .solve(&rhs)

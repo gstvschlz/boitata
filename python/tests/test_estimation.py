@@ -1260,3 +1260,29 @@ def test_multigaussian_high_grade_threshold_is_in_data_units():
     assert not np.allclose(mean(plain), mean(restricted))
     above_all = bt.Search(radius=500, max_samples=40, high_grade=(2 * grades.max(), 1.0))
     assert mean(plain) == pytest.approx(mean(above_all))
+
+
+@pytest.mark.parametrize("origin", [(0.0, 0.0), (500000.0, 7000000.0)])
+def test_bayesian_prior_is_in_world_coordinates(origin):
+    r = np.random.default_rng(0)
+    xy = r.uniform(0, 100, (40, 2)) + origin
+    y = 5 + 2 * xy[:, 0] + 3 * xy[:, 1] + 0.1 * r.normal(size=40)
+    vg = bt.Variogram([("spherical", 1.0, 60.0)])
+    search = bt.Search(radius=500, max_samples=40)
+    t = np.array([[50.0 + origin[0], 50.0 + origin[1]]])
+    truth = 5 + 2 * t[0, 0] + 3 * t[0, 1]
+    tight = bt.BayesianKriging(vg, search, [5, 2, 3], [1e-10] * 3, degree=1).fit(xy, y)
+    assert tight.predict(t)[0] == pytest.approx(truth, abs=0.5)
+    flat = bt.BayesianKriging(vg, search, [0, 0, 0], [1e12] * 3, degree=1).fit(xy, y)
+    universal = bt.UniversalKriging(vg, search, degree=1).fit(xy, y)
+    assert flat.predict(t)[0] == pytest.approx(universal.predict(t)[0], abs=1e-2)
+
+
+def test_bayesian_prior_needs_one_value_per_monomial():
+    xy = np.random.default_rng(0).uniform(0, 100, (10, 2))
+    vg = bt.Variogram([("spherical", 1.0, 60.0)])
+    search = bt.Search(radius=500)
+    for mean, variance in [([1, 2], [1, 1]), ([1, 2, 3, 4, 5], [1] * 5), ([1, 2, 3], [1, 1])]:
+        model = bt.BayesianKriging(vg, search, mean, variance, degree=1).fit(xy, xy[:, 0])
+        with pytest.raises(bt.InvalidInput):
+            model.predict(np.array([[50.0, 50.0]]))

@@ -474,7 +474,13 @@ class BlockKriging(_Base):
 
 
 class BayesianKriging(_Base):
-    """Kriging with a Gaussian prior on the drift coefficients."""
+    """Kriging with a Gaussian prior on the drift coefficients.
+
+    `prior_mean` and `prior_variance` are per coefficient of the polynomial
+    in world coordinates, in the order ``1, x, y, z, x**2, x*y, x*z, y**2,
+    y*z, z**2``; their length selects the axes, so 3 at degree 1 is
+    ``1, x, y``. The variances are independent in world coordinates.
+    """
 
     def __init__(
         self, variogram: Variogram, search: Searches, prior_mean, prior_variance, *, degree: int = 0

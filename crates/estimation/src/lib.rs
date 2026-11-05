@@ -46,8 +46,9 @@ pub use indicator::{
 };
 pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{
-    DriftSpec, DualKriging, Quality, calibrated_count, krige_bayesian, krige_calibrated,
-    krige_factorial, krige_ordinary, krige_universal, prefix_quality,
+    DriftSpec, DualKriging, Quality, calibrated_count, check_bayesian_prior, krige_bayesian,
+    krige_bayesian_polynomial, krige_calibrated, krige_factorial, krige_ordinary, krige_universal,
+    prefix_quality,
 };
 pub use multigaussian::Multigaussian;
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
