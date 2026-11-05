@@ -145,6 +145,20 @@ pub fn conditional(
     }
 }
 
+/// `searches` over normal scores: a high-grade threshold is in data units.
+fn in_scores(table: &NormalScoreTable, searches: &[Search]) -> Vec<Search> {
+    searches
+        .iter()
+        .cloned()
+        .map(|mut s| {
+            if let Some(h) = &mut s.high_grade {
+                h.threshold = table.forward(h.threshold);
+            }
+            s
+        })
+        .collect()
+}
+
 impl Multigaussian {
     pub fn validate(&self) -> Result<()> {
         match self.tails {
@@ -226,6 +240,7 @@ impl Multigaussian {
         }
         let table = self.table(samples, weights)?;
         let scores = Self::scores(&table, samples);
+        let searches = &in_scores(&table, searches);
         let results = indicator_targets(
             targets,
             None,
@@ -263,6 +278,7 @@ impl Multigaussian {
         self.validate()?;
         let table = self.table(samples, weights)?;
         let scores = Self::scores(&table, samples);
+        let searches = &in_scores(&table, searches);
         let vg = Some(&self.variogram);
         let kriged = |t: &Point, s: &[Sample]| self.kriged(t, s, None);
         let found = by_pass(scores.len(), searches, |search, remaining| match folds {
