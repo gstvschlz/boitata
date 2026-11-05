@@ -1423,3 +1423,18 @@ def test_spacing_study_ignores_the_thread_count(tmp_path):
     with np.load(out) as one:
         for name in here.column_names[1:]:
             np.testing.assert_array_equal(np.asarray(here[name], dtype=float), one[name], err_msg=name)
+
+
+def test_shared_path_keeps_data_below_min_samples():
+    g = np.random.default_rng(0)
+    p = g.uniform(0, 41, (400, 2))
+    p = p[np.abs(p - 20.5).max(1) > 10][:60]
+    near = [[20.2, 20.3, 0.5], [20.8, 20.7, 0.5], [19.8, 20.6, 0.5]]
+    coords = np.r_[np.c_[p, np.full(len(p), 0.5)], near]
+    values = np.r_[g.uniform(0.5, 1.5, len(p)), [100.0] * 3]
+    model = bt.BlockModel((0, 0, 0), (1, 1, 1), (41, 41, 1))
+    vg = bt.Variogram([("spherical", 1.0, 15.0)])
+    fitted = bt.SGS(vg, bt.Search(5.0, min_samples=4)).fit(coords, values)
+    node = 20 * 41 + 20
+    shared = fitted.simulate(model, n=200, path="shared").mean[node]
+    assert shared > 0.5 * fitted.simulate(model, n=200, path="random").mean[node]
