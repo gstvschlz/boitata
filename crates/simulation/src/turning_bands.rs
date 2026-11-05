@@ -106,12 +106,12 @@ fn c1(vg: &Variogram, r: f64) -> f64 {
 /// nodes spaced `step`, row `i` holding its last `min(i + 1, width)`
 /// entries: `C₁` is taken as zero from lag `width` on, so the factor is
 /// banded and costs `O(n·width²)`. Its leading `m` rows factor the
-/// covariance of `m` nodes. The identity if the covariance is not positive
-/// definite.
+/// covariance of `m` nodes. An error if the covariance is not positive
+/// definite: the model is not valid in three dimensions.
 ///
 /// Every entry subtracts its products in column order, so with `width ≥ n`
 /// the rows are those of the dense Cholesky, bit for bit.
-fn band_factor(vg: &Variogram, n: usize, step: f64, width: usize) -> Vec<Vec<f64>> {
+fn band_factor(vg: &Variogram, n: usize, step: f64, width: usize) -> Result<Vec<Vec<f64>>> {
     let width = width.clamp(1, n.max(1));
     let c: Vec<f64> = (0..width).map(|d| c1(vg, d as f64 * step)).collect();
     let mut rows: Vec<Vec<f64>> = Vec::with_capacity(n);
@@ -132,19 +132,15 @@ fn band_factor(vg: &Variogram, n: usize, step: f64, width: usize) -> Vec<Vec<f64
             d -= l * l;
         }
         if d.is_nan() || d <= 0.0 {
-            return (0..n)
-                .map(|i| {
-                    let len = (i + 1).min(width);
-                    (0..len)
-                        .map(|k| f64::from(u8::from(k + 1 == len)))
-                        .collect()
-                })
-                .collect();
+            return Err(SimError::InvalidParameters(format!(
+                "turning bands needs a variogram valid in 3-D, and {:?} is not; use SGS",
+                vg.structures.iter().map(|s| s.model).collect::<Vec<_>>()
+            )));
         }
         row[i - lo] = d.sqrt();
         rows.push(row);
     }
-    rows
+    Ok(rows)
 }
 
 /// Nodes spanned by the `C₁` of `vg` on a band spaced `step`, up to `n`:
@@ -324,12 +320,14 @@ impl Layout {
         }
         let grids = plans
             .into_par_iter()
-            .map(|(unit, step, n, width, weight)| BandGrid {
-                step,
-                weight,
-                factor: band_factor(&unit, n, step, width),
+            .map(|(unit, step, n, width, weight)| {
+                Ok(BandGrid {
+                    step,
+                    weight,
+                    factor: band_factor(&unit, n, step, width)?,
+                })
             })
-            .collect();
+            .collect::<Result<_>>()?;
         Ok(Self {
             to_isotropic,
             corners,
@@ -1285,7 +1283,7 @@ mod tests {
             .map(|b| w[..w.len() - 5 * (b % 4)].to_vec())
             .collect();
         for width in [n, width] {
-            let rows = band_factor(&vg, n, step, width);
+            let rows = band_factor(&vg, n, step, width).unwrap();
             for (i, row) in rows.iter().enumerate() {
                 let lo = (i + 1).saturating_sub(width);
                 assert_eq!(row.len(), i + 1 - lo);
