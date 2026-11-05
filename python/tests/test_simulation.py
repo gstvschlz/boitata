@@ -1466,3 +1466,12 @@ def test_sgs_depends_on_the_shape_of_the_variogram_only(path):
         .realizations
     )
     assert run(9.0) == pytest.approx(run(1.0))
+
+
+def test_turning_bands_rejects_a_model_invalid_in_3d():
+    g = np.random.default_rng(0)
+    d = g.uniform(0, 100, (50, 3))
+    t = np.c_[np.arange(40) * 5.0, np.zeros((40, 2))]
+    bands = bt.TurningBands(bt.Variogram([("circular", 1.0, 100.0)]), bands=20, search=bt.Search(50.0))
+    with pytest.raises(bt.InvalidInput, match="valid in 3-D"):
+        bands.fit(d, g.standard_normal(50)).simulate(t, n=2)
