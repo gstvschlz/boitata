@@ -1286,3 +1286,13 @@ def test_bayesian_prior_needs_one_value_per_monomial():
         model = bt.BayesianKriging(vg, search, mean, variance, degree=1).fit(xy, xy[:, 0])
         with pytest.raises(bt.InvalidInput):
             model.predict(np.array([[50.0, 50.0]]))
+
+
+def test_block_kriging_follows_a_rotated_model():
+    r = np.random.default_rng(0)
+    xy, z = r.uniform(0, 100, (40, 2)), r.normal(size=40)
+    search = bt.Search(radius=500, max_samples=40)
+    vg = bt.Variogram([("spherical", 1.0, 20.0)])
+    model = bt.BlockModel((0, 0, 0), (50, 5, 1), (1, 1, 1), rotation=(90, 0, 0))
+    block = lambda size, targets: bt.BlockKriging(vg, search, size).fit(xy, z).predict(targets)
+    assert block((50, 5, 1), model) == pytest.approx(block((5, 50, 1), model.coords))
