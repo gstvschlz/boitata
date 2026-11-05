@@ -1231,3 +1231,18 @@ def test_weight_declustering_downweights_clusters_and_shares_duplicates():
     np.testing.assert_allclose(near.weights, 1.0)
     with pytest.raises(ValueError, match="linear"):
         bt.weight_declustering(grid, grid[:, 0], targets, estimator=bt.MovingMedian(search))
+
+
+def test_factorial_variance_has_no_lagrange_term():
+    r = np.random.default_rng(0)
+    xy, z = r.uniform(0, 100, (40, 2)), r.normal(size=40)
+    search = bt.Search(radius=500, max_samples=40)
+    t = np.array([[50.0, 50.0]])
+    v = bt.Variogram([("spherical", 0.7, 60.0)], nugget=0.3)
+    _, var = bt.FactorialKriging(v, search, [0]).fit(xy, z).predict(t, return_variance=True)
+    sph = lambda h: np.where(h < 60, 0.7 * (1 - 1.5 * h / 60 + 0.5 * (h / 60) ** 3), 0.0)
+    d = np.linalg.norm(xy[:, None] - xy[None], axis=2)
+    c = sph(np.linalg.norm(xy - t, axis=1))
+    a = np.block([[sph(d) + 0.3 * np.eye(40), np.ones((40, 1))], [np.ones((1, 40)), np.zeros((1, 1))]])
+    weights = np.linalg.solve(a, np.r_[c, 0])[:40]
+    assert var[0] == pytest.approx(0.7 - weights @ c, abs=1e-8)
