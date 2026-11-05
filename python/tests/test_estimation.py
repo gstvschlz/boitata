@@ -1246,3 +1246,17 @@ def test_factorial_variance_has_no_lagrange_term():
     a = np.block([[sph(d) + 0.3 * np.eye(40), np.ones((40, 1))], [np.ones((1, 40)), np.zeros((1, 1))]])
     weights = np.linalg.solve(a, np.r_[c, 0])[:40]
     assert var[0] == pytest.approx(0.7 - weights @ c, abs=1e-8)
+
+
+def test_multigaussian_high_grade_threshold_is_in_data_units():
+    r = np.random.default_rng(0)
+    xy, grades = r.uniform(0, 100, (40, 2)), 100 * np.exp(r.normal(size=40))
+    vg = bt.Variogram([("spherical", 1.0, 60.0)])
+    plain = bt.Search(radius=500, max_samples=40)
+    cut = float(np.quantile(grades, 0.8))
+    t = np.array([[50.0, 50.0]])
+    mean = lambda s: bt.MultigaussianKriging(vg, s).fit(xy, grades).predict(t).mean
+    restricted = bt.Search(radius=500, max_samples=40, high_grade=(cut, 1.0))
+    assert not np.allclose(mean(plain), mean(restricted))
+    above_all = bt.Search(radius=500, max_samples=40, high_grade=(2 * grades.max(), 1.0))
+    assert mean(plain) == pytest.approx(mean(above_all))
