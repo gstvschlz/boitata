@@ -493,3 +493,14 @@ def test_madogram_is_root_gamma_over_pi_for_gaussian_data():
 def test_matern_snaps_to_the_nearest_order(order, snapped):
     gamma = lambda o: bt.Variogram([bt.Structure("matern", 1.0, 100.0, order=o)]).gamma(np.array([20.0]))
     assert gamma(order) == pytest.approx(gamma(snapped), abs=1e-12)
+
+
+@pytest.mark.parametrize("estimator", ["covariance", "correlogram"])
+def test_covariance_does_not_depend_on_row_order(estimator):
+    r = np.random.default_rng(0)
+    xy = r.uniform(0, 100, (40, 2))
+    q = xy[:, 0] / 10 + r.normal(size=40)
+    run = lambda i: bt.experimental_variogram(xy[i], q[i], 10, 60, estimator=estimator).gammas
+    sorted_rows = run(np.argsort(xy[:, 0]))
+    assert run(r.permutation(40)) == pytest.approx(sorted_rows)
+    assert run(np.arange(40)) == pytest.approx(sorted_rows)

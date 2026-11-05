@@ -136,7 +136,7 @@ pub fn experimental<'a>(
     check(locations, values, bins)?;
     let scale = scale(values, estimator, standardize)?;
     let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, _| {
-        moments(values[i], values[j])
+        both_ways(values[i], values[j])
     });
     Ok(collect(bins, &sums, &counts, estimator, scale))
 }
@@ -204,7 +204,7 @@ pub fn experimental_local(
         n_bins,
         dir.as_ref(),
         false,
-        |i, j, _| moments(values[i], values[j]),
+        |i, j, _| both_ways(values[i], values[j]),
     );
     Ok(collect(bins, &sums, &counts, estimator, scale))
 }
@@ -433,7 +433,7 @@ pub fn downhole(
                     continue;
                 }
                 let idx = (k - 1).min(n_bins - 1);
-                add(&mut sums[idx], &moments(values[i], values[j]));
+                add(&mut sums[idx], &both_ways(values[i], values[j]));
                 counts[idx] += 1;
                 distances[idx] += dist;
             }
@@ -775,6 +775,17 @@ pub(crate) fn moments(head: f64, tail: f64) -> Moments {
         relative,
         diff,
     ]
+}
+
+/// [`moments`] of a pair counted both ways, half each, so that a statistic
+/// of heads and tails does not depend on the order of the rows.
+pub(crate) fn both_ways(a: f64, b: f64) -> Moments {
+    let mut m = moments(a, b);
+    m[2] = 0.5 * (a + b);
+    m[3] = m[2];
+    m[5] = 0.5 * (a * a + b * b);
+    m[6] = m[5];
+    m
 }
 
 pub(crate) fn add(sums: &mut Moments, terms: &Moments) {
