@@ -1046,7 +1046,7 @@ fn memory_budget(py: Python) -> PyResult<u64> {
 }
 
 /// Sequential Gaussian simulation. `variogram` is the normal-score variogram
-/// (unit sill); data are normal-scored internally, with optional declustering
+/// (rescaled to unit sill); data are normal-scored internally, with optional declustering
 /// weights, and realizations are back-transformed.
 ///
 /// With a trend at `fit`, the data are normal-scored within `classes`

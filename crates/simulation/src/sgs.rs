@@ -362,6 +362,7 @@ fn simulate(
     let holes = inputs(
         data_locs, data_vals, data_holes, domains, trend, grid, params, local,
     )?;
+    let vg_nscore = &unit_sill(vg_nscore);
     let fitted = Transforms::fit(
         data_vals,
         data_weights,
@@ -815,6 +816,15 @@ pub fn sgs_passes(
         .map(|s| tree(&data, s, vg_nscore, local))
         .collect();
     Ok(first_pass(&trees, grid, domains.map(|d| d.1), local))
+}
+
+/// `vg` with a total sill of 1, the variance of normal scores; only its
+/// shape then matters. A variogram without a sill stays as it is.
+pub(crate) fn unit_sill(vg: &Variogram) -> Variogram {
+    match vg.is_stationary() && vg.total_sill() > 0.0 {
+        true => vg.standardized(1.0),
+        false => vg.clone(),
+    }
 }
 
 /// A key of the location `p`, equal for `0.0` and `-0.0`.
