@@ -64,8 +64,10 @@ impl HermiteAnamorphosis {
         let w: Vec<f64> = match weights {
             Some(w) => {
                 let s: f64 = w.iter().sum();
-                if s <= 0.0 {
-                    return Err(TransformError::InvalidParameters("weights sum ≤ 0".into()));
+                if s <= 0.0 || s.is_nan() || w.iter().any(|&x| x < 0.0) {
+                    return Err(TransformError::InvalidParameters(
+                        "weights must not be negative and must sum to more than 0".into(),
+                    ));
                 }
                 w.iter().map(|x| x / s).collect()
             }

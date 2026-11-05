@@ -574,3 +574,8 @@ def test_spatial_bootstrap_widens_with_correlation():
     )
     with pytest.raises(ValueError):
         bt.spatial_bootstrap(coords, values, nugget, weights=np.zeros(100))
+
+
+def test_normal_score_rejects_negative_weights():
+    with pytest.raises(bt.InvalidInput):
+        bt.NormalScore().fit([1.0, 2.0, 3.0, 4.0], weights=[1, -1, 1, 1])
