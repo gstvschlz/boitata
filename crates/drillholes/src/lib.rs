@@ -260,6 +260,9 @@ pub fn mesh_intervals(
     let bisect = |mut lo: f64, mut hi: f64, lo_inside: bool| {
         while hi - lo > tolerance {
             let mid = (lo + hi) / 2.0;
+            if mid <= lo || mid >= hi {
+                break;
+            }
             if at(mid) == lo_inside {
                 lo = mid;
             } else {

@@ -580,3 +580,24 @@ def test_composite_rejects_overlapping_intervals():
     holes = bt.Drillholes(VERTICAL_COLLAR, VERTICAL_SURVEY, intervals)
     with pytest.raises(bt.InvalidInput, match="overlap"):
         holes.composite(None, ["G"])
+
+
+@pytest.mark.parametrize("tolerance", [-1.0, float("nan"), float("inf")])
+def test_mesh_intervals_rejects_a_bad_tolerance(tolerance):
+    survey = dict(
+        VERTICAL_SURVEY, HOLE_ID=["A", "A"], DEPTH=[0.0, 100.0], AZIMUTH=[0.0, 0.0], DIP=[90.0, 90.0]
+    )
+    mesh = bt.Mesh([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], [[0, 2, 1], [0, 1, 3], [1, 2, 3], [0, 3, 2]])
+    with pytest.raises(bt.InvalidInput):
+        bt.Drillholes(VERTICAL_COLLAR, survey).mesh_intervals(mesh, tolerance=tolerance)
+
+
+def test_mesh_intervals_at_zero_tolerance_ends():
+    survey = dict(
+        VERTICAL_SURVEY, HOLE_ID=["A", "A"], DEPTH=[0.0, 100.0], AZIMUTH=[0.0, 0.0], DIP=[90.0, 90.0]
+    )
+    v = [[x, y, z] for z in (40.0, 60.0) for y in (-5.0, 5.0) for x in (-5.0, 5.0)]
+    f = [[0, 2, 1], [1, 2, 3], [4, 5, 6], [5, 7, 6], [0, 1, 4], [1, 5, 4]]
+    f += [[2, 6, 3], [3, 6, 7], [0, 4, 2], [2, 4, 6], [1, 3, 5], [3, 7, 5]]
+    runs = bt.Drillholes(VERTICAL_COLLAR, survey).mesh_intervals(bt.Mesh(v, f), tolerance=0.0)
+    assert len(runs) == 3

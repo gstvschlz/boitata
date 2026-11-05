@@ -684,6 +684,9 @@ impl Drillholes {
         step: f64,
         tolerance: f64,
     ) -> PyResult<Table> {
+        if !(tolerance.is_finite() && tolerance >= 0.0) {
+            return Err(invalid("tolerance must be finite and not negative"));
+        }
         boitata_core::crs::same_crs(
             ("drill holes", self.crs.as_deref()),
             ("the mesh", mesh.mesh.crs.as_deref()),
