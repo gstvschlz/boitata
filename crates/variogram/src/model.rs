@@ -122,9 +122,9 @@ enum MaternOrder {
 
 impl MaternOrder {
     fn nearest(order: f64) -> Self {
-        if (order - 0.5).abs() < 0.25 {
+        if order < 1.0 {
             MaternOrder::Half
-        } else if (order - 1.5).abs() < 0.5 {
+        } else if order < 2.0 {
             MaternOrder::ThreeHalves
         } else {
             MaternOrder::FiveHalves

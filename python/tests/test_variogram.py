@@ -485,3 +485,11 @@ def test_madogram_is_root_gamma_over_pi_for_gaussian_data():
     assert bt.dissemination(run(spiked, "madogram"), run(spiked))[0] < 0.7
     with pytest.raises(ValueError, match="same lags"):
         bt.dissemination(madogram, bt.experimental_variogram(xy, z, 2.0, 30.0))
+
+
+@pytest.mark.parametrize(
+    "order,snapped", [(0.1, 0.5), (0.2, 0.5), (0.8, 0.5), (1.0, 1.5), (1.9, 1.5), (2.0, 2.5), (3.0, 2.5)]
+)
+def test_matern_snaps_to_the_nearest_order(order, snapped):
+    gamma = lambda o: bt.Variogram([bt.Structure("matern", 1.0, 100.0, order=o)]).gamma(np.array([20.0]))
+    assert gamma(order) == pytest.approx(gamma(snapped), abs=1e-12)
