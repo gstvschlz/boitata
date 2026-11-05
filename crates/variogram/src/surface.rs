@@ -16,7 +16,7 @@
 use rayon::prelude::*;
 
 use crate::empirical::{
-    Estimator, Experimental, LagBins, Moments, Scale, add, finalize, moments, scale,
+    Estimator, Experimental, LagBins, Moments, Scale, add, both_ways, finalize, scale,
 };
 use crate::error::{Result, VarioError};
 use crate::fit::{Weighting, fit};
@@ -185,7 +185,7 @@ impl PairHistogram {
                         let di = ((dip / CELL_DEG) as usize).min(dip_cells - 1);
                         let bin = ((dist / bins.lag_width).floor() as usize).min(n_bins - 1);
                         let slot = (di * az_cells + ai) * n_bins + bin;
-                        add(&mut sums[slot], &moments(values[i], values[j]));
+                        add(&mut sums[slot], &both_ways(values[i], values[j]));
                         counts[slot] += 1;
                     }
                 }
