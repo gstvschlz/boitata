@@ -109,15 +109,17 @@ fn extension(path: &Path) -> Result<&'static str> {
         })
 }
 
-/// Mesh from triangle corners, merging vertices with identical coordinate bits.
+/// Mesh from triangle corners, merging vertices with equal coordinates.
 fn weld(corners: &[[f64; 3]]) -> Result<Mesh> {
     let mut vertices = Vec::new();
     let mut index: HashMap<[u64; 3], u32> = HashMap::new();
     let mut add = |p: [f64; 3]| {
-        *index.entry(p.map(f64::to_bits)).or_insert_with(|| {
-            vertices.push(p);
-            (vertices.len() - 1) as u32
-        })
+        *index
+            .entry(p.map(|v| (v + 0.0).to_bits()))
+            .or_insert_with(|| {
+                vertices.push(p);
+                (vertices.len() - 1) as u32
+            })
     };
     let triangles = corners
         .chunks_exact(3)
