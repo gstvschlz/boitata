@@ -133,7 +133,7 @@ ax.legend(ncols=2)
 save(fig, "profile")
 
 # %% [markdown]
-# Past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
-# carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. Whether that is right is a geological
+# Past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.2 m, while universal kriging
+# carries the thinning on, down to 0.59 m at 36 km against 0.29 m for the trend. Whether that is right is a geological
 # call. Universal kriging fits the local drift from the neighbors, so it needs a wider search than ordinary kriging:
 # with a few one-sided samples the drift is poorly determined and its extrapolation erratic.

@@ -53,14 +53,14 @@ print(
 )
 
 # %% [markdown]
-# The lens strikes N22.5°E and dips 60° to the east-southeast, so the anisotropy axes run along strike, down dip and
-# across the lens (`rotation` azimuth 22.5, dip 0, rake 60). The `kriging` engine is a potential field: dual kriging
+# The lens strikes N22.5°E and dips 55° to the east-southeast, so the anisotropy axes run along strike, down dip and
+# across the lens (`rotation` azimuth 22.5, dip 0, rake 55). The `kriging` engine is a potential field: dual kriging
 # with a covariance, here of 200 m along strike, 100 m down dip and 20 m across (`ratios` 0.5 and 0.1). The RBF takes
 # the same anisotropy; the Gaussian process (GP) learns its own ranges along the `rotation` axes. On 5 m cells, each
 # model's lens meets the solid: the share of the solid it covers, and the share of its own volume outside the solid.
 
 # %%
-rotation, ratios = (22.5, 0, 60), (0.5, 0.1)
+rotation, ratios = (22.5, 0, 55), (0.5, 0.1)
 
 
 def potential(covariance):

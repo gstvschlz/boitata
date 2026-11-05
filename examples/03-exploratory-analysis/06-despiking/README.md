@@ -32,9 +32,9 @@ scores = bt.NormalScore().fit_transform(untied)
 </details>
 
 ```text
-511 of 1227 samples at the detection limit (2 ppb)
-distinct values: 174 before, 1227 after
-largest change: 6.5e-05 ppb
+461 of 1227 samples at the detection limit (2 ppb)
+distinct values: 199 before, 1227 after
+largest change: 1.3e-04 ppb
 ```
 
 Without despiking, every sample at the limit takes the mean score of the tie. After despiking, the tied samples spread

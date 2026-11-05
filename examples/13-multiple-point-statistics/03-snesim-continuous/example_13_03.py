@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, LIGHT, save
 
-seismic = bt.datasets.f3_seismic()
+seismic = bt.datasets.seismic_cube()
 nx, ny, nz = seismic.count
 cube = seismic.grid("amplitude")[::-1]  # time down: row 0 at 1600 ms
 print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.max():.0f}")

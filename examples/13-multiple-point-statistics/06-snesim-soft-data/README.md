@@ -13,7 +13,7 @@ import numpy as np
 from common import INK, save
 from matplotlib.colors import ListedColormap
 
-ti = bt.datasets.strebelle()
+ti = bt.datasets.channel_training_image()
 nx, ny = ti.count[:2]
 image = ti.grid("facies")[0]
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
@@ -41,7 +41,7 @@ print(f"soft P(sand) from {p_soft.min():.2f} to {p_soft.max():.2f}, mean {p_soft
 </details>
 
 ```text
-soft P(sand) from 0.02 to 0.97, mean 0.28
+soft P(sand) from 0.02 to 0.98, mean 0.30
 ```
 
 Twenty realizations without and with the soft probabilities. At each cell the probability read from the patterns,
@@ -69,8 +69,8 @@ for name, summary in summaries.items():
 </details>
 
 ```text
-patterns only: sand 29.7%, realization 1 matches the image in 58% of cells, P(sand) against soft r = -0.03
-with soft data: sand 29.9%, realization 1 matches the image in 82% of cells, P(sand) against soft r = 0.96
+patterns only: sand 30.8%, realization 1 matches the image in 59% of cells, P(sand) against soft r = -0.07
+with soft data: sand 32.3%, realization 1 matches the image in 86% of cells, P(sand) against soft r = 0.96
 ```
 
 Without soft data a realization matches the truth no better than chance; with it, in four cells of five. The

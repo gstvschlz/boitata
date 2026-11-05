@@ -19,11 +19,11 @@ import boitata as bt
 import numpy as np
 from common import save
 
-train = bt.datasets.jura()["prediction"]
+train = bt.datasets.topsoil_metals()["prediction"]
 metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]
 
 # %% [markdown]
-# Jura has seven metals at 259 soil samples, in km. One call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
+# The topsoil survey has seven metals at 259 soil samples, in km. One call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
 # `vs[j, i]` are the same cross variogram, and you can name variables by column.
 
 # %%
@@ -58,16 +58,16 @@ for ax in axes.flat:
     ax.tick_params(labelsize=6)
     ax.xaxis.label.set_visible(False)
     ax.yaxis.label.set_visible(False)
-save(fig, "jura")
+save(fig, "topsoil_metals")
 
 # %% [markdown]
-# The Walker Lake exhaustive grid holds V and U at all 78 000 cells of a 260 × 300 m grid. Given a `BlockModel`, all
+# The exhaustive metal survey grid holds V and U at all 78 000 cells of a 260 × 300 m grid. Given a `BlockModel`, all
 # pairs one cell offset apart share a separation, so the call bins each offset once and gathers its pairs by index
 # shifts. With a half-degree tolerance only the offsets along the rows and columns remain: 30 lags per direction, each
 # one pass over the cells.
 
 # %%
-table = bt.datasets.walker_lake_exhaustive()
+table = bt.datasets.clustered_metal_survey_exhaustive()
 grid = bt.BlockModel((0.5, 0.5), (1.0, 1.0), (260, 300), attributes={"V": table["V"], "U": table["U"]})
 axes_set = bt.experimental_variograms(
     grid, ["V", "U"], 2.0, 60.0, directions=[(90.0, 0.0), (0.0, 0.0)], tolerance=0.5
@@ -94,4 +94,4 @@ print(f"largest relative difference in γ: {np.max(np.abs(by_shift.gammas / by_s
 
 # %%
 fig, axes = bt.plot.variograms(axes_set)
-save(fig, "walker_lake")
+save(fig, "metal_survey")

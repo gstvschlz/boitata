@@ -1,6 +1,6 @@
 # Model checks
 
-Block kriging of Walker Lake `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
+Block kriging of the metal survey `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
 distributions side by side with `validate_model`, and swaths of grade and metal along easting and northing. The
 exhaustive grid gives the true blocks as a reference.
 
@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -49,7 +49,7 @@ print(
 </details>
 
 ```text
-blocks 291.7 ppm, declustered samples 290.7 ppm, bias +0.3%; true blocks 278.0 ppm
+blocks 284.0 ppm, declustered samples 284.9 ppm, bias -0.3%; true blocks 279.5 ppm
 ```
 
 ## Distributions
@@ -75,13 +75,13 @@ for row in zip(
 
 ```text
                  n   mean    CV   P10   P50    P90  mean diff var. ratio
-naive          470    435  0.69    31   424    819     +49.8%       1.38
-declustered    470    291  0.88     2   235    636      +0.0%       1.00
-model          780    292  0.64    85   265    539      +0.3%       0.54
-reference      780    278  0.78    26   239    576      -4.4%       0.72
+naive          470    428  0.65    41   411    795     +50.1%       1.22
+declustered    470    285  0.89     3   234    676      +0.0%       1.00
+model          780    284  0.71    48   262    561      -0.3%       0.64
+reference      780    280  0.81    37   224    602      -1.9%       0.79
 ```
 
-The blocks reproduce the declustered mean within 0.3 %. Both sit about 5 % above the truth, a bias no check against
+The blocks reproduce the declustered mean within 0.3 %. Both sit about 2 % above the truth, a bias no check against
 the samples can see. The blocks are 10 × 10 m averages smoothed by kriging, so their variance is much smaller. The
 true blocks sit in between, since averaging over a block removes part of the sample variance. The cumulative
 distributions show the same smoothing: the blocks have fewer low and high grades than the true blocks, the

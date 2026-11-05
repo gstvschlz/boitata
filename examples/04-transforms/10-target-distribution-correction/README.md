@@ -20,15 +20,15 @@ from common import map_axes, save
 
 ## Realizations that drift
 
-Walker Lake V simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md):
+Metal survey V simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md):
 declustered normal scores, their variogram along N170° and across it, and 20 SGS realizations on a 5 m grid. The field
 is only a few variogram ranges across, so each realization samples the histogram of the data unevenly: their means
-stray up to 12 % from the declustered mean.
+stray up to 9 % from the declustered mean.
 
 <details><summary>Python</summary>
 
 ```python
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
@@ -58,7 +58,7 @@ print(
 </details>
 
 ```text
-declustered mean 291 ppm; realization means 274 to 322 ppm
+declustered mean 285 ppm; realization means 260 to 288 ppm
 ```
 
 ## Correcting to the declustered data
@@ -96,9 +96,9 @@ save(fig, "histograms")
 </details>
 
 ```text
-SGS realizations  means    274 to    322 ppm
-strength 0.5      means    282 to    306 ppm
-strength 1        means    291 to    291 ppm
+SGS realizations  means    260 to    288 ppm
+strength 0.5      means    273 to    286 ppm
+strength 1        means    285 to    285 ppm
 order kept in every realization: True
 ```
 
@@ -143,7 +143,7 @@ print(f"{len(outside)} of {len(reals)} realizations corrected; means now {m.min(
 </details>
 
 ```text
-7 of 20 realizations corrected; means now 283 to 302 ppm
+8 of 20 realizations corrected; means now 271 to 288 ppm
 ```
 
 ## A smooth reference
@@ -165,8 +165,8 @@ print(f"highest value corrected to the kernel density {smooth.max():.0f} ppm")
 </details>
 
 ```text
-highest datum 1528 ppm; highest corrected value 1528 ppm
-highest value corrected to the kernel density 1612 ppm
+highest datum 1547 ppm; highest corrected value 1547 ppm
+highest value corrected to the kernel density 1602 ppm
 ```
 
 Full script: [`example_04_10.py`](example_04_10.py)

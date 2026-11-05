@@ -62,7 +62,7 @@ ax.set(
 save(fig, "contact")
 
 # %% [markdown]
-# `LIM` is flat up to the contact. `SAP` loses grade toward it, from 1.86 % Ni 6 to 7 m below to 1.32 % in the last
+# `LIM` is flat up to the contact. `SAP` loses grade toward it, from 1.75 % Ni 6 to 7 m below to 1.30 % in the last
 # meter, and the step at the contact itself is small: the boundary is gradational on the saprolite side.
 #
 # One normal-score variogram serves both horizons: each is scored on its own, then the scores are pooled. The nugget and
@@ -171,8 +171,8 @@ axes[1].legend(loc="upper right")
 save(fig, "profiles")
 
 # %% [markdown]
-# In the last meter of `SAP` the hard boundary kriges 1.55 % Ni against 1.28 % held out: it sees only saprolite, richer
-# deeper down. Letting `SAP` draw on `LIM` brings it to 1.34 % and follows the gradient. Opened both ways, the boundary
-# also lifts the first meter of `LIM` from 1.03 % to 1.21 %, where the held-out samples stay at 1.06 %. SGS agrees: 1.60
-# % hard and 1.24 % one way in the last meter of `SAP`, and 1.25 % in the first meter of `LIM` when soft both ways. The
+# In the last meter of `SAP` the hard boundary kriges 1.52 % Ni against 1.33 % held out: it sees only saprolite, richer
+# deeper down. Letting `SAP` draw on `LIM` brings it to 1.35 % and follows the gradient. Opened both ways, the boundary
+# also lifts the first meter of `LIM` from 1.07 % to 1.25 %, where the held-out samples stay at 1.08 %. SGS agrees: 1.60
+# % hard and 1.24 % one way in the last meter of `SAP`, and 1.32 % in the first meter of `LIM` when soft both ways. The
 # contact profile says which way to open a boundary; here only the saprolite side is gradational.

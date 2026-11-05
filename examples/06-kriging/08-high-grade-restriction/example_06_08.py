@@ -4,7 +4,7 @@
 A rich sample informs every node its search reaches, so an isolated high value spreads its grade far beyond the ground
 it represents. `bt.HighGrade` restricts samples above a threshold beyond a distance: `mode="drop"` leaves them out,
 `mode="clamp"` keeps them at the threshold, and ranges with a rotation give the restriction its own ellipse. Each search
-pass carries its own restriction. The example block-kriges Walker Lake `V` in 5 m blocks and checks it against the
+pass carries its own restriction. The example block-kriges the metal survey `V` in 5 m blocks and checks it against the
 exhaustive block averages.
 """
 
@@ -21,9 +21,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords[:, :2], samples["V"]
-exhaustive = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+exhaustive = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 truth = exhaustive.reshape(60, 5, 52, 5).mean(axis=(1, 3)).ravel()
 
@@ -45,7 +45,7 @@ def search(high_grade=None, *, radius=80, min_samples=4):
 # %% [markdown]
 # ## Four restrictions
 #
-# The threshold is 600 ppm, reached by almost a third of the samples, and the restricted distance is 20 m. The tuple
+# The threshold is 600 ppm, reached by about a quarter of the samples, and the restricted distance is 20 m. The tuple
 # `(600, 20)` is shorthand for `bt.HighGrade(600, 20)`, which drops. Clamp keeps the far rich samples at 600 ppm, so
 # they still pull the node up, by less. The ellipse restricts to 40 m along the continuity and 10 m across it. The
 # passes restrict to 15 m in a tight first pass and to 30 m in the wide second, compared with the same passes
@@ -82,7 +82,7 @@ for name, s in searches.items():
     )
 
 # %% [markdown]
-# Unrestricted, the halo blocks are overestimated by 16 ppm on average. Dropping the rich samples beyond 20 m takes a
+# Unrestricted, the halo blocks are overestimated by 6 ppm on average. Dropping the rich samples beyond 20 m takes a
 # third of that off, and clamp lands between the two, as it must: a far rich sample enters at 600 ppm instead of at its
 # grade or not at all. The ellipse, which lets rich samples reach twice as far along the continuity, does almost as well
 # as the circle. The restricted passes correct as much as the single restricted search.

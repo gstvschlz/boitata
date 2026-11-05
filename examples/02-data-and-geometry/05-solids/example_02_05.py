@@ -49,7 +49,7 @@ print(f"outside: {outside.sum()} composites, mean Zn {np.nanmean(zn[outside]):.2
 # %% [markdown]
 # `BlockModel.from_extents` builds a 20 × 20 × 10 m model around the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). `proportion` settles
 # blocks that no triangle passes through with one centroid test and samples `discretization`³ points in the others,
-# here 8. Summed over the blocks, the proportions give back each lens's volume to within 1 %.
+# here 8. Summed over the blocks, the proportions give back each lens's volume to within 2 %.
 
 # %%
 size = (20, 20, 10)
@@ -61,7 +61,7 @@ blocks = blocks.with_column("proportion", np.sum(proportions, axis=0))
 
 # %% [markdown]
 # `mask` keeps the blocks more than half inside a lens. The lenses are thin next to the blocks, so many blocks
-# they cross are less than half filled, and the kept blocks hold under two thirds of the lens volume. [Sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
+# they cross are less than half filled, and the kept blocks hold under four fifths of the lens volume. [Sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
 # sub-blocks the edges instead.
 
 # %%

@@ -1,6 +1,6 @@
 # Quick tour
 
-One pass from samples to a checked estimate. Walker Lake has 470 samples of `V` (ppm) over a 260 × 300 m area, and
+One pass from samples to a checked estimate. The metal survey has 470 samples of `V` (ppm) over a 260 × 300 m area, and
 an exhaustive grid of 78 000 values over the same area to check the estimate against. Each step fits in one cell and
 links to the page that covers it in full.
 
@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, map_axes, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 print(samples)
 ```
 
@@ -27,7 +27,7 @@ PointSet(470 points, crs: none)
   T: Float64
 ```
 
-`bt.datasets` downloads a dataset once and caches it. The samples load as a `PointSet`: coordinates, plus one column
+`bt.datasets` generates a dataset on the call. The samples load as a `PointSet`: coordinates, plus one column
 per variable. The exhaustive values wait for the checks at the end.
 
 ## Statistics
@@ -68,16 +68,16 @@ save(fig, "samples")
 ```text
 declustering cell 22.5 m
               mean    CV   P50   P90   max
-naive          435  0.69   424   819  1528
-declustered    291  0.88   235   636  1528
-exhaustive     278  0.90   221   634  1631
+naive          428  0.65   411   795  1547
+declustered    285  0.89   234   676  1547
+exhaustive     280  0.91   221   634  1630
 ```
 
 ![samples](samples.png)
 
-Declustering takes the mean from 435 to 291 ppm, 13 ppm above the exhaustive mean, and brings the median and P90
+Declustering takes the mean from 428 to 285 ppm, 5 ppm above the exhaustive mean, and brings the median and P90
 close to the true ones. The histogram is skewed to the right, with a peak of near-zero values and a thin tail up to
-1528 ppm.
+1547 ppm.
 
 ## Top cut
 
@@ -98,7 +98,7 @@ print(
 </details>
 
 ```text
-cap 982 ppm: 14 samples cut, 0.7% of the metal removed
+cap 1004 ppm: 12 samples cut, 0.4% of the metal removed
 ```
 
 The cap trims less than 1 % of the metal, since V has no erratic tail. The later steps use the capped column `V_cut`.
@@ -139,13 +139,13 @@ save(fig, "variogram")
 </details>
 
 ```text
-Variogram(nugget=8867.786210090486, structures=[Structure("spherical", sill=30452.04768457904, range=24.786734362667683), Structure("spherical", sill=45879.78702049813, range=115)], rotation=(159.196766259666, 0.0, 0.0), ratios=(0.3373516036246563, 1.0))
+Variogram(nugget=5178.543570576122, structures=[Structure("spherical", sill=17712.642951081165, range=12.736250302929488), Structure("spherical", sill=51337.374627784804, range=115)], rotation=(1.8023577284324404, 0.0, 0.0), ratios=(0.3797524218624345, 1.0))
 ```
 
 ![variogram](variogram.png)
 
-V is most continuous along N159°, with a range of 115 m. Across it the range drops to about 40 m (a ratio of
-0.34). The nugget holds a tenth of the sill.
+V is most continuous along N2°, with a range of 115 m. Across it the range drops to about 44 m (a ratio of
+0.38). The nugget holds 7 % of the sill.
 
 ## Kriging
 
@@ -226,16 +226,16 @@ save(fig, "checks")
 </details>
 
 ```text
-cross-validation: RMSE 179 ppm, correlation 0.78, slope 1.04
-against the truth: RMSE 154 ppm, correlation 0.79
-mean: estimate 288, declustered samples 291, truth 277 ppm
+cross-validation: RMSE 150 ppm, correlation 0.83, slope 1.04
+against the truth: RMSE 136 ppm, correlation 0.84
+mean: estimate 281, declustered samples 285, truth 278 ppm
 ```
 
 ![checks](checks.png)
 
-The slope of 1.04 shows no conditional bias. Cross-validation (RMSE 179 ppm) and the truth (RMSE 154 ppm) give
+The slope of 1.04 shows no conditional bias. Cross-validation (RMSE 150 ppm) and the truth (RMSE 136 ppm) give
 errors of the same size. The estimate follows the swath of the truth and flattens its peaks. Its mean matches the
-declustered samples and sits 4 % above the truth, a bias that no check against the samples can detect.
+declustered samples and sits 1 % above the truth, a bias that no check against the samples can detect.
 [Storing containers in parquet](../../01-first-steps/04-parquet/README.md) saves a grid like this one to a file.
 
 Full script: [`example_01_01.py`](example_01_01.py)

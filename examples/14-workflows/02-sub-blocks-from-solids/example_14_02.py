@@ -96,8 +96,8 @@ for n, model in models.items():
 
 # %% [markdown]
 # Every sub-grid labels within about 1 % of the solids' total volume, the whole parents included. The misplaced volume
-# tells them apart. Labeled at their centers, 10 m parents misplace 157 % of the vein volume: more than the veins
-# hold. Each halving of the sub-cell cuts the misplaced volume, to 40 % at `n = 8` (1.25 m sub-cells) and 17 % at
+# tells them apart. Labeled at their centers, 10 m parents misplace 164 % of the vein volume: more than the veins
+# hold. Each halving of the sub-cell cuts the misplaced volume, to 49 % at `n = 8` (1.25 m sub-cells) and 22 % at
 # `n = 16` (0.625 m). What remains is the sliver along each contact thinner than a sub-cell, and a vein 1 m thick
 # is mostly such slivers.
 #
@@ -124,7 +124,7 @@ for ax, n in zip(axes, (1, 4, 16)):
     ax.set(title=title, xlim=(8040, 8090), ylim=(660, 720))
     if ax is not axes[0]:
         ax.set_ylabel("")
-bt.plot.category_legend(scheme, ax=axes[2], loc="lower right")
+bt.plot.category_legend(scheme, ax=axes[2], loc="upper right")
 save(fig, "section")
 
 # %% [markdown]
@@ -145,14 +145,14 @@ for vein, name in zip(veins, names):
     )
 
 # %% [markdown]
-# The largest parent holds 648 m³ of vein sub-blocks, under its 1000 m³. V1 to V3 match their solids to within
-# 0.02 %. V4 falls 3.79 % short, the space it gave to the veins it crosses, as in the previous tutorial.
+# The largest parent holds 405 m³ of vein sub-blocks, under its 1000 m³. V1 to V3 match their solids to within
+# 0.02 %. V4 falls 3.29 % short, the space it gave to the veins it crosses, as in the previous tutorial.
 #
 # ## The decision
 #
-# Size the sub-cell from the thinnest solid. The veins are 0.7 to 2 m thick, so `n = 16` gives 0.625 m sub-cells,
-# about half the thickness of V2 and V3. It needs 679,610 blocks against 152,906 at `n = 8`, and it misplaces 17 %
-# of the vein volume against 40 %. The labels then follow the contacts close enough to select samples and
+# Size the sub-cell from the thinnest solid. The veins are 0.6 to 1.6 m thick, so `n = 16` gives 0.625 m sub-cells,
+# about half the thickness of V2 and V3. It needs 517,086 blocks against 121,965 at `n = 8`, and it misplaces 22 %
+# of the vein volume against 49 %. The labels then follow the contacts close enough to select samples and
 # estimate each vein apart. For tonnage, also store each sub-block's proportion inside its vein, as in the
 # [previous tutorial](../../14-workflows/01-solid-proportions/README.md), so the volume balances without the slivers.
 #

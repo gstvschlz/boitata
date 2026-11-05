@@ -63,8 +63,8 @@ print(
 </details>
 
 ```text
-1151 composites in the lenses, 609 in lens 1 from 78 holes
-lens 1 dips 59° towards 111°, true thickness 12 m (median)
+1494 composites in the lenses, 792 in lens 1 from 112 holes
+lens 1 dips 56° towards 114°, true thickness 11 m (median)
 ```
 
 ## The variogram
@@ -106,13 +106,13 @@ for name, (az, dip) in zip(("major", "semi-major", "minor"), volume.axes, strict
 </details>
 
 ```text
-pairs across the lenses in the first three lags: [77  9 12]
-nugget 5.1 of a sill of 22.9 %²
-rotation (azimuth, dip, rake): [200.8  12.7 121.9]
-ranges (major, semi-major, minor): [62. 40. 29.] m
-     major axis: azimuth 200.8°, dip 12.7°
-semi-major axis: azimuth 091.4°, dip 55.9°
-     minor axis: azimuth 298.5°, dip 31.0°
+pairs across the lenses in the first three lags: [2452  451  311]
+nugget 2.5 of a sill of 20.3 %²
+rotation (azimuth, dip, rake): [180.4  28.  131.5]
+ranges (major, semi-major, minor): [25. 25.  4.] m
+     major axis: azimuth 180.4°, dip 28.0°
+semi-major axis: azimuth 062.4°, dip 41.4°
+     minor axis: azimuth 292.9°, dip 35.8°
 ```
 
 <details><summary>Python</summary>
@@ -139,9 +139,9 @@ save(fig, "variogram")
 
 ![variogram](variogram.png)
 
-Along the major axis, which plunges 13° toward 201°, γ reaches the sill at 62 m; down the dip, at 40 m. A fifth of the
-sill is nugget, so even the nearest composite leaves a block uncertain. Down the holes γ climbs to four fifths of the
-sill within 12 m: the holes cross the lens at a steep angle, and Zn changes fast across it. The minor axis of the
+Along the major axis, which plunges 28° toward 180°, γ reaches the sill at 25 m; down the dip, at 25 m. An eighth of the
+sill is nugget, so even the nearest composite leaves a block uncertain. Down the holes γ climbs to three quarters of the
+sill within 10 m: the holes cross the lens at a steep angle, and Zn changes fast across it. The minor axis of the
 search does not need that range. Its 29 m radius spans the 12 m lens, and the domain boundary stops it at the lens
 walls.
 
@@ -212,8 +212,8 @@ save(fig, "ellipsoids")
 ![ellipsoids](ellipsoids.png)
 
 In plan the ellipsoid lies along the strike of the lenses. In the section it tilts with the dip and pokes out of lens
-1 on both sides, where the domain boundary cuts it. Face on, the pass-1 ellipse holds about four holes and the pass-2
-ellipse about fifteen.
+1 on both sides, where the domain boundary cuts it. Face on, the pass-1 ellipse holds about one hole and the pass-2
+ellipse about three.
 
 ## Samples per hole
 
@@ -267,13 +267,13 @@ for name, search in options.items():
 </details>
 
 ```text
-6362 blocks; 42% have three holes inside one range
+6489 blocks; 3% have three holes inside one range
           first pass  blocks  samples  holes  slope
-              no cap     81%     14.1    2.3   0.52
-          3 per hole     39%     10.3    3.5   0.56
- 3 per hole, octants     20%      9.2    3.7   0.60
-             3 holes     25%     14.8    3.1   0.55
- 3 per hole, 4 holes     13%     13.1    4.6   0.63
+              no cap      2%     10.5    4.2   0.81
+          3 per hole      2%     10.6    4.6   0.81
+ 3 per hole, octants      1%      9.5    4.4   0.83
+             3 holes      2%     10.9    4.5   0.80
+ 3 per hole, 4 holes      1%     11.4    5.1   0.80
 ```
 
 Without a cap the first pass fills 81 % of the blocks, from 2.3 holes on average. The cap brings it down to 39 %,
@@ -316,15 +316,15 @@ for name in lenses:
 </details>
 
 ```text
-pass 1: ranges [62 40 29] m, min_samples 8
-pass 2: ranges [124  80  58] m, min_samples 4
+pass 1: ranges [25 25  4] m, min_samples 8
+pass 2: ranges [49 49  7] m, min_samples 4
 pass  blocks  share  samples  holes  distance  slope
-   1    2479    39%     10.3    3.5      35 m   0.56
-   2    3883    61%     15.4    5.8      59 m   0.46
-unestimated: 0 blocks
-lens_1: 58% of 2794 blocks in pass 1
-lens_2: 20% of 1918 blocks in pass 1
-lens_3: 29% of 1650 blocks in pass 1
+   1     100     2%     10.6    4.6      14 m   0.81
+   2    5535    85%      8.7    3.2      31 m   0.19
+unestimated: 854 blocks
+lens_1: 3% of 2885 blocks in pass 1
+lens_2: 0% of 1921 blocks in pass 1
+lens_3: 1% of 1683 blocks in pass 1
 ```
 
 <details><summary>Python</summary>
@@ -365,7 +365,7 @@ save(fig, "passes")
 ![passes](passes.png)
 
 Lens 1, face on, with its holes as dots. Pass 1 covers the blocks inside groups of holes; pass 2 takes the edges and
-the gaps, from samples 59 m away on average against 35 m, with a slope of regression of 0.46 against 0.56. Lenses 2
+the gaps, from samples 31 m away on average against 14 m, with a slope of regression of 0.19 against 0.81. Lenses 2
 and 3 have sparser drilling and get a fifth to a third of their blocks in pass 1. Pass-2 blocks use more samples than
 pass-1 blocks, because a larger ellipsoid fills its 16 samples from farther out, so the sample count alone ranks the
 blocks the wrong way round. The pass and the distance describe how well a block is informed, and

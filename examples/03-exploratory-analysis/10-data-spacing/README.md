@@ -21,7 +21,7 @@ print(f"{len(holes)} holes, {grid['INSIDE'].sum():.0f} cells of 100 m inside the
 </details>
 
 ```text
-295 holes, 7162 cells of 100 m inside the lease
+295 holes, 7202 cells of 100 m inside the lease
 ```
 
 ## In plan
@@ -55,8 +55,8 @@ save(fig, "plan")
 </details>
 
 ```text
-spacing in the lease: median 535 m, P10 391 m, P90 655 m
-9.5% of the lease lies outside the hull of the holes
+spacing in the lease: median 553 m, P10 361 m, P90 723 m
+6.9% of the lease lies outside the hull of the holes
 ```
 
 ![plan](plan.png)
@@ -94,8 +94,8 @@ for name, values in (("3D", volume), ("plan", plan)):
 </details>
 
 ```text
-  3D: median 111 m, P10 93 m, P90 153 m, blank 3.1%
-plan: median 101 m, P10 90 m, P90 112 m, blank 0.7%
+  3D: median 108 m, P10 92 m, P90 148 m, blank 19.9%
+plan: median 96 m, P10 90 m, P90 103 m, blank 19.9%
 ```
 
 The plan form also works on drill holes: `holes=` counts each hole once, at its nearest sample, so a hole with a

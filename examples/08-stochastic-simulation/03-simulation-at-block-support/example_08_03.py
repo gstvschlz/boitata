@@ -3,7 +3,7 @@
 
 Simulation reaches block support by averaging each realization on fine nodes over the nodes of each selective block,
 with no change-of-support model. The realizations give block grade-tonnage curves with their uncertainty and, pooled
-inside panels, localized block grades. The exhaustive Walker Lake grid gives the true 10 m blocks.
+inside panels, localized block grades. The exhaustive metal survey grid gives the true 10 m blocks.
 """
 
 # %% [hidden]
@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
@@ -102,7 +102,7 @@ for label, volumes in (
 
 
 # %% [markdown]
-# The median error falls from 59 % on single blocks to 24 % on 50 m windows and 11 % on periods of 130 blocks.
+# The median error falls from 58 % on single blocks to 21 % on 50 m windows and 8 % on periods of 130 blocks.
 
 
 # %% [markdown]
@@ -123,8 +123,8 @@ print(f"at 500 ppm: type 1 {np.mean(table['type_1']):.1%}, type 2 {np.mean(table
 
 
 # %% [markdown]
-# Single 10 m blocks almost never meet ±15 % at 90 %. The truth lies within the MEE for 80 % of blocks, short of the
-# nominal 90 %, and 7 % of blocks fall on the wrong side of 500 ppm.
+# Single 10 m blocks almost never meet ±15 % at 90 %. The truth lies within the MEE for 85 % of blocks, short of the
+# nominal 90 %, and 6 % of blocks fall on the wrong side of 500 ppm.
 
 
 # %% [markdown]
@@ -177,7 +177,7 @@ save(fig, "localized-simulation")
 
 
 # %% [markdown]
-# Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
-# between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. The
+# Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 49 387,
+# between kriging's 41 398 and the true 50 084, with a correlation to the truth of 0.91 against kriging's 0.92. The
 # pooling uses no change-of-support model, so its result depends on the realizations alone. [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md)
 # localize the same panels from a change-of-support model.

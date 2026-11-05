@@ -45,10 +45,10 @@ for name, vein in zip(names, veins):
 </details>
 
 ```text
-V1: MeshReport(0 problems, 1 shells, closed),   658,570 m3, mean thickness 2.0 m
-V2: MeshReport(3 problems, 1 shells, closed),   142,085 m3, mean thickness 1.0 m
-V3: MeshReport(0 problems, 1 shells, closed),   179,815 m3, mean thickness 1.0 m
-V4: MeshReport(0 problems, 1 shells, closed),    55,521 m3, mean thickness 0.7 m
+V1: MeshReport(0 problems, 1 shells, closed),   661,982 m3, mean thickness 1.6 m
+V2: MeshReport(0 problems, 1 shells, closed),   142,575 m3, mean thickness 0.8 m
+V3: MeshReport(0 problems, 1 shells, closed),   179,334 m3, mean thickness 0.8 m
+V4: MeshReport(0 problems, 1 shells, closed),    55,373 m3, mean thickness 0.6 m
 ```
 
 !!! step "Step 1: Build the block model"
@@ -67,7 +67,7 @@ print(model)
 </details>
 
 ```text
-BlockModel(regular, 1060200 of 1060200 cells, count [62, 171, 100], size [5.0, 5.0, 5.0], rotation [0.0, 0.0, 0.0])
+BlockModel(regular, 1054440 of 1054440 cells, count [60, 174, 101], size [5.0, 5.0, 5.0], rotation [0.0, 0.0, 0.0])
 ```
 
 !!! step "Step 2: Measure the proportion of each block inside each vein"
@@ -93,7 +93,7 @@ print(f"{(total > 0).sum():,} of {len(model):,} blocks touch a vein")
 </details>
 
 ```text
-38,938 of 1,060,200 blocks touch a vein
+45,213 of 1,054,440 blocks touch a vein
 ```
 
 !!! step "Step 3: Flag outside, partial and full blocks"
@@ -112,10 +112,10 @@ print(f"largest proportion {total.max():.2f}")
 </details>
 
 ```text
- outside: 1,021,262 blocks
- partial:    38,915 blocks
-    full:        23 blocks
-largest proportion 1.09
+ outside: 1,009,227 blocks
+ partial:    45,213 blocks
+    full:         0 blocks
+largest proportion 0.84
 ```
 
 A total above 1 means two veins overlap. Every overlap lies in blocks where two or more veins have a proportion.
@@ -138,10 +138,10 @@ print(f"{shared.sum()} blocks hold two veins or more, {(total > 1).sum()} have a
 </details>
 
 ```text
-V1 and V4 share 1,307 m3
-V2 and V4 share 390 m3
-V3 and V4 share 350 m3
-461 blocks hold two veins or more, 4 have a total above 1
+V1 and V4 share 979 m3
+V2 and V4 share 438 m3
+V3 and V4 share 380 m3
+642 blocks hold two veins or more, 0 have a total above 1
 ```
 
 V4 crosses the three other veins. Counting that space once needs a priority: here V1 to V3 keep it and V4 gives
@@ -164,7 +164,7 @@ print(f"largest total after the priority: {net.sum(axis=0).max():.2f}")
 </details>
 
 ```text
-largest total after the priority: 1.00
+largest total after the priority: 0.78
 ```
 
 !!! step "Step 4: One label per block, or proportions?"
@@ -198,10 +198,10 @@ for i, (name, vein) in enumerate(zip(names, veins)):
 
 ```text
       solid (m3)  proportions  majority   kept
-V1       658,570      658,416   375,125    57%
-V2       142,085      142,080    10,250     7%
-V3       179,815      179,757     6,625     4%
-V4        55,521       53,361     1,375     2%
+V1       661,982      661,975   229,125    35%
+V2       142,575      142,677         0     0%
+V3       179,334      179,310         0     0%
+V4        55,373       53,469       375     1%
 ```
 
 On a plan at 702.5 m, a bench through block centers, the proportions follow the vein outlines; the majority
@@ -269,11 +269,11 @@ assert abs(in_blocks / union - 1) < 0.01
 </details>
 
 ```text
-V1: blocks   658,416 m3, expected   658,570 m3, difference -0.02%
-V2: blocks   142,080 m3, expected   142,085 m3, difference -0.00%
-V3: blocks   179,757 m3, expected   179,815 m3, difference -0.03%
-V4: blocks    53,361 m3, expected    53,474 m3, difference -0.21%
-all: blocks 1,033,614 m3, union 1,033,944 m3, difference -0.03%
+V1: blocks   661,975 m3, expected   661,982 m3, difference -0.00%
+V2: blocks   142,677 m3, expected   142,575 m3, difference +0.07%
+V3: blocks   179,310 m3, expected   179,334 m3, difference -0.01%
+V4: blocks    53,469 m3, expected    53,577 m3, difference -0.20%
+all: blocks 1,037,432 m3, union 1,037,468 m3, difference -0.00%
 ```
 
 A finer `discretization` shrinks the difference. The default of 4 gives back each vein to within a fraction of a
@@ -292,21 +292,21 @@ for n in (2, 4, 8):
 </details>
 
 ```text
-discretization 2: V1 -0.00%, V2 -0.24%, V3 -0.22%, V4 +0.81%
-discretization 4: V1 -0.02%, V2 +0.01%, V3 -0.02%, V4 -0.13%
-discretization 8: V1 -0.00%, V2 +0.02%, V3 +0.01%, V4 -0.08%
+discretization 2: V1 -0.01%, V2 +0.37%, V3 +0.09%, V4 +0.48%
+discretization 4: V1 +0.01%, V2 +0.11%, V3 +0.00%, V4 -0.04%
+discretization 8: V1 +0.01%, V2 +0.01%, V3 -0.01%, V4 -0.01%
 ```
 
 !!! pitfall "Pitfall"
     Adding up each solid's proportions counts the space two solids share twice. A total above 1 reveals an
-    overlap, but most blocks holding one stay below 1: here 4 of the 461 shared blocks. Test every block where
+    overlap, but most blocks holding one stay below 1: here 0 of the 642 shared blocks. Test every block where
     two solids have a proportion, and decide which solid owns the overlap before reporting a total.
 
 ## The decision
 
 Store the four net proportion columns, `p_V1` to `p_V4`, on the model. A block's vein tonnage is its volume ×
 proportion × density, and a grade estimated inside a vein applies to that part of the block only. The majority
-label keeps 57 % of V1 and 2 to 7 % of the thinner veins, so it serves only for display. When a model
+label keeps 35 % of V1 and 0 to 1 % of the thinner veins, so it serves only for display. When a model
 needs one label per cell that still honors the contacts, [sub-block it from the solids](../../14-workflows/02-sub-blocks-from-solids/README.md).
 
 !!! seealso "See also"

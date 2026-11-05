@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import INK, map_axes, save
 
-vein = bt.read_mesh(bt.datasets.fetch("mining/3d/vein-gold-grade-control/vein_V1.stl"))
+vein = bt.datasets.vein_gold_grade_control()["vein_V1"]
 elevation = vein.z.copy()
 elevation[::50] = np.nan
 a, b, c = vein.coords[vein.triangles].transpose(1, 0, 2)
@@ -33,7 +33,7 @@ points = bt.PointSet(coords, attributes={"distance": vein.distance(coords)})
 </details>
 
 ```text
-Mesh(26949 vertices, 53894 triangles, closed)
+Mesh(19602 vertices, 39200 triangles, closed)
   elevation: Float64
   dip: Float64
 ```
@@ -63,10 +63,10 @@ print("nulls in elevation:", np.isnan(back["elevation"]).sum())
 </details>
 
 ```text
-   vein.vtp:   3046 kB, Mesh, same columns: True
-   vein.vtu:   4170 kB, Mesh, same columns: True
+   vein.vtp:   2216 kB, Mesh, same columns: True
+   vein.vtu:   3116 kB, Mesh, same columns: True
  points.vtp:     15 kB, PointSet, same columns: True
-nulls in elevation: 539
+nulls in elevation: 393
 ```
 
 <details><summary>Python</summary>
@@ -118,11 +118,11 @@ print(f"nodes of the grid: {len(nodes)}")
 </details>
 
 ```text
-BlockModel(masked, 11376 of 88000 cells, count [20, 88, 50], size [10.0, 10.0, 10.0], rotation [-15.0, 0.0, 0.0])
+BlockModel(masked, 13827 of 158865 cells, count [35, 89, 51], size [10.0, 10.0, 10.0], rotation [-15.0, 0.0, 0.0])
   distance: Float64
-shell.vti:    881 kB, 11376 blocks, same: True
-shell.vtu:   3107 kB, 11376 blocks, same: True
-nodes of the grid: 95319
+shell.vti:   1589 kB, 13827 blocks, same: True
+shell.vtu:   3776 kB, 13827 blocks, same: True
+nodes of the grid: 168480
 ```
 
 <details><summary>Python</summary>

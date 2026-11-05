@@ -1,7 +1,7 @@
 """
 # Locally varying anisotropy
 
-Walker Lake's high-`V` bodies bend, so one global direction (N170° in
+The metal survey's high-`V` bodies bend, so one global direction (N170° in
 [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)) fits some of them and crosses others.
 Locally varying anisotropy (LVA) gives every location its own orientation for both the variogram and the search. The
 orientation field can come from a gridded attribute (`from_grid`, used here), a point cloud (`from_points`) or a
@@ -22,8 +22,8 @@ import numpy as np
 from common import ACCENT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)

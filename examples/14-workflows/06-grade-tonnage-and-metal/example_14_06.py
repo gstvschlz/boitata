@@ -2,7 +2,7 @@
 # Grade-tonnage curves and the change in contained metal
 
 [Compare two estimates](../../14-workflows/05-compare-two-estimates/README.md) chose the ordinary kriging over the inverse distance
-model of Walker Lake. Management asks the next question: how much metal does that decision remove from the
+model of the metal survey. Management asks the next question: how much metal does that decision remove from the
 resource? You build grade-tonnage curves for both models and for the true blocks, report tonnes, grade and metal
 at a set of cutoffs, state the change in contained metal at the reporting cutoff, and check that the metal adds
 up.
@@ -33,13 +33,13 @@ from common import ACCENT, HIGHLIGHT, INK, save
 # ## The data
 #
 # The blocks are those of the previous tutorial: 26 × 30 blocks of 10 × 10 m. A grade-tonnage report needs tonnes,
-# which Walker Lake does not have, so two assumptions give them: a 10 m bench centered on the sample plane, and a
-# density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1 000 m³ and weighs 2 700 t. Walker Lake's `V` is read
+# which the metal survey does not have, so two assumptions give them: a 10 m bench centered on the sample plane, and a
+# density of 2.7 t/m³. Each block is then 10 × 10 × 10 m = 1 000 m³ and weighs 2 700 t. The metal survey's `V` is read
 # as a grade in ppm (g/t), so tonnes × ppm gives grams of metal; the tables below divide by 10⁶ to report tonnes of
 # metal.
 
 # %%
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -52,7 +52,7 @@ inverse = bt.InverseDistance(search, power=2).fit(xy, v)
 
 density = 2.7
 blocks = bt.BlockModel(origin=(0.5, 0.5, -5.0), size=(10, 10, 10), count=(26, 30, 1))
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 blocks = blocks.with_columns(
     {
         "ok": kriging.predict(blocks),
@@ -111,7 +111,7 @@ def at(table, name, cutoff):
 print(
     f"{'cutoff':>6} {'model':>16} {'kt':>7} {'V ppm':>6} {'metal t':>8}   vs truth: {'t':>6} {'grade':>6} {'metal':>6}"
 )
-for cutoff in (0, 100, 200, 300, 400, 600):
+for cutoff in (0, 100, 200, 300, 400, 425, 600):
     for name, label in labels.items():
         r = at(table, name, cutoff)
         print(
@@ -120,9 +120,9 @@ for cutoff in (0, 100, 200, 300, 400, 600):
         )
 
 # %% [markdown]
-# Read the kriging rows against the truth. At 100 and 200 ppm kriging reports 14.7 % and 13.1 % too many tonnes at a
-# grade 7.7 % and 7.8 % too low; the metal is off by 5.9 % and 4.2 %, because the two errors partly cancel.
-# From 400 ppm up kriging reports too few tonnes (−14.0 % at 400, −25.0 % at 600). Figure 1 shows why.
+# Read the kriging rows against the truth. At 100 and 200 ppm kriging reports 4.5 % and 8.8 % too many tonnes at a
+# grade 2.3 % and 5.2 % too low; the metal is off by 2.1 % and 3.1 %, because the two errors partly cancel.
+# From 425 ppm up kriging reports too few tonnes (−1.6 % at 425, −17.9 % at 600). Figure 1 shows why.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/w2-smoothing-cutoff.svg"
@@ -171,14 +171,14 @@ for key, unit, scale in (("tonnage", "kt", 1e3), ("mean_grade", "ppm", 1), ("met
     )
 
 # %% [markdown]
-# Switching to kriging removes 218.7 kt (−13.9 %), 14.8 ppm of grade (−3.7 %) and 108.2 t of metal (−17.1 %).
-# Kriging's 525.2 t is still 4.2 % above the true 504.0 t; inverse distance was 25.7 % above it. At cutoff 0, where
-# no block is selected out, inverse distance holds 19.7 % more metal than the truth, against 4.9 % for
+# Switching to kriging removes 226.8 kt (−15.1 %), 2.8 ppm of grade (−0.7 %) and 96.9 t of metal (−15.7 %).
+# Kriging's 521.4 t is still 3.1 % above the true 505.9 t; inverse distance was 22.2 % above it. At cutoff 0, where
+# no block is selected out, inverse distance holds 16.4 % more metal than the truth, against 1.6 % for
 # kriging: most of its excess is the clustering bias of the previous tutorial.
 #
 # !!! pitfall "Pitfall: quoting only the tonnage change"
-#     "Kriging loses 13.9 % of the tonnes" is not the metal change, which is 17.1 % here. Tonnage alone can
-#     get the sign wrong: at 300 ppm kriging reports 4.5 % more tonnes than the truth but 2.2 % less metal.
+#     "Kriging loses 15.1 % of the tonnes" is not the metal change, which is 15.7 % here. Tonnage alone can
+#     get the sign wrong: at 400 ppm kriging reports 0.5 % more tonnes than the truth but 6.1 % less metal.
 #     Report tonnes, grade and metal together, each in absolute and relative terms.
 #
 # !!! check "Check before you move on"
@@ -202,14 +202,14 @@ for name, label in labels.items():
     )
 
 # %% [markdown]
-# All three models balance: for kriging, 614.2 t in the whole model, 525.2 t of it in the 501 blocks above
+# All three models balance: for kriging, 598.0 t in the whole model, 521.4 t of it in the 472 blocks above
 # 200 ppm. A metal figure that does not balance usually means blocks without a grade (null) were counted in the
 # tonnes, or the density was applied twice.
 #
 # ## The decision
 #
-# Report the kriging: 1 352.7 kt at 388.3 ppm, 525.2 t of metal above 200 ppm. The change from the scoping
-# model is −108.2 t of metal (−17.1 %), which the clustering bias found in [compare two estimates](../../14-workflows/05-compare-two-estimates/README.md)
+# Report the kriging: 1 274.4 kt at 409.1 ppm, 521.4 t of metal above 200 ppm. The change from the scoping
+# model is −96.9 t of metal (−15.7 %), which the clustering bias found in [compare two estimates](../../14-workflows/05-compare-two-estimates/README.md)
 # explains. The remaining smoothing (too many tonnes at too low a grade at this cutoff) is a change-of-support
 # problem: the [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and
 # [uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) estimate the tonnage a

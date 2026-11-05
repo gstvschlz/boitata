@@ -1,7 +1,7 @@
 """
 # Multiple indicator kriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Multiple indicator kriging (MIK) estimates the whole conditional distribution of Cd at each target.
 """
 
@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-train = bt.datasets.jura()["prediction"]
-test = bt.datasets.jura()["validation"]
+train = bt.datasets.topsoil_metals()["prediction"]
+test = bt.datasets.topsoil_metals()["validation"]
 xy, cd = train.coords, train["Cd"]
 truth = test["Cd"]
 limit = 0.8

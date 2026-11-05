@@ -28,7 +28,7 @@ size = (20, 20, 10)
 
 # %% [markdown]
 # A model around all holes covers the whole drilled volume. One around the lens solids plus a 20 m buffer is a
-# quarter of it. `snap=True` puts both origins on multiples of the block size, so their blocks coincide.
+# third of it. `snap=True` puts both origins on multiples of the block size, so their blocks coincide.
 
 # %%
 drilled = bt.BlockModel.from_extents(holes, size=size, snap=True)

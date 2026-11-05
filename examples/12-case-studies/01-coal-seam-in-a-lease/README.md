@@ -48,7 +48,7 @@ save(fig, "lease")
 
 ```text
 100.0% of cells agree with INSIDE
-7162 cells inside, 71.6 km²; 295 of 295 holes
+7202 cells inside, 72.0 km²; 295 of 295 holes
 ```
 
 ![lease](lease.png)
@@ -77,14 +77,14 @@ save(fig, "declustering")
 </details>
 
 ```text
-naive mean 2.23 m, declustered 1.91 m with 700 m cells
-curve at 700 m: 1.91 m
+naive mean 2.01 m, declustered 1.75 m with 800 m cells
+curve at 800 m: 1.75 m
 ```
 
 ![declustering](declustering.png)
 
 The minimum falls at 700 m, the spacing of the regional grid: one regional hole per cell, the infill sharing its
-cell's weight. The weights are averaged over the same 25 origins, so their mean is the curve's minimum, 1.91 m:
+cell's weight. The weights are averaged over the same 25 origins, so their mean is the curve's minimum, 1.75 m:
 the infill inflates the plain mean by about 0.3 m.
 
 ## An anisotropic variogram
@@ -129,14 +129,14 @@ save(fig, "variogram")
 </details>
 
 ```text
-trend: -0.16 m per km east, -0.10 m per km north
-Variogram(nugget=0.36028891520809164, structures=[Structure("spherical", sill=0.3250410112495912, range=4038.395920926705)], rotation=(63.29552111528892, 0.0, 0.0), ratios=(0.2695603732169465, 1.0))
+trend: -0.15 m per km east, +0.05 m per km north
+Variogram(nugget=0.15060548317928024, structures=[Structure("spherical", sill=0.1374775885006841, range=3473.262956247401)], rotation=(53.47257207054628, 0.0, 0.0), ratios=(0.5455824960050881, 1.0))
 ```
 
 ![variogram](variogram.png)
 
-Half the residual variance is nugget. The rest is continuous over 4 km toward N63° and a quarter of that across,
-where the residuals rise above the sill and fall back below it: bands of thick and thin coal elongated N63°.
+Half the residual variance is nugget. The rest is continuous over 3.5 km toward N53° and half of that across,
+where the residuals rise above the sill and fall back below it: bands of thick and thin coal elongated N53°.
 
 ## Ordinary or universal kriging
 
@@ -179,9 +179,9 @@ save(fig, "kriging")
 </details>
 
 ```text
- ordinary: mean 1.91 m; leave-one-out RMSE 0.603 m, slope 1.02
-universal: mean 1.89 m; leave-one-out RMSE 0.609 m, slope 1.00
-universal - ordinary: -0.63 to +0.44 m
+ ordinary: mean 1.77 m; leave-one-out RMSE 0.431 m, slope 1.01
+universal: mean 1.75 m; leave-one-out RMSE 0.430 m, slope 1.00
+universal - ordinary: -0.42 to +0.17 m
 ```
 
 ![kriging](kriging.png)
@@ -213,13 +213,13 @@ save(fig, "swath")
 </details>
 
 ```text
-easternmost km: Declustered holes 1.16 m, Ordinary kriging 1.47 m, Universal kriging 1.39 m
+easternmost km: Declustered holes 1.17 m, Ordinary kriging 1.23 m, Universal kriging 1.14 m
 ```
 
 ![swath](swath.png)
 
-Both smooth the holes, as kriging does. In the easternmost kilometer, where the holes average 1.16 m, universal
-kriging gives 1.39 m and ordinary kriging 1.47 m: the plane carries the thinning into the edge cells. Keep
+Both smooth the holes, as kriging does. In the easternmost kilometer, where the holes average 1.17 m, universal
+kriging gives 1.14 m and ordinary kriging 1.23 m: the plane carries the thinning into the edge cells. Keep
 universal kriging for the tonnes.
 
 ## Volume and tonnes
@@ -241,8 +241,8 @@ kriged = cell_tonnes.sum()
 </details>
 
 ```text
- ordinary: 136.7 Mm³, 191.4 Mt
-universal: 135.3 Mm³, 189.4 Mt
+ ordinary: 127.5 Mm³, 178.5 Mt
+universal: 126.3 Mm³, 176.8 Mt
 ```
 
 ## How sure is the total?
@@ -284,15 +284,15 @@ save(fig, "tonnes")
 </details>
 
 ```text
-Variogram(nugget=0.3254728460107622, structures=[Structure("spherical", sill=0.6745271539892377, range=3908.4989240025343)], rotation=(60.7549914680867, 0.0, 0.0), ratios=(0.30591074358169207, 1.0))
-total: P10 185.4 Mt, P50 189.4 Mt, P90 192.6 Mt; kriged 189.4 Mt
-P10-P90 spread ±1.9% of P50
+Variogram(nugget=0.32246559795714036, structures=[Structure("spherical", sill=0.6775344020428596, range=1521.0260000387461)], rotation=(36.48403111889925, 0.0, 0.0), ratios=(0.3921850057886436, 1.0))
+total: P10 174.0 Mt, P50 176.5 Mt, P90 179.2 Mt; kriged 176.8 Mt
+P10-P90 spread ±1.5% of P50
 ```
 
 ![tonnes](tonnes.png)
 
-From P10 to P90 the simulated totals span 185.4 to 192.6 Mt, ±1.9 % around 189.4 Mt, and the kriged 189.4 Mt
-lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7162 cells of the lease.
+From P10 to P90 the simulated totals span 174.0 to 179.2 Mt, ±1.5 % around 176.5 Mt, and the kriged 176.8 Mt
+lies within. With a hole every 700 m or closer, errors in single cells cancel over the 7202 cells of the lease.
 The assumed density weighs more: 0.1 t/m³ either way moves the total more than the whole range from P10 to P90.
 
 ## Classification by data spacing
@@ -329,15 +329,15 @@ save(fig, "classes")
 </details>
 
 ```text
- measured: 21.9% of the lease,  57.4 Mt, mean 2.62 m
-indicated: 68.9% of the lease, 118.9 Mt, mean 1.72 m
- inferred:  9.2% of the lease,  13.0 Mt, mean 1.41 m
+ measured: 26.0% of the lease,  62.6 Mt, mean 2.39 m
+indicated: 57.3% of the lease,  91.5 Mt, mean 1.58 m
+ inferred: 16.8% of the lease,  22.7 Mt, mean 1.34 m
 ```
 
 ![classes](classes.png)
 
-Measured cells, a fifth of the lease, sit on the infill where the seam is thickest, 2.62 m on average, and hold
-57.4 Mt. Indicated cells cover the regional grid, 118.9 Mt; inferred ones, 13.0 Mt, lie at the edges of the lease
+Measured cells, a quarter of the lease, sit on the infill where the seam is thickest, 2.39 m on average, and hold
+62.6 Mt. Indicated cells cover the regional grid, 91.5 Mt; inferred ones, 22.7 Mt, lie at the edges of the lease
 beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../10-checking-models/05-classification/README.md) classifies
 from the kriging itself.
 

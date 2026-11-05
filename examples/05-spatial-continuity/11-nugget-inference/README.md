@@ -32,7 +32,7 @@ print(
 </details>
 
 ```text
-5464 channel samples, median length 0.50 m, variance of log Au 2.49
+8653 channel samples, median length 0.45 m, variance of log Au 2.88
 ```
 
 Every estimate uses the same samples: the channel assays of the V1 quartz, about 0.5 m long and uncomposited, so
@@ -58,7 +58,7 @@ print(f"V1 strikes {strike:03.0f}° and dips {dip:.0f}° towards {dip_direction:
 </details>
 
 ```text
-V1 strikes 350° and dips 76° towards 080°
+V1 strikes 355° and dips 71° towards 085°
 ```
 
 ## Down the channels
@@ -79,9 +79,9 @@ for h, g, n in zip(downhole.lags[:3], downhole.gammas[:3] / variance, downhole.c
 </details>
 
 ```text
-0.50 m  γ/σ² 0.50  4171 pairs
-1.00 m  γ/σ² 0.64  2977 pairs
-1.49 m  γ/σ² 0.74  2026 pairs
+0.45 m  γ/σ² 0.66  7074 pairs
+0.92 m  γ/σ² 0.68  5693 pairs
+1.42 m  γ/σ² 0.75  4199 pairs
 ```
 
 ## Neighboring channels
@@ -104,7 +104,7 @@ print(f"{len(paired)} pairs, mean distance {paired['distance'].mean():.1f} m")
 </details>
 
 ```text
-4664 pairs, mean distance 2.9 m
+7412 pairs, mean distance 2.9 m
 ```
 
 ## Fitted between channels
@@ -137,9 +137,9 @@ for name, direction in directions.items():
 </details>
 
 ```text
-omnidirectional  first lag   1.5 m,  18664 pairs
-along strike     first lag   1.5 m,   6891 pairs
-down dip         first lag  19.5 m,  52947 pairs
+omnidirectional  first lag   1.5 m,  32450 pairs
+along strike     first lag   1.5 m,  11608 pairs
+down dip         first lag  19.5 m,  28494 pairs
 ```
 
 ## Side by side
@@ -202,11 +202,11 @@ save(fig, "nuggets")
 
 ```text
 estimate                     nugget / variance
-downhole, extrapolated                    0.38
-adjacent channels                         0.41
-fitted, omnidirectional                   0.52
-fitted, along strike                      0.43
-fitted, down dip                          0.73
+downhole, extrapolated                    0.61
+adjacent channels                         0.68
+fitted, omnidirectional                   0.64
+fitted, along strike                      0.33
+fitted, down dip                          0.27
 ```
 
 ![nuggets](nuggets.png)
@@ -253,8 +253,8 @@ for label, fit in (("free", fitted["along strike"]), ("fixed", chosen)):
 </details>
 
 ```text
-free  nugget 0.43, structures 0.18 (13 m), 0.31 (55 m), mean squared misfit 1.1e-04
-fixed nugget 0.38, structures 0.21 (10 m), 0.32 (53 m), mean squared misfit 1.3e-04
+free  nugget 0.33, structures 0.34 (2 m), 0.34 (49 m), mean squared misfit 1.2e-04
+fixed nugget 0.61, structures 0.05 (2 m), 0.34 (49 m), mean squared misfit 1.2e-04
 ```
 
 Full script: [`example_05_11.py`](example_05_11.py)

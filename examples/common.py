@@ -7,7 +7,6 @@ from pathlib import Path
 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-from boitata.datasets import fetch  # noqa: F401
 
 ROOT = Path(__file__).resolve().parent
 

@@ -1,7 +1,7 @@
 """
 # Cokriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Cd correlates with Zn, and Zn is also known at the validation points, which suits collocated cokriging.
 """
 
@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-train = bt.datasets.jura()["prediction"]
-test = bt.datasets.jura()["validation"]
+train = bt.datasets.topsoil_metals()["prediction"]
+test = bt.datasets.topsoil_metals()["validation"]
 xy = train.coords
 cd, zn = train["Cd"], train["Zn"]
 lag, max_lag = 0.1, 1.5

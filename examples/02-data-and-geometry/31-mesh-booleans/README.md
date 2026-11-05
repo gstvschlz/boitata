@@ -44,7 +44,7 @@ print(f"block {block.volume:,.0f} m3, wound outward: {block.volume > 0}")
 </details>
 
 ```text
-Mesh(15766 vertices, 31528 triangles, closed)
+Mesh(16200 vertices, 32396 triangles, closed)
   source: Utf8
 block 9,600,000 m3, wound outward: True
 ```
@@ -70,10 +70,10 @@ print(f"lens + block - overlap - union: {lens.volume + block.volume - inside.vol
 </details>
 
 ```text
-lens & block:      712,412 m3,  6,050 triangles, closed: True
-lens - block:    2,075,854 m3, 28,314 triangles, closed: True
-lens | block:   11,675,854 m3, 28,326 triangles, closed: True
-inside + outside - lens:        +0.000 m3
+lens & block:      812,573 m3,  5,074 triangles, closed: True
+lens - block:    2,065,684 m3, 29,490 triangles, closed: True
+lens | block:   11,665,684 m3, 29,502 triangles, closed: True
+inside + outside - lens:        -0.000 m3
 lens + block - overlap - union: +0.000 m3
 ```
 
@@ -134,9 +134,9 @@ print(f"{'sum - lens':>12}: {footwall.volume + hanging.volume - lens.volume:+.3f
 </details>
 
 ```text
-    footwall:  1,287,125 m3, closed: True, 474 cap triangles
-hanging wall:  1,501,140 m3, closed: True, 474 cap triangles
-  sum - lens: +0.000 m3
+    footwall:  1,544,151 m3, closed: True, 358 cap triangles
+hanging wall:  1,334,106 m3, closed: True, 358 cap triangles
+  sum - lens: -0.000 m3
 ```
 
 Full script: [`example_02_31.py`](example_02_31.py)

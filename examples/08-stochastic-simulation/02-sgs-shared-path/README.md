@@ -18,13 +18,13 @@ from common import save
 
 </details>
 
-Walker Lake V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
+Metal survey V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
 variogram along N170° and across it.
 
 <details><summary>Python</summary>
 
 ```python
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
@@ -57,8 +57,8 @@ for path in ["shared", "random"]:
 </details>
 
 ```text
-shared path:  0.17 s for 20 realizations of 78,000 nodes
-random path:  1.85 s for 20 realizations of 78,000 nodes
+shared path:  0.16 s for 20 realizations of 78,000 nodes
+random path:  1.74 s for 20 realizations of 78,000 nodes
 ```
 
 `batch` changes memory and speed and leaves the realizations alone: one at a time gives the same grades as all

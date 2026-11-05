@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import INK, map_axes, save
 
-vein = bt.read_mesh(bt.datasets.fetch("mining/3d/vein-gold-grade-control/vein_V1.stl"))
+vein = bt.datasets.vein_gold_grade_control()["vein_V1"]
 elevation = vein.z.copy()
 elevation[::50] = np.nan
 a, b, c = vein.coords[vein.triangles].transpose(1, 0, 2)

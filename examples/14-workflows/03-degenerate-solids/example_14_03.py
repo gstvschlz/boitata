@@ -142,7 +142,7 @@ print(problems.group_by("kind", maintain_order=True).len())
 print(problems.head(3))
 
 # %% [markdown]
-# Five defects give 266 rows. The edges of the repeated triangles become non-manifold, each now held by three or
+# Five defects give 231 rows. The edges of the repeated triangles become non-manifold, each now held by three or
 # more triangles. The fin adds a non-manifold edge where it meets the lens and two boundary edges along its free
 # sides. The flipped patch shows only along its rim, where flipped and unflipped triangles meet.
 #

@@ -89,10 +89,10 @@ for name in LAYERS:
 </details>
 
 ```text
-base of SOIL: depth   2.7 m median, Mesh(45939 vertices, 91033 triangles, open, 843 boundary edges)
-base of ALU: depth  21.8 m median, Mesh(45939 vertices, 91033 triangles, open, 843 boundary edges)
-base of OXI: depth  48.5 m median, Mesh(45940 vertices, 91035 triangles, open, 843 boundary edges)
-base of SAP: depth  69.2 m median, Mesh(45948 vertices, 91050 triangles, open, 844 boundary edges)
+base of SOIL: depth   3.1 m median, Mesh(42046 vertices, 83359 triangles, open, 731 boundary edges)
+base of ALU: depth  23.6 m median, Mesh(42046 vertices, 83359 triangles, open, 731 boundary edges)
+base of OXI: depth  50.7 m median, Mesh(42046 vertices, 83359 triangles, open, 731 boundary edges)
+base of SAP: depth  73.7 m median, Mesh(42046 vertices, 83359 triangles, open, 731 boundary edges)
 ```
 
 The surfaces leave out cells beyond 400 m of a hole. The thickness of a horizon is the vertical distance from its
@@ -118,10 +118,10 @@ save(fig, "thickness")
 </details>
 
 ```text
-SOIL: thickness   0.5 to   4.7 m
- ALU: thickness  11.5 to  38.9 m
- OXI: thickness  17.3 to  60.1 m
- SAP: thickness  10.5 to  34.2 m
+SOIL: thickness   2.2 to   5.7 m
+ ALU: thickness   5.4 to  36.1 m
+ OXI: thickness  10.8 to  44.8 m
+ SAP: thickness  10.6 to  32.0 m
 ```
 
 ![thickness](thickness.png)
@@ -164,11 +164,11 @@ save(fig, "profile")
 
 ```text
 horizon midpoints in their logged layer: 100.0%
-SOIL:   251 assays, P2O5  1.94 %
- ALU:  1042 assays, P2O5  4.92 %
- OXI:  1432 assays, P2O5 12.92 %
- SAP:   998 assays, P2O5  9.07 %
-ROCK:  1316 assays, P2O5  5.09 %
+SOIL:   259 assays, P2O5  1.95 %
+ ALU:  1152 assays, P2O5  4.74 %
+ OXI:  1533 assays, P2O5 12.52 %
+ SAP:  1241 assays, P2O5  8.48 %
+ROCK:  1407 assays, P2O5  5.03 %
 ```
 
 ![profile](profile.png)
@@ -201,13 +201,13 @@ for name in [*LAYERS, "ROCK"]:
 </details>
 
 ```text
-BlockModel(sub-blocked, 240405 sub-blocks in 144000 cells, count [80, 60, 30], size [25.0, 25.0, 10.0], rotation [0.0, 0.0, 0.0])
+BlockModel(sub-blocked, 254048 sub-blocks in 144000 cells, count [80, 60, 30], size [25.0, 25.0, 10.0], rotation [0.0, 0.0, 0.0])
   domain: Utf8
-SOIL:    8.17 Mm3 from the bottom,    8.17 Mm3 from the top
- ALU:   60.36 Mm3 from the bottom,   60.36 Mm3 from the top
- OXI:   83.20 Mm3 from the bottom,   83.20 Mm3 from the top
- SAP:   59.26 Mm3 from the bottom,   59.26 Mm3 from the top
-ROCK:  367.98 Mm3 from the bottom,  367.98 Mm3 from the top
+SOIL:    9.62 Mm3 from the bottom,    9.69 Mm3 from the top
+ ALU:   63.02 Mm3 from the bottom,   63.02 Mm3 from the top
+ OXI:   86.59 Mm3 from the bottom,   86.59 Mm3 from the top
+ SAP:   68.25 Mm3 from the bottom,   68.25 Mm3 from the top
+ROCK:  420.56 Mm3 from the bottom,  420.56 Mm3 from the top
 ```
 
 A true-scale east-west section shows the sub-cells following the surfaces:

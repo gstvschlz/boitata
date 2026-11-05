@@ -1,7 +1,7 @@
 """
 # Simple estimators
 
-Nearest neighbor, inverse distance and moving average estimate Walker Lake `V` without a variogram. They use the same
+Nearest neighbor, inverse distance and moving average estimate the metal survey `V` without a variogram. They use the same
 470 samples and neighborhood as ordinary kriging and are checked against the exhaustive values; `compare_models` sets
 their grade-tonnage curves against the truth.
 """
@@ -20,8 +20,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
@@ -104,7 +104,7 @@ save(fig, "grade_tonnage")
 
 # %% [markdown]
 # Smooth estimates put too much of the area above a low cutoff and too little above a high one: at 300 ppm moving
-# average nearly doubles the true tonnage, and at 600 ppm it misses 45 % of it. Nearest neighbor follows the true
+# average nearly doubles the true tonnage, and at 600 ppm it misses 27 % of it. Nearest neighbor follows the true
 # tonnage because it keeps the variance of the data, yet its local estimates are wrong. A reliable grade-tonnage of
 # selected blocks needs a change of support (the
 # [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and the pages after

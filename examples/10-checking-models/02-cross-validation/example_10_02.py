@@ -1,7 +1,7 @@
 """
 # Cross-validation
 
-Ordinary kriging of Walker Lake `V` re-estimates each sample from the others, with the same variogram and search:
+Ordinary kriging of the metal survey `V` re-estimates each sample from the others, with the same variogram and search:
 leave-one-out, then k-fold with fewer and fewer folds.
 """
 
@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]

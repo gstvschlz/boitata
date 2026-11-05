@@ -48,7 +48,7 @@ show(scene, "whole", "The whole grid: only its outer shell shows")
 </details>
 
 ```text
-192,888 blocks, 18% null
+197,904 blocks, 25% null
 ```
 
 ![whole](whole.png)
@@ -72,7 +72,7 @@ show(scene, "grade", "Blocks at 4 % Zn or more")
 </details>
 
 ```text
-7,563 of 192,888 blocks at 4 % Zn or more
+6,196 of 197,904 blocks at 4 % Zn or more
 ```
 
 ![grade](grade.png)
@@ -98,7 +98,7 @@ show(scene, "lens", "The blocks of lens 2 at 2 % Zn or more")
 
 ```text
 filters: {'grid': {'lens': ['lens 2'], 'ZN_PCT': (2.0, None)}}
-1,860 of 3,829 blocks of lens 2 shown
+2,616 of 3,809 blocks of lens 2 shown
 ```
 
 ![lens](lens.png)

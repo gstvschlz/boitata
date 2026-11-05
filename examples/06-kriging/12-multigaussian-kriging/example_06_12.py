@@ -21,8 +21,8 @@ import numpy as np
 from common import ACCENT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = 170.0
 

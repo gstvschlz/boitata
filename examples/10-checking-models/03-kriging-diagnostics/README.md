@@ -1,6 +1,6 @@
 # Kriging diagnostics
 
-Block kriging of Walker Lake `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
+Block kriging of the metal survey `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
 regression per block, then the neighborhood behind each estimate. The exhaustive grid checks what they predict.
 
 <details><summary>Python</summary>
@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, map_axes, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -77,10 +77,10 @@ for g, label in enumerate(("efficiency < 0.5", "0.5 to 0.7", ">= 0.7")):
 </details>
 
 ```text
-slope of regression: predicted mean 0.96, observed 1.02
-efficiency < 0.5:  98 blocks, RMSE  95.7 ppm, correlation with truth 0.77
-      0.5 to 0.7: 423 blocks, RMSE 110.0 ppm, correlation with truth 0.70
-          >= 0.7: 259 blocks, RMSE  84.0 ppm, correlation with truth 0.93
+slope of regression: predicted mean 0.98, observed 1.02
+efficiency < 0.5:  11 blocks, RMSE 149.5 ppm, correlation with truth 0.05
+      0.5 to 0.7: 357 blocks, RMSE  97.1 ppm, correlation with truth 0.79
+          >= 0.7: 412 blocks, RMSE  82.4 ppm, correlation with truth 0.94
 ```
 
 ## Neighborhood
@@ -88,8 +88,8 @@ efficiency < 0.5:  98 blocks, RMSE  95.7 ppm, correlation with truth 0.77
 The other diagnostics explain why a block is weak. `mean_distance` is the mean distance to the samples used, and
 `max_samples_reached` flags searches that stopped at 24 samples before the ellipse ran out: those blocks sit in
 denser data and have the higher slope. `negative_weight_sum` adds the weights below zero, which samples screened
-by closer ones receive. `lagrange` (the Lagrange multiplier) and `n_holes` (distinct drill holes used; each Walker
-Lake sample is its own) complete the set.
+by closer ones receive. `lagrange` (the Lagrange multiplier) and `n_holes` (distinct drill holes used; each metal
+survey sample is its own) complete the set.
 
 <details><summary>Python</summary>
 
@@ -114,12 +114,12 @@ print(f"{np.sum(d['value'] < 0)} negative estimates")
 </details>
 
 ```text
-    full search:  89% of blocks, mean distance 28.2 m, mean slope 0.97
-ellipse ran out:  11% of blocks, mean distance 40.4 m, mean slope 0.89
-negative weights    below -0.05: 105 blocks, RMSE  98.9 ppm, mean 446 ppm against 410 true
-negative weights -0.05 to -0.03: 133 blocks, RMSE  93.8 ppm, mean 408 ppm against 392 true
-negative weights    above -0.03: 542 blocks, RMSE 102.0 ppm, mean 233 ppm against 224 true
-0 negative estimates
+    full search:  93% of blocks, mean distance 28.4 m, mean slope 0.99
+ellipse ran out:   7% of blocks, mean distance 39.2 m, mean slope 0.91
+negative weights    below -0.05: 222 blocks, RMSE  85.8 ppm, mean 123 ppm against 121 true
+negative weights -0.05 to -0.03: 205 blocks, RMSE  97.9 ppm, mean 265 ppm against 251 true
+negative weights    above -0.03: 353 blocks, RMSE  89.2 ppm, mean 396 ppm against 396 true
+2 negative estimates
 ```
 
 Negative weights are strongest in and around the dense clusters of the west, where close samples screen the

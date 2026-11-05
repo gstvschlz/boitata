@@ -19,15 +19,18 @@ from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 </details>
 
-`bt.datasets.fetch` gives the local path of a dataset file. STL stores each triangle with its own three corners,
+`bt.write_mesh` writes each vein of the dataset to a file. STL stores each triangle with its own three corners,
 so reading welds the repeated corners. The veins come back closed, with a volume and an area.
 
 <details><summary>Python</summary>
 
 ```python
+data = bt.datasets.vein_gold_grade_control()
+folder = Path(tempfile.mkdtemp())
 veins = {}
 for name in ("V1", "V2", "V3", "V4"):
-    path = bt.datasets.fetch(f"mining/3d/vein-gold-grade-control/vein_{name}.stl")
+    path = folder / f"vein_{name}.stl"
+    bt.write_mesh(path, data[f"vein_{name}"])
     veins[name] = bt.read_mesh(path)
     mesh = veins[name]
     print(f"{name}: {path.stat().st_size / 1e6:.1f} MB, {mesh}, {mesh.volume:,.0f} m3, {mesh.area:,.0f} m2")
@@ -36,10 +39,10 @@ for name in ("V1", "V2", "V3", "V4"):
 </details>
 
 ```text
-V1: 2.7 MB, Mesh(26949 vertices, 53894 triangles, closed), 658,570 m3, 663,874 m2
-V2: 0.7 MB, Mesh(7187 vertices, 14370 triangles, closed), 142,085 m3, 295,492 m2
-V3: 0.9 MB, Mesh(8823 vertices, 17642 triangles, closed), 179,815 m3, 374,375 m2
-V4: 0.3 MB, Mesh(3494 vertices, 6984 triangles, closed), 55,521 m3, 154,643 m2
+V1: 2.0 MB, Mesh(19602 vertices, 39200 triangles, closed), 661,983 m3, 815,881 m2
+V2: 2.0 MB, Mesh(19602 vertices, 39200 triangles, closed), 142,576 m3, 362,049 m2
+V3: 2.0 MB, Mesh(19602 vertices, 39200 triangles, closed), 179,334 m3, 447,918 m2
+V4: 2.0 MB, Mesh(19602 vertices, 39200 triangles, closed), 55,373 m3, 183,862 m2
 ```
 
 The veins in plan at 700 m and on an east-west section at northing 15 000 m:
@@ -109,16 +112,16 @@ with tempfile.TemporaryDirectory() as folder:
 </details>
 
 ```text
-         v1.stl:   2.7 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
-   v1_ascii.stl:   9.8 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
-         v1.ply:   1.6 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation']
-   v1_ascii.ply:   2.8 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation']
-         v1.off:   2.3 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
-         v1.msh:   2.9 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation', 'physical']
-   v1_ascii.msh:   3.3 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['elevation', 'physical']
-         v1.obj:   2.4 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns []
-         v1.dxf:  18.5 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['layer']
-v1_polyface.dxf:  12.1 MB, 53894 triangles, 658,570 m3, largest shift 0.000 mm, columns ['layer']
+         v1.stl:   2.0 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns []
+   v1_ascii.stl:   7.1 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns []
+         v1.ply:   1.1 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns ['elevation']
+   v1_ascii.ply:   2.0 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns ['elevation']
+         v1.off:   1.7 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns []
+         v1.msh:   2.1 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns ['elevation', 'physical']
+   v1_ascii.msh:   2.4 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns ['elevation', 'physical']
+         v1.obj:   1.7 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns []
+         v1.dxf:  13.5 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns ['layer']
+v1_polyface.dxf:   9.9 MB, 39200 triangles, 661,983 m3, largest shift 0.000 mm, columns ['layer']
 ```
 
 ## Repair
@@ -152,12 +155,12 @@ print(f"repaired at 0.1 mm: {repaired.volume:,.0f} m3, original {v1.volume:,.0f}
 </details>
 
 ```text
-Mesh(161682 vertices, 53894 triangles, open, 161682 boundary edges) {'degenerate_faces': 0, 'duplicate_faces': 0, 'duplicate_vertices': 0, 'boundary_edges': 161682, 'non_manifold_edges': 0, 'non_manifold_vertices': 0, 'inconsistent_edges': 0, 'shells': 53894, 'inward_shells': 0, 'self_intersections': 21366, 'is_closed': False}
-shortest edge 1.0 mm
-tolerance 1e-06 m: Mesh(161644 vertices, 53894 triangles, open, 161682 boundary edges)
-tolerance 0.0001 m: Mesh(26949 vertices, 53894 triangles, closed)
-tolerance 0.005 m: Mesh(26938 vertices, 53871 triangles, open, 6 boundary edges)
-repaired at 0.1 mm: 658,571 m3, original 658,570 m3
+Mesh(117600 vertices, 39200 triangles, open, 117600 boundary edges) {'degenerate_faces': 0, 'duplicate_faces': 0, 'duplicate_vertices': 0, 'boundary_edges': 117600, 'non_manifold_edges': 0, 'non_manifold_vertices': 0, 'inconsistent_edges': 0, 'shells': 39200, 'inward_shells': 0, 'self_intersections': 15531, 'is_closed': False}
+shortest edge 59.9 mm
+tolerance 1e-06 m: Mesh(117576 vertices, 39200 triangles, open, 117600 boundary edges)
+tolerance 0.0001 m: Mesh(19602 vertices, 39200 triangles, closed)
+tolerance 0.005 m: Mesh(19602 vertices, 39200 triangles, closed)
+repaired at 0.1 mm: 661,983 m3, original 661,983 m3
 ```
 
 ## A broken solid, problem by problem

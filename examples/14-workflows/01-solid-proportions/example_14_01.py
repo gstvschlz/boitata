@@ -207,14 +207,14 @@ for n in (2, 4, 8):
 # %% [markdown]
 # !!! pitfall "Pitfall"
 #     Adding up each solid's proportions counts the space two solids share twice. A total above 1 reveals an
-#     overlap, but most blocks holding one stay below 1: here 4 of the 461 shared blocks. Test every block where
+#     overlap, but most blocks holding one stay below 1: here 0 of the 642 shared blocks. Test every block where
 #     two solids have a proportion, and decide which solid owns the overlap before reporting a total.
 #
 # ## The decision
 #
 # Store the four net proportion columns, `p_V1` to `p_V4`, on the model. A block's vein tonnage is its volume ×
 # proportion × density, and a grade estimated inside a vein applies to that part of the block only. The majority
-# label keeps 57 % of V1 and 2 to 7 % of the thinner veins, so it serves only for display. When a model
+# label keeps 35 % of V1 and 0 to 1 % of the thinner veins, so it serves only for display. When a model
 # needs one label per cell that still honors the contacts, [sub-block it from the solids](../../14-workflows/02-sub-blocks-from-solids/README.md).
 #
 # !!! seealso "See also"

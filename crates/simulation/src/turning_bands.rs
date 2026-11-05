@@ -488,6 +488,25 @@ impl Bands {
     }
 }
 
+/// Unconditional standard-Gaussian field at `points`, inside the box `lo..hi`.
+/// The box and `seed` fix the field: any points read the same values, in any
+/// order and on any number of threads.
+pub fn gaussian_field(
+    points: &[(f64, f64, f64)],
+    lo: [f64; 3],
+    hi: [f64; 3],
+    vg: &Variogram,
+    n_bands: usize,
+    seed: u64,
+) -> Result<Vec<f64>> {
+    let params = TurningBandsParams {
+        n_bands,
+        ..Default::default()
+    };
+    let mut rng = StdRng::seed_from_u64(seed);
+    Ok(Bands::new(lo, hi, vg, &params, &mut rng)?.field(points))
+}
+
 /// Unconditional standard-Gaussian field at `points`.
 #[cfg(test)]
 fn unconditional(

@@ -1,6 +1,6 @@
 # Locally varying anisotropy
 
-Walker Lake's high-`V` bodies bend, so one global direction (N170° in
+The metal survey's high-`V` bodies bend, so one global direction (N170° in
 [variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md)) fits some of them and crosses others.
 Locally varying anisotropy (LVA) gives every location its own orientation for both the variogram and the search. The
 orientation field can come from a gridded attribute (`from_grid`, used here), a point cloud (`from_points`) or a
@@ -15,8 +15,8 @@ import numpy as np
 from common import ACCENT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
@@ -51,7 +51,7 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=14993.35122178715, structures=[Structure("spherical", sill=25261.581155025888, range=19.578360959734756), Structure("spherical", sill=53364.6905008533, range=80.65434681410247)], rotation=(170.0, 0.0, 0.0), ratios=(0.33066526059466755, 1.0))
+Variogram(nugget=10703.549602970079, structures=[Structure("spherical", sill=7726.237673813235, range=7.500402744271657), Structure("spherical", sill=62833.69537342636, range=104.31142732855938)], rotation=(170.0, 0.0, 0.0), ratios=(0.37013517721103584, 1.0))
 ```
 
 A quick isotropic estimate outlines the bodies, and the gradient of that map gives the orientation of least change.
@@ -73,7 +73,7 @@ print("azimuth percentiles (10, 50, 90):", np.percentile(lva.angles[:, 0] % 180,
 
 ```text
 LocalAnisotropy(3120 locations)
-azimuth percentiles (10, 50, 90): [ 17. 113. 172.]
+azimuth percentiles (10, 50, 90): [  6. 115. 174.]
 ```
 
 <details><summary>Python</summary>
@@ -115,8 +115,8 @@ for name, estimate in ((f"global N{model.rotation[0]:.0f}°", global_estimate), 
 </details>
 
 ```text
- global N170°: RMSE 157.3 ppm, correlation 0.780
-        local: RMSE 148.3 ppm, correlation 0.805
+ global N170°: RMSE 144.2 ppm, correlation 0.826
+        local: RMSE 145.6 ppm, correlation 0.823
 ```
 
 <details><summary>Python</summary>

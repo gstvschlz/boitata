@@ -3,7 +3,7 @@
 
 The search decides which samples inform each node. It has an ellipse along the continuity, octants against clustering,
 passes that relax the search where the first finds too few samples, sector rules against one-sided neighborhoods, and a
-high-grade restriction on rich samples. The example kriges Walker Lake `V` by ordinary kriging and checks it against
+high-grade restriction on rich samples. The example kriges the metal survey `V` by ordinary kriging and checks it against
 the exhaustive values.
 """
 
@@ -22,9 +22,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Circle, Ellipse
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
@@ -111,7 +111,7 @@ for p in (1, 2):
 print(f"RMSE of all nodes {rmse(d['value']):.1f} ppm")
 
 # %% [markdown]
-# Pass-1 nodes have the higher slope of regression and also the larger errors. The Walker Lake drilling is densest where
+# Pass-1 nodes have the higher slope of regression and also the larger errors. The metal survey drilling is densest where
 # `V` is high and variable, so the best-informed nodes are also the hardest ones.
 #
 # ## Sector rules
@@ -141,7 +141,7 @@ for name, first in rules.items():
         )
 
 # %% [markdown]
-# Both rules send about 2 % of the nodes, those with samples on one side, to the second pass. Their estimates run over
+# Both rules send about 11 % of the nodes, those with samples on one side, to the second pass. Their estimates run over
 # 70 ppm high on average, against 11 to 13 ppm for the rest, with a lower slope of regression. The second pass still
 # estimates them; without it they stay unestimated.
 #

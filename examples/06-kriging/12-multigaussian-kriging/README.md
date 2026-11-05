@@ -14,8 +14,8 @@ import numpy as np
 from common import ACCENT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = 170.0
 ```
@@ -51,8 +51,8 @@ print(gaussian)
 </details>
 
 ```text
-22 samples at 0 ppm
-Variogram(nugget=0.3517573150951017, structures=[Structure("spherical", sill=0.6482426849048983, range=88.80893128585629)], rotation=(170.0, 0.0, 0.0), ratios=(0.4191037941481459, 1.0))
+12 samples at 0 ppm
+Variogram(nugget=0, structures=[Structure("spherical", sill=1, range=111.07592791907783)], rotation=(170.0, 0.0, 0.0), ratios=(0.44909922282146353, 1.0))
 ```
 
 ## Distributions at points
@@ -83,10 +83,10 @@ print(f"expected area above 500 ppm {p500.mean():.1%}, true {np.mean(true_at_nod
 </details>
 
 ```text
-mean E-type 300 ppm, true 276
-correlation with the truth 0.78
-truth inside the 80% interval at 85% of nodes
-expected area above 500 ppm 22.4%, true 18.9%
+mean E-type 267 ppm, true 280
+correlation with the truth 0.83
+truth inside the 80% interval at 61% of nodes
+expected area above 500 ppm 17.4%, true 18.7%
 ```
 
 The E-type is smooth like kriging. The probability map says where grade above 500 ppm is likely, and the interval
@@ -149,8 +149,8 @@ save(fig, "checks")
 </details>
 
 ```text
-panel means: r 0.91
-panel shares above 500 ppm: r 0.90
+panel means: r 0.95
+panel shares above 500 ppm: r 0.95
 ```
 
 ![checks](checks.png)
@@ -174,11 +174,11 @@ for p, a in zip([0.5, 0.8, 0.9], cv.accuracy([0.5, 0.8, 0.9])):
 </details>
 
 ```text
-mean E-type 300 ppm, declustered sample mean 291 ppm
-cross-validation: ME 9.6  RMSE 189.4  goodness 0.96
-inside the central 50% interval: 56%
-inside the central 80% interval: 87%
-inside the central 90% interval: 94%
+mean E-type 267 ppm, declustered sample mean 285 ppm
+cross-validation: ME 5.3  RMSE 146.9  goodness 0.76
+inside the central 50% interval: 36%
+inside the central 80% interval: 62%
+inside the central 90% interval: 74%
 ```
 
 ## Compared with multiple indicator kriging

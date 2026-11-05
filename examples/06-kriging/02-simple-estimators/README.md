@@ -1,6 +1,6 @@
 # Simple estimators
 
-Nearest neighbor, inverse distance and moving average estimate Walker Lake `V` without a variogram. They use the same
+Nearest neighbor, inverse distance and moving average estimate the metal survey `V` without a variogram. They use the same
 470 samples and neighborhood as ordinary kriging and are checked against the exhaustive values; `compare_models` sets
 their grade-tonnage curves against the truth.
 
@@ -13,8 +13,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
@@ -56,10 +56,10 @@ for name, e in estimates.items():
 
 ```text
            method  RMSE   corr   variance ratio
- nearest neighbor  178.5  0.739  0.95
- inverse distance  166.2  0.777  0.55
-   moving average  231.0  0.586  0.30
- ordinary kriging  155.1  0.786  0.62
+ nearest neighbor  177.1  0.755  0.95
+ inverse distance  160.5  0.799  0.60
+   moving average  208.8  0.687  0.41
+ ordinary kriging  144.7  0.825  0.66
 ```
 
 Nearest neighbor keeps almost all the variance but places it poorly, as a patchwork of polygons around the samples.
@@ -123,22 +123,22 @@ save(fig, "grade_tonnage")
 ```text
 cutoff 300 ppm
               truth: tonnage +0%, grade +0%
-   nearest neighbor: tonnage +4%, grade -3%
-   inverse distance: tonnage +38%, grade -14%
-     moving average: tonnage +96%, grade -18%
-   ordinary kriging: tonnage +6%, grade -12%
+   nearest neighbor: tonnage +4%, grade -4%
+   inverse distance: tonnage +30%, grade -11%
+     moving average: tonnage +57%, grade -12%
+   ordinary kriging: tonnage +7%, grade -10%
 cutoff 600 ppm
               truth: tonnage +0%, grade +0%
-   nearest neighbor: tonnage -17%, grade +1%
-   inverse distance: tonnage -34%, grade -3%
-     moving average: tonnage -45%, grade -6%
-   ordinary kriging: tonnage -33%, grade -1%
+   nearest neighbor: tonnage -5%, grade +2%
+   inverse distance: tonnage -16%, grade -8%
+     moving average: tonnage -27%, grade -11%
+   ordinary kriging: tonnage -33%, grade -6%
 ```
 
 ![grade_tonnage](grade_tonnage.png)
 
 Smooth estimates put too much of the area above a low cutoff and too little above a high one: at 300 ppm moving
-average nearly doubles the true tonnage, and at 600 ppm it misses 45 % of it. Nearest neighbor follows the true
+average nearly doubles the true tonnage, and at 600 ppm it misses 27 % of it. Nearest neighbor follows the true
 tonnage because it keeps the variance of the data, yet its local estimates are wrong. A reliable grade-tonnage of
 selected blocks needs a change of support (the
 [discrete Gaussian model](../../09-recoverable-resources/01-discrete-gaussian-model/README.md) and the pages after

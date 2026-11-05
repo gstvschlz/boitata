@@ -5,7 +5,7 @@ variables of the same sample. With `spatial=`, it also draws from nearby samples
 intrinsic model, in which every variable and every pair of variables share one correlogram scaled by the score
 covariance. The imputer visits the samples along a random path and draws each missing score by simple cokriging from
 its own row and from the nearest samples, those already imputed included. The variable here is density in the stacked
-sulfide lenses, missing in 91% of all samples and in about half of the sulfide ones.
+sulfide lenses, missing in 94% of all samples and in about half of the sulfide ones.
 
 <details><summary>Python</summary>
 
@@ -31,11 +31,11 @@ print(f"{len(data)} sulphide samples, density measured in {seen.sum()}")
 </details>
 
 ```text
-density missing in 91% of 17848 samples
-3358 sulphide samples, density measured in 1535
+density missing in 94% of 20095 samples
+3325 sulphide samples, density measured in 1221
 ```
 
-The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 16
+The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 15
 m, shorter than the spacing between holes, so most of the information comes from the samples above and below in the
 same hole. The imputer rescales its sill to one.
 
@@ -55,7 +55,7 @@ save(fig, "variogram")
 </details>
 
 ```text
-nugget 0.07, spherical sill 1.12, range 16.5 m
+nugget 0.16, spherical sill 0.81, range 14.6 m
 ```
 
 ![variogram](variogram.png)
@@ -95,16 +95,16 @@ for test, hidden in tests.items():
 
 ```text
 hidden              imputer       one draw   mean    sd
-every other hole    same sample      0.210  0.135  0.35
-every other hole    spatial          0.216  0.138  0.35
-every other hole    truth                          0.35
-every other sample  same sample      0.220  0.135  0.36
-every other sample  spatial          0.156  0.121  0.37
-every other sample  truth                          0.36
+every other hole    same sample      0.172  0.073  0.45
+every other hole    spatial          0.177  0.074  0.46
+every other hole    truth                          0.43
+every other sample  same sample      0.148  0.071  0.47
+every other sample  spatial          0.130  0.077  0.47
+every other sample  truth                          0.46
 ```
 
 Across holes the neighbors add almost nothing, since the hidden holes lie beyond the range of the variogram. Within
-holes, one spatial draw errs by 0.16 t/m³ against 0.22 from the same sample alone, and both keep the spread of the
+holes, one spatial draw errs by 0.13 t/m³ against 0.15 from the same sample alone, and both keep the spread of the
 truth. Along one hole, the spatial draws follow the level of the measured densities around them.
 
 <details><summary>Python</summary>
@@ -161,9 +161,9 @@ print(f"{'fitted':12}" + "".join(f"{target[j]:7.2f}" for j in (0, 1, 3)))
 </details>
 
 ```text
-same sample    0.80   0.79   0.81
-spatial        0.83   0.81   0.84
-fitted         0.80   0.79   0.81
+same sample    0.94   0.94   0.94
+spatial        0.94   0.95   0.94
+fitted         0.95   0.95   0.94
 ```
 
 Both stay within 0.03 of the fitted correlations. Only the missing entries change, and the imputer returns measured

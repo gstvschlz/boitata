@@ -1,7 +1,7 @@
 """
 # Indicator kriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Indicator kriging maps the probability that Cd exceeds 0.8 mg/kg, the Swiss guide value.
 """
 
@@ -18,9 +18,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, save
 
-train = bt.datasets.jura()["prediction"]
-test = bt.datasets.jura()["validation"]
-grid = bt.datasets.jura()["grid"]
+train = bt.datasets.topsoil_metals()["prediction"]
+test = bt.datasets.topsoil_metals()["validation"]
+grid = bt.datasets.topsoil_metals()["grid"]
 xy, cd = train.coords, train["Cd"]
 limit = 0.8
 print(f"share of samples above {limit} mg/kg: {np.mean(cd > limit):.0%}")

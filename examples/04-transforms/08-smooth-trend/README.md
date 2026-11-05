@@ -44,7 +44,7 @@ def image(ax, values, **kwargs):
 </details>
 
 ```text
-295 holes, mean 2.23 m, declustered 1.98 m
+295 holes, mean 2.01 m, declustered 1.85 m
 ```
 
 ## Bandwidth
@@ -103,7 +103,7 @@ save(fig, "automatic")
 </details>
 
 ```text
-chosen bandwidth 300 m
+chosen bandwidth 400 m
 ```
 
 ![automatic](automatic.png)
@@ -140,8 +140,8 @@ save(fig, "residuals")
 </details>
 
 ```text
-residual mean -0.011 m, sd 0.42 m
-correlation with the trend +0.20
+residual mean -0.010 m, sd 0.33 m
+correlation with the trend +0.19
 ```
 
 ![residuals](residuals.png)
@@ -179,7 +179,7 @@ save(fig, "proportions")
 </details>
 
 ```text
-bandwidth 600 m; proportions sum to 1: True
+bandwidth 1200 m; proportions sum to 1: True
 ```
 
 ![proportions](proportions.png)

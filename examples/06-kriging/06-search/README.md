@@ -2,7 +2,7 @@
 
 The search decides which samples inform each node. It has an ellipse along the continuity, octants against clustering,
 passes that relax the search where the first finds too few samples, sector rules against one-sided neighborhoods, and a
-high-grade restriction on rich samples. The example kriges Walker Lake `V` by ordinary kriging and checks it against
+high-grade restriction on rich samples. The example kriges the metal survey `V` by ordinary kriging and checks it against
 the exhaustive values.
 
 <details><summary>Python</summary>
@@ -15,9 +15,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import ListedColormap
 from matplotlib.patches import Circle, Ellipse
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
 true_at_nodes = truth[nodes[:, 1] - 1, nodes[:, 0] - 1]
@@ -87,10 +87,10 @@ save(fig, "shapes")
 
 ```text
           search  RMSE  samples  mean distance  cross-validation RMSE
-          circle  154.8   21.4       31.0 m         185.5
-         ellipse  155.1   23.5       29.5 m         185.4
-ellipse, octants  154.8   20.7       29.5 m         185.1
-ellipse, 6 sectors  154.5   19.4       27.7 m         184.3
+          circle  144.7   22.1       31.0 m         153.2
+         ellipse  144.7   23.6       29.2 m         153.5
+ellipse, octants  144.5   20.9       29.3 m         153.3
+ellipse, 6 sectors  144.0   19.5       27.8 m         153.5
 ```
 
 ![shapes](shapes.png)
@@ -124,12 +124,12 @@ print(f"RMSE of all nodes {rmse(d['value']):.1f} ppm")
 </details>
 
 ```text
-pass 1:  40% of nodes, mean slope 0.97, RMSE 172 ppm
-pass 2:  60% of nodes, mean slope 0.94, RMSE 143 ppm
-RMSE of all nodes 155.1 ppm
+pass 1:  42% of nodes, mean slope 0.98, RMSE 167 ppm
+pass 2:  58% of nodes, mean slope 0.96, RMSE 126 ppm
+RMSE of all nodes 144.6 ppm
 ```
 
-Pass-1 nodes have the higher slope of regression and also the larger errors. The Walker Lake drilling is densest where
+Pass-1 nodes have the higher slope of regression and also the larger errors. The metal survey drilling is densest where
 `V` is high and variable, so the best-informed nodes are also the hardest ones.
 
 ## Sector rules
@@ -164,13 +164,13 @@ for name, first in rules.items():
 </details>
 
 ```text
-           3 of 4 quadrants, pass 1: 98.1% of nodes, mean error  +13 ppm, mean slope 0.96
-           3 of 4 quadrants, pass 2:  1.9% of nodes, mean error  +71 ppm, mean slope 0.79
-8 sectors, 3 empty in a row, pass 1: 97.8% of nodes, mean error  +11 ppm, mean slope 0.96
-8 sectors, 3 empty in a row, pass 2:  2.2% of nodes, mean error  +74 ppm, mean slope 0.79
+           3 of 4 quadrants, pass 1: 88.7% of nodes, mean error   +6 ppm, mean slope 0.99
+           3 of 4 quadrants, pass 2: 11.3% of nodes, mean error   +2 ppm, mean slope 0.87
+8 sectors, 3 empty in a row, pass 1: 88.7% of nodes, mean error   +6 ppm, mean slope 0.99
+8 sectors, 3 empty in a row, pass 2: 11.3% of nodes, mean error   +2 ppm, mean slope 0.87
 ```
 
-Both rules send about 2 % of the nodes, those with samples on one side, to the second pass. Their estimates run over
+Both rules send about 11 % of the nodes, those with samples on one side, to the second pass. Their estimates run over
 70 ppm high on average, against 11 to 13 ppm for the rest, with a lower slope of regression. The second pass still
 estimates them; without it they stay unestimated.
 
@@ -203,10 +203,10 @@ print(
 </details>
 
 ```text
-12% of the samples are above 800 ppm
-215 nodes lowered by over 5 ppm; their mean error goes from +11 ppm to +0 ppm
-285 nodes raised by over 5 ppm; their mean error goes from -3 ppm to +8 ppm
-cross-validation mean error +10.7 ppm without the restriction, +12.2 with
+9% of the samples are above 800 ppm
+591 nodes lowered by over 5 ppm; their mean error goes from +12 ppm to -11 ppm
+53 nodes raised by over 5 ppm; their mean error goes from -17 ppm to -9 ppm
+cross-validation mean error +6.6 ppm without the restriction, +1.1 with
 ```
 
 <details><summary>Python</summary>

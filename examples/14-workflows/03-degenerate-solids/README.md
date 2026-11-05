@@ -55,8 +55,8 @@ print(f"volume {lens.volume:,.0f} m3")
 </details>
 
 ```text
-Mesh(12962 vertices, 25920 triangles, closed) MeshReport(0 problems, 1 shells, closed)
-volume 1,901,081 m3
+Mesh(16200 vertices, 32396 triangles, closed) MeshReport(0 problems, 1 shells, closed)
+volume 1,907,872 m3
 ```
 
 Five defects go in at five places, each a common way a solid gets broken:
@@ -102,8 +102,8 @@ print(broken)
 </details>
 
 ```text
-2235 triangles flipped, 38 deleted
-Mesh(12963 vertices, 25887 triangles, open, 26 boundary edges)
+2171 triangles flipped, 49 deleted
+Mesh(16201 vertices, 32352 triangles, open, 22 boundary edges)
 ```
 
 ## Why it matters
@@ -153,8 +153,8 @@ print(f"{truth.sum()} points inside, {wrong.sum()} classified wrong")
 
 ```text
 closed: True
-volume 1,704,246 m3 against 1,901,081 m3 (-10.4%)
-573 points inside, 27 classified wrong
+volume 1,750,809 m3 against 1,907,872 m3 (-8.2%)
+611 points inside, 36 classified wrong
 ```
 
 !!! pitfall "Pitfall"
@@ -179,7 +179,7 @@ print(problems.head(3))
 </details>
 
 ```text
-{'degenerate_faces': 1, 'duplicate_faces': 3, 'boundary_edges': 26, 'non_manifold_edges': 9, 'inconsistent_edges': 227, 'shells': 1}
+{'degenerate_faces': 1, 'duplicate_faces': 3, 'boundary_edges': 22, 'non_manifold_edges': 9, 'inconsistent_edges': 196, 'shells': 1}
 shape: (5, 2)
 ┌──────────────────────┬─────┐
 │ kind                 ┆ len │
@@ -188,9 +188,9 @@ shape: (5, 2)
 ╞══════════════════════╪═════╡
 │ degenerate_face      ┆ 1   │
 │ duplicate_face       ┆ 3   │
-│ boundary_edge        ┆ 26  │
+│ boundary_edge        ┆ 22  │
 │ non_manifold_edge    ┆ 9   │
-│ inconsistent_winding ┆ 227 │
+│ inconsistent_winding ┆ 196 │
 └──────────────────────┴─────┘
 shape: (3, 5)
 ┌─────────────────┬───────┬────────┬──────┬───────┐
@@ -198,13 +198,13 @@ shape: (3, 5)
 │ ---             ┆ ---   ┆ ---    ┆ ---  ┆ ---   │
 │ str             ┆ i64   ┆ i64    ┆ i64  ┆ i64   │
 ╞═════════════════╪═══════╪════════╪══════╪═══════╡
-│ degenerate_face ┆ 25885 ┆ null   ┆ null ┆ null  │
-│ duplicate_face  ┆ 25882 ┆ null   ┆ null ┆ 4000  │
-│ duplicate_face  ┆ 25883 ┆ null   ┆ null ┆ 4001  │
+│ degenerate_face ┆ 32350 ┆ null   ┆ null ┆ null  │
+│ duplicate_face  ┆ 32347 ┆ null   ┆ null ┆ 4000  │
+│ duplicate_face  ┆ 32348 ┆ null   ┆ null ┆ 4001  │
 └─────────────────┴───────┴────────┴──────┴───────┘
 ```
 
-Five defects give 266 rows. The edges of the repeated triangles become non-manifold, each now held by three or
+Five defects give 231 rows. The edges of the repeated triangles become non-manifold, each now held by three or
 more triangles. The fin adds a non-manifold edge where it meets the lens and two boundary edges along its free
 sides. The flipped patch shows only along its rim, where flipped and unflipped triangles meet.
 
@@ -260,8 +260,8 @@ print({k: v for k, v in report.summary.items() if v})
 </details>
 
 ```text
-Mesh(12955 vertices, 25883 triangles, open, 26 boundary edges)
-{'boundary_edges': 26, 'non_manifold_edges': 1, 'shells': 1}
+Mesh(16186 vertices, 32348 triangles, open, 23 boundary edges)
+{'boundary_edges': 23, 'non_manifold_edges': 1, 'shells': 1}
 ```
 
 !!! step "Step 4: Fix the rest by hand"
@@ -301,9 +301,9 @@ print(fixed, fixed.validate())
 </details>
 
 ```text
-triangles on the non-manifold edge [13904 13905 25882], fin [25882]
-hole rim: 24 edges, closed with 24 triangles
-Mesh(12955 vertices, 25906 triangles, closed) MeshReport(0 problems, 1 shells, closed)
+triangles on the non-manifold edge [31690 32040 32347], fin [32347]
+hole rim: 21 edges, closed with 21 triangles
+Mesh(16186 vertices, 32368 triangles, closed) MeshReport(0 problems, 1 shells, closed)
 ```
 
 !!! check "Check before you move on"
@@ -325,8 +325,8 @@ print(f"inside test: {disagree.sum()} of {len(points):,} points disagree with th
 </details>
 
 ```text
-volume 1,900,886 m3, original 1,901,081 m3 (-0.010%)
-inside test: 0 of 20,000 points disagree with the original
+volume 1,907,775 m3, original 1,907,872 m3 (-0.005%)
+inside test: 1 of 20,000 points disagree with the original
 ```
 
 ## The decision

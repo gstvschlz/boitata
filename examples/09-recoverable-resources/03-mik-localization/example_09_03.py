@@ -3,7 +3,7 @@
 
 Multiple indicator kriging reaches the selective blocks inside a panel without a Gaussian model. Kriged at each panel
 centroid, its conditional distribution describes point grades; an affine correction shrinks it to block support, and
-ranked blocks share its bands. The exhaustive Walker Lake grid gives the true 10 m blocks.
+ranked blocks share its bands. The exhaustive metal survey grid gives the true 10 m blocks.
 """
 
 # %% [hidden]
@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
@@ -110,9 +110,9 @@ save(fig, "localized-mik")
 
 
 # %% [markdown]
-# The localized blocks spread wider than the true ones (variance 54 348 against 47 350), while kriging smooths them to
-# 35 064. Block by block they follow the truth a little less well than kriging (correlation 0.82 against 0.89). The
+# The localized blocks spread wider than the true ones (variance 55 442 against 50 084), while kriging smooths them to
+# 41 398. Block by block they follow the truth a little less well than kriging (correlation 0.85 against 0.92). The
 # affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking: at 500
-# ppm the localized blocks put 23.3% above cutoff against a true 16.8%, overshooting by as much as kriging falls short.
+# ppm the localized blocks put 20.7% above cutoff against a true 16.9%, overshooting by as much as kriging falls short.
 # [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) localizes the same panels
 # from a Gaussian model.

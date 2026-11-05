@@ -22,7 +22,7 @@ print(
 </details>
 
 ```text
-3724 intervals, 1707 m logged, 0.05 to 5.8 m long
+3413 intervals, 1642 m logged, 0.05 to 5.9 m long
 ```
 
 `encode` turns the logged names into integer codes in the order of the scheme, NaN for an unknown name. `shares`
@@ -44,14 +44,14 @@ for name, a, b in zip(lithology.names, by_count, by_length, strict=True):
 </details>
 
 ```text
-CAP     1.4% of intervals   2.2% of length
-SAND   48.0% of intervals  48.2% of length
-SLIME  47.7% of intervals  38.6% of length
-CLAY    2.9% of intervals  11.0% of length
+CAP     0.5% of intervals   1.0% of length
+SAND   48.1% of intervals  50.4% of length
+SLIME  48.3% of intervals  37.1% of length
+CLAY    3.1% of intervals  11.6% of length
 ```
 
 SLIME appears as often as SAND in thinner intervals, and the few CLAY intervals are long. By length, SLIME falls
-from 47.7 % to 38.6 % and CLAY rises from 2.9 % to 11.0 %. `plot.proportions` draws the weighted shares as bars and
+from 48.3 % to 37.1 % and CLAY rises from 3.1 % to 11.6 %. `plot.proportions` draws the weighted shares as bars and
 the unweighted ones as ticks; `plot.category_swath` stacks the shares per slice, as `swath` does for a grade.
 
 <details><summary>Python</summary>

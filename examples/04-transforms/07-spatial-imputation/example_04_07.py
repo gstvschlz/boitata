@@ -6,7 +6,7 @@ variables of the same sample. With `spatial=`, it also draws from nearby samples
 intrinsic model, in which every variable and every pair of variables share one correlogram scaled by the score
 covariance. The imputer visits the samples along a random path and draws each missing score by simple cokriging from
 its own row and from the nearest samples, those already imputed included. The variable here is density in the stacked
-sulfide lenses, missing in 91% of all samples and in about half of the sulfide ones.
+sulfide lenses, missing in 94% of all samples and in about half of the sulfide ones.
 """
 
 # %% [hidden]
@@ -36,7 +36,7 @@ print(f"{len(data)} sulphide samples, density measured in {seen.sum()}")
 
 
 # %% [markdown]
-# The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 16
+# The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 15
 # m, shorter than the spacing between holes, so most of the information comes from the samples above and below in the
 # same hole. The imputer rescales its sill to one.
 
@@ -83,7 +83,7 @@ for test, hidden in tests.items():
 
 # %% [markdown]
 # Across holes the neighbors add almost nothing, since the hidden holes lie beyond the range of the variogram. Within
-# holes, one spatial draw errs by 0.16 t/m³ against 0.22 from the same sample alone, and both keep the spread of the
+# holes, one spatial draw errs by 0.13 t/m³ against 0.15 from the same sample alone, and both keep the spread of the
 # truth. Along one hole, the spatial draws follow the level of the measured densities around them.
 
 # %%

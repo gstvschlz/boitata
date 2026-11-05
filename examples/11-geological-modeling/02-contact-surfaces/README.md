@@ -25,7 +25,7 @@ print(f"lens 1: closed {lens.is_closed}, {lens.volume / 1e6:.2f} Mm3")
 </details>
 
 ```text
-lens 1: closed True, 2.79 Mm3
+lens 1: closed True, 2.88 Mm3
 ```
 
 The logs say `MS` or `SMS` for all three lenses; the intervals of lens 1 are those whose middle lies in its solid.
@@ -62,11 +62,11 @@ print(
 </details>
 
 ```text
-137 holes, 158 lens intervals, 151 contacts, 364 coded points
+155 holes, 334 lens intervals, 224 contacts, 601 coded points
 ```
 
-The lens strikes N22.5°E and dips 60° to the east-southeast, so the anisotropy axes run along strike, down dip and
-across the lens (`rotation` azimuth 22.5, dip 0, rake 60). The `kriging` engine is a potential field: dual kriging
+The lens strikes N22.5°E and dips 55° to the east-southeast, so the anisotropy axes run along strike, down dip and
+across the lens (`rotation` azimuth 22.5, dip 0, rake 55). The `kriging` engine is a potential field: dual kriging
 with a covariance, here of 200 m along strike, 100 m down dip and 20 m across (`ratios` 0.5 and 0.1). The RBF takes
 the same anisotropy; the Gaussian process (GP) learns its own ranges along the `rotation` axes. On 5 m cells, each
 model's lens meets the solid: the share of the solid it covers, and the share of its own volume outside the solid.
@@ -74,7 +74,7 @@ model's lens meets the solid: the share of the solid it covers, and the share of
 <details><summary>Python</summary>
 
 ```python
-rotation, ratios = (22.5, 0, 60), (0.5, 0.1)
+rotation, ratios = (22.5, 0, 55), (0.5, 0.1)
 
 
 def potential(covariance):
@@ -104,11 +104,11 @@ print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 </details>
 
 ```text
-Kriging, cubic: 100.0% of coded points on their side, 3.83 Mm3, covers 87% of the solid, 37% outside it
-       Kriging: 100.0% of coded points on their side, 3.11 Mm3, covers 94% of the solid, 16% outside it
-           RBF: 100.0% of coded points on their side, 3.17 Mm3, covers 95% of the solid, 17% outside it
-            GP:  83.0% of coded points on their side, 8.47 Mm3, covers 97% of the solid, 68% outside it
-GP ranges [102243, 206436, 84] m
+Kriging, cubic: 100.0% of coded points on their side, 4.09 Mm3, covers 92% of the solid, 36% outside it
+       Kriging: 100.0% of coded points on their side, 3.18 Mm3, covers 99% of the solid, 10% outside it
+           RBF: 100.0% of coded points on their side, 3.20 Mm3, covers 100% of the solid, 11% outside it
+            GP:  96.8% of coded points on their side, 19.19 Mm3, covers 97% of the solid, 85% outside it
+GP ranges [1283, 1094, 75] m
 ```
 
 Kriging with a spherical covariance and the RBF honor each contact and agree with the solid except for a thin rind.

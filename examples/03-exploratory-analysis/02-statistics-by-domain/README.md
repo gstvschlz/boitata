@@ -22,7 +22,7 @@ print(f"{len(composites)} composites")
 </details>
 
 ```text
-13602 composites
+16864 composites
 ```
 
 `describe_by` gives the count, moments and quantiles of a column per category, then over all values on the last row.
@@ -42,18 +42,18 @@ for row in zip(*(stats[c] for c in ["category", "n", "mean", "cv", "P10", "P50",
 
 ```text
 LITH        n    mean    CV     P10     P50     P90     max
-DYK        74    0.06  0.66    0.02    0.05    0.12    0.20
-FWV      1599    0.06  0.68    0.02    0.05    0.10    0.49
-HWS      1448    0.05  0.66    0.02    0.04    0.09    0.36
-MS        627    8.94  0.55    3.67    7.96   15.25   37.06
-SMS       652    3.44  0.61    1.38    2.98    5.86   15.36
-STR       583    0.38  0.56    0.18    0.34    0.67    1.52
-VCL      8619    0.05  0.67    0.02    0.04    0.09    0.35
-all     13602    0.64  3.57    0.02    0.05    0.56   37.06
+DYK        45    0.06  0.48    0.02    0.06    0.11    0.12
+FWV      3606    0.06  0.71    0.02    0.05    0.12    0.39
+HWS       601    0.05  0.63    0.02    0.04    0.10    0.16
+MS        954    8.27  0.66    3.24    6.96   15.06   39.43
+SMS       826    3.24  0.65    1.23    2.72    5.96   15.20
+STR      1213    0.37  0.62    0.14    0.31    0.67    1.50
+VCL      9619    0.05  0.64    0.02    0.04    0.09    0.34
+all     16864    0.70  3.46    0.02    0.05    1.34   39.43
 ```
 
-Mean Zn falls from 8.94 % in MS to 3.44 % in SMS and 0.38 % in STR; the host rocks and the dike hold 0.05 to 0.06 %.
-Each lithology has a CV between 0.55 and 0.68, and all of them pooled reach 3.57: mixing populations makes that
+Mean Zn falls from 8.27 % in MS to 3.24 % in SMS and 0.37 % in STR; the host rocks and the dike hold 0.05 to 0.06 %.
+Each lithology has a CV between 0.48 and 0.71, and all of them pooled reach 3.46: mixing populations makes that
 spread.
 
 Box plots show the same quantiles side by side, sorted by median. The box spans P25 to P75, the whiskers P10 to P90,
@@ -78,7 +78,7 @@ save(fig, "boxplot")
 Cumulative distributions compare whole distributions; `stats=True` lists the count, mean, CV and deciles of each curve
 in the corner. The Q-Q plot pairs the quantiles of two lithologies, and points along the 1:1 line would mean the same
 distribution. MS against SMS falls on a line parallel to it on log axes, a constant ratio: MS is SMS scaled up about
-2.7 times, the same shape at a different grade.
+2.6 times, the same shape at a different grade.
 
 <details><summary>Python</summary>
 
@@ -98,7 +98,7 @@ print("MS over SMS at P10, P50, P90:", ", ".join(f"{r:.1f}" for r in ratio))
 </details>
 
 ```text
-MS over SMS at P10, P50, P90: 2.7, 2.7, 2.6
+MS over SMS at P10, P50, P90: 2.6, 2.6, 2.5
 ```
 
 ![distributions](distributions.png)

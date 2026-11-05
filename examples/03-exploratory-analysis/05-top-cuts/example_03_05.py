@@ -48,8 +48,8 @@ for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), st
     print(f"{cap:>7.1f}{100 * above:>11.2f}{100 * metal:>11.1f}{mean:>7.2f}{cv:>6.2f}")
 
 # %% [markdown]
-# The top 1 % of the weight holds 11.5 % of the metal, and the top 10 % holds 36.5 %. The CV climbs from 1.07 at the
-# lowest cap to 2.34 at the highest: the tail makes gold grades erratic.
+# The top 1 % of the weight holds 12.2 % of the metal, and the top 10 % holds 41.3 %. The CV climbs from 1.16 at the
+# lowest cap to 2.85 at the highest: the tail makes gold grades erratic.
 #
 # The log-probability plot shows where the tail breaks away from the body of the distribution. The dotted Tukey fences
 # sit 1.5 interquartile ranges beyond the quartiles of log Au, and the dashed line is a cap at the declustered P99 of
@@ -72,7 +72,7 @@ save(fig, "probability")
 
 # %% [markdown]
 # Both veins plot near a straight line (a lognormal body) up to about P99. Above it the points thin out, with the 1192
-# g/t channel alone at the top of V2. The upper fences, near 110 g/t, agree with a cap around P99.
+# g/t channel alone at the top of V1. The upper fences, near 110 g/t, agree with a cap around P99.
 
 # %% [markdown]
 # ## One cap per vein
@@ -94,6 +94,6 @@ for name, c, n, cut, mean, capped, cv, cv_capped in zip(*(report[k] for k in col
     )
 
 # %% [markdown]
-# The caps cut 47 composites in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal. Pooled, the veins lose
-# 11.1 % of the metal and the CV falls from 3.22 to 1.78. V3 and V4 hold about a hundred composites each, too few for a
+# The caps cut 54 composites in V1 and 11 in V2, and remove 9.1 % and 3.1 % of their metal. Pooled, the veins lose
+# 5.7 % of the metal and the CV falls from 3.10 to 2.70. V3 and V4 hold about a hundred composites each, too few for a
 # P99 to mean much: in V3 it is the maximum and cuts nothing. Cap a small domain with the cap of a similar, larger one.

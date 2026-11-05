@@ -144,7 +144,7 @@ save(fig, "domains")
 # %%
 holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(2.0, ["ZN_PCT"])
-search = bt.Search(100, max_samples=12)
+search = bt.Search(120, max_samples=12)
 labels = subblocked["domain"]
 grade = np.full(len(subblocked), np.nan)
 for lens, name in zip(lenses, names):

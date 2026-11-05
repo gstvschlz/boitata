@@ -1,6 +1,6 @@
 # Desurveying drill holes
 
-The stacked sulfide lenses: 244 diamond holes up to 958 m long, which flatten and swing clockwise as they deepen,
+The stacked sulfide lenses: 244 diamond holes up to 870 m long, which flatten and swing clockwise as they deepen,
 and 45 short RC holes. Desurveying turns each collar and its survey stations (depth, dip positive down, azimuth
 clockwise from north) into a path, so any depth down a hole has coordinates.
 
@@ -16,7 +16,7 @@ from common import ACCENT, GRAY, LIGHT, map_axes, save
 </details>
 
 `Drillholes` desurveys each hole from its collar and survey. `paths` gives the position of each survey station.
-The deepest hole, `DD0027`, flattens from 55° to 46° and swings from azimuth 290° to 296° on its way down:
+The deepest hole, `DD0217`, flattens from 48° to 36° and swings from azimuth 303° to 308° on its way down:
 
 <details><summary>Python</summary>
 
@@ -26,8 +26,8 @@ collar, survey = data["collars"], data["surveys"]
 dh = bt.Drillholes.from_tables(data, intervals=None)
 paths = dh.paths()
 print(dh)
-last = np.flatnonzero(paths["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]
-station = np.flatnonzero(survey["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]
+last = np.flatnonzero(paths["HOLE_ID"] == "DD0217")[[0, 1, -2, -1]]
+station = np.flatnonzero(survey["HOLE_ID"] == "DD0217")[[0, 1, -2, -1]]
 for i, j in zip(last, station):
     print(
         f"{paths['depth'][i]:6.1f} m  dip {survey['DIP'][j]:5.2f}  azimuth {survey['AZIMUTH'][j]:6.2f}"
@@ -39,10 +39,10 @@ for i, j in zip(last, station):
 
 ```text
 Drillholes(289 holes, 0 intervals)
-   0.0 m  dip 55.18  azimuth 289.92  ->  x  12696.7  y  29235.4  z  403.5
-  30.0 m  dip 54.71  azimuth 290.76  ->  x  12680.5  y  29241.4  z  378.9
- 930.0 m  dip 46.08  azimuth 296.88  ->  x  12155.4  y  29473.2  z -312.6
- 958.1 m  dip 45.68  azimuth 296.29  ->  x  12137.9  y  29482.0  z -332.7
+   0.0 m  dip 48.23  azimuth 302.90  ->  x  12840.6  y  29563.8  z  377.6
+  30.0 m  dip 47.56  azimuth 303.12  ->  x  12823.7  y  29574.8  z  355.3
+ 840.0 m  dip 36.31  azimuth 308.06  ->  x  12336.3  y  29919.5  z -190.2
+ 869.8 m  dip 35.88  azimuth 308.08  ->  x  12317.4  y  29934.3  z -207.7
 ```
 
 Between stations the path depends on the method. Minimum curvature, the default, bends along a circular arc.
@@ -79,13 +79,13 @@ for name, other in alternatives.items():
 </details>
 
 ```text
-           tangential: end of hole   1.345 m from minimum curvature (median),   4.211 m max
-  balanced_tangential: end of hole   0.003 m from minimum curvature (median),   0.011 m max
-collar direction only: end of hole  17.181 m from minimum curvature (median), 130.097 m max
+           tangential: end of hole   1.651 m from minimum curvature (median),   3.749 m max
+  balanced_tangential: end of hole   0.003 m from minimum curvature (median),   0.008 m max
+collar direction only: end of hole  22.884 m from minimum curvature (median),  99.212 m max
 ```
 
-With stations every 30 m, tangential ends at most 4.2 m from minimum curvature and balanced tangential within
-about 1 cm. Ignoring the survey puts a hole's end up to 130 m away. Both gaps grow with depth:
+With stations every 30 m, tangential ends at most 3.7 m from minimum curvature and balanced tangential within
+about 1 cm. Ignoring the survey puts a hole's end up to 99 m away. Both gaps grow with depth:
 
 <details><summary>Python</summary>
 
@@ -133,7 +133,7 @@ save(fig, "contacts")
 </details>
 
 ```text
-150 holes reach sulphide, from 322 m down to -201 m elevation
+202 holes reach sulphide, from 317 m down to -171 m elevation
 ```
 
 ![contacts](contacts.png)

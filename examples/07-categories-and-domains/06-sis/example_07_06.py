@@ -24,13 +24,13 @@ from common import ACCENT, GRAY, save
 # %% [markdown]
 # ## Rock types
 #
-# Jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+# The topsoil survey's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
 # geology. A `Categories` scheme names the five types and gives each a color: `encode` turns labels into the codes 0
 # to 4 that SIS takes, and `shares` gives their proportions.
 
 # %%
-jura = bt.datasets.jura()
-train, grid = jura["prediction"], jura["grid"]
+data = bt.datasets.topsoil_metals()
+train, grid = data["prediction"], data["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
 rock_types = bt.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
 rock = rock_types.encode(train["Rock"]).astype(int)
@@ -121,9 +121,9 @@ bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
 save(fig, "realizations")
 
 # %% [markdown]
-# Each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
+# Each realization matches the true rock type at 45 % to 49 % of the nodes, and two realizations differ wherever the
 # samples leave room. The proportions drift from the samples: Kimmeridgian, whose indicator has the longest range,
 # grows to 0.44 on average against 0.33 in the samples, while Argovian and Portlandian shrink. No realization
-# recovers Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 64 %, more than any
+# recovers Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 58 %, more than any
 # realization, though it is a smooth estimate and no possible map looks like it. Entropy peaks at the contacts and
 # far from the samples.

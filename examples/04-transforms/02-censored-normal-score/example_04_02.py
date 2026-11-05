@@ -1,7 +1,7 @@
 """
 # Censored normal-score transform
 
-In the tailings reprocessing dataset, 46 % of the cyanide (WAD) samples are below the detection limit: those cells
+In the tailings reprocessing dataset, 38 % of the cyanide (WAD) samples are below the detection limit: those cells
 hold the limit itself, flagged by `CN_WAD_BDL`. A plain normal-score transform sorts the data by value, so the ties at
 the limit break in the order of the assay sheet. `fit(..., censored=...)` shuffles each such tie with a seed instead.
 The below-detection scores then carry no order, and every other value, including ties at a different limit, keeps its

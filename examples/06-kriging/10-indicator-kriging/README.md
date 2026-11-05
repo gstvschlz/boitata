@@ -1,6 +1,6 @@
 # Indicator kriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Indicator kriging maps the probability that Cd exceeds 0.8 mg/kg, the Swiss guide value.
 
 <details><summary>Python</summary>
@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, save
 
-train = bt.datasets.jura()["prediction"]
-test = bt.datasets.jura()["validation"]
-grid = bt.datasets.jura()["grid"]
+train = bt.datasets.topsoil_metals()["prediction"]
+test = bt.datasets.topsoil_metals()["validation"]
+grid = bt.datasets.topsoil_metals()["grid"]
 xy, cd = train.coords, train["Cd"]
 limit = 0.8
 print(f"share of samples above {limit} mg/kg: {np.mean(cd > limit):.0%}")
@@ -22,7 +22,7 @@ print(f"share of samples above {limit} mg/kg: {np.mean(cd > limit):.0%}")
 </details>
 
 ```text
-share of samples above 0.8 mg/kg: 66%
+share of samples above 0.8 mg/kg: 71%
 ```
 
 The indicator is 1 where Cd is above the threshold and 0 below, and you fit its variogram like any other. IK estimates
@@ -46,7 +46,7 @@ print(
 </details>
 
 ```text
-validation: mean P(Cd > 0.8) 0.75 where true exceedance, 0.62 elsewhere
+validation: mean P(Cd > 0.8) 0.75 where true exceedance, 0.61 elsewhere
 ```
 
 Most of the area exceeds 0.8 mg/kg, and the map picks out the clean zones:

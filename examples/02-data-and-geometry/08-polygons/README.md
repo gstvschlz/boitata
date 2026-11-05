@@ -42,7 +42,7 @@ def outline(ax, ring, **kwargs):
 
 ```text
 Polylines(1 features, 1 parts, crs: none)
-7162 of 10800 cells inside, 71.6 km²
+7202 of 10800 cells inside, 72.0 km²
 agreement with the INSIDE flag: 100.0%
 295 of 295 holes inside
 ```
@@ -83,8 +83,8 @@ save(fig, "distance")
 </details>
 
 ```text
-standoff: 640 cells, 6.4 km²
-holes from the boundary: 0.1 to 3775 m, 23 within 200 m
+standoff: 596 cells, 6.0 km²
+holes from the boundary: 6.4 to 3576 m, 23 within 200 m
 ```
 
 ![distance](distance.png)
@@ -121,14 +121,14 @@ save(fig, "domains")
 </details>
 
 ```text
-MECHANIZED:  69.7% of the lease,  81.0% of the holes
- SELECTIVE:  26.9% of the lease,  16.9% of the holes
-UNECONOMIC:   3.4% of the lease,   2.0% of the holes
+MECHANIZED:  64.6% of the lease,  78.0% of the holes
+ SELECTIVE:  29.7% of the lease,  18.6% of the holes
+UNECONOMIC:   5.7% of the lease,   3.4% of the holes
 ```
 
 ![domains](domains.png)
 
-`MECHANIZED` holes are 81.0 % of the holes, but their domain covers 69.7 % of the lease, because the infill went
+`MECHANIZED` holes are 78.0 % of the holes, but their domain covers 64.6 % of the lease, because the infill went
 where the seam is thick. Counting cells instead of holes declusters the shares.
 
 ## Majority vote
@@ -161,17 +161,17 @@ save(fig, "majority")
 </details>
 
 ```text
-1314 of 7162 cells change label (18.3%)
-mean confidence: nearest 0.75, majority 0.81
-MECHANIZED:  80.4% of the lease
- SELECTIVE:  18.8% of the lease
-UNECONOMIC:   0.7% of the lease
+1383 of 7202 cells change label (19.2%)
+mean confidence: nearest 0.70, majority 0.77
+MECHANIZED:  74.7% of the lease
+ SELECTIVE:  22.7% of the lease
+UNECONOMIC:   2.6% of the lease
 ```
 
 ![majority](majority.png)
 
 The changed cells sit around isolated `SELECTIVE` holes, now outvoted by their `MECHANIZED` neighbors, and
-`MECHANIZED` grows from 69.7 % to 80.4 % of the lease. Majority smooths the map but gives back the declustering:
+`MECHANIZED` grows from 64.6 % to 74.7 % of the lease. Majority smooths the map but gives back the declustering:
 where the drilling is dense, one method wins most votes.
 
 ## A polygon with a hole
@@ -224,10 +224,10 @@ save(fig, "hole")
 </details>
 
 ```text
-area: 71.65 km² lease, 64.59 km² net of the exclusion
-cells kept: 6458, 0 of the 704 in the exclusion zone
+area: 72.13 km² lease, 65.08 km² net of the exclusion
+cells kept: 6494, 0 of the 708 in the exclusion zone
 PolygonSelector agrees: True
-standoff along both rings: 843 cells, 8.4 km²
+standoff along both rings: 800 cells, 8.0 km²
 ```
 
 ![hole](hole.png)

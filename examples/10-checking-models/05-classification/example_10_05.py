@@ -79,10 +79,10 @@ for name in names:
 print(f"{np.mean(smoothed != by_kriging):.1%} of blocks change class in smoothing")
 
 # %% [markdown]
-# Spacing alone puts the infill, 22 % of the blocks, in measured, and the lease edge beyond the last holes in
-# inferred. The kriging diagnostics also see how the holes surround a block: measured grows to 27 % and joins the
+# Spacing alone puts the infill, 26 % of the blocks, in measured, and the lease edge beyond the last holes in
+# inferred. The kriging diagnostics also see how the holes surround a block: measured grows to 35 % and joins the
 # infill patches, while blocks along the edge, with holes on one side only, stay inferred (8.1 % of the lease). The
-# filter changes 1.7 % of the blocks, most of them single blocks and thin fringes.
+# filter changes 0.8 % of the blocks, most of them single blocks and thin fringes.
 
 # %%
 resource_classes = bt.Categories(names, colors=[ACCENT, "#9ebad6", LIGHT])

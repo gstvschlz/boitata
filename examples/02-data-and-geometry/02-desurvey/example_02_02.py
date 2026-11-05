@@ -1,7 +1,7 @@
 """
 # Desurveying drill holes
 
-The stacked sulfide lenses: 244 diamond holes up to 958 m long, which flatten and swing clockwise as they deepen,
+The stacked sulfide lenses: 244 diamond holes up to 870 m long, which flatten and swing clockwise as they deepen,
 and 45 short RC holes. Desurveying turns each collar and its survey stations (depth, dip positive down, azimuth
 clockwise from north) into a path, so any depth down a hole has coordinates.
 """
@@ -21,7 +21,7 @@ from common import ACCENT, GRAY, LIGHT, map_axes, save
 
 # %% [markdown]
 # `Drillholes` desurveys each hole from its collar and survey. `paths` gives the position of each survey station.
-# The deepest hole, `DD0027`, flattens from 55° to 46° and swings from azimuth 290° to 296° on its way down:
+# The deepest hole, `DD0217`, flattens from 48° to 36° and swings from azimuth 303° to 308° on its way down:
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -29,8 +29,8 @@ collar, survey = data["collars"], data["surveys"]
 dh = bt.Drillholes.from_tables(data, intervals=None)
 paths = dh.paths()
 print(dh)
-last = np.flatnonzero(paths["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]
-station = np.flatnonzero(survey["HOLE_ID"] == "DD0027")[[0, 1, -2, -1]]
+last = np.flatnonzero(paths["HOLE_ID"] == "DD0217")[[0, 1, -2, -1]]
+station = np.flatnonzero(survey["HOLE_ID"] == "DD0217")[[0, 1, -2, -1]]
 for i, j in zip(last, station):
     print(
         f"{paths['depth'][i]:6.1f} m  dip {survey['DIP'][j]:5.2f}  azimuth {survey['AZIMUTH'][j]:6.2f}"
@@ -67,8 +67,8 @@ for name, other in alternatives.items():
     )
 
 # %% [markdown]
-# With stations every 30 m, tangential ends at most 4.2 m from minimum curvature and balanced tangential within
-# about 1 cm. Ignoring the survey puts a hole's end up to 130 m away. Both gaps grow with depth:
+# With stations every 30 m, tangential ends at most 3.7 m from minimum curvature and balanced tangential within
+# about 1 cm. Ignoring the survey puts a hole's end up to 99 m away. Both gaps grow with depth:
 
 # %%
 long = collar["TYPE"] == "DD"

@@ -1,6 +1,6 @@
 # Censored normal-score transform
 
-In the tailings reprocessing dataset, 46 % of the cyanide (WAD) samples are below the detection limit: those cells
+In the tailings reprocessing dataset, 38 % of the cyanide (WAD) samples are below the detection limit: those cells
 hold the limit itself, flagged by `CN_WAD_BDL`. A plain normal-score transform sorts the data by value, so the ties at
 the limit break in the order of the assay sheet. `fit(..., censored=...)` shuffles each such tie with a seed instead.
 The below-detection scores then carry no order, and every other value, including ties at a different limit, keeps its
@@ -31,7 +31,7 @@ save(fig, "histogram")
 </details>
 
 ```text
-4129 composites; 46% below the 0.5 ppm detection limit
+3637 composites; 38% below the 0.5 ppm detection limit
 ```
 
 ![histogram](histogram.png)
@@ -86,7 +86,7 @@ save(fig, "ties")
 </details>
 
 ```text
-censored=: 51% rising, a coin flip, as it should be for indistinguishable values
+censored=: 50% rising, a coin flip, as it should be for indistinguishable values
 ```
 
 ![ties](ties.png)
@@ -164,8 +164,8 @@ save(fig, "map")
 </details>
 
 ```text
-AU_PPB 40% censored, AS_PPM 25% censored; both normal-scored the same way
-kriged Au inside the survey: mean 3.5 ppb
+AU_PPB 37% censored, AS_PPM 27% censored; both normal-scored the same way
+kriged Au inside the survey: mean 4.3 ppb
 ```
 
 ![map](map.png)

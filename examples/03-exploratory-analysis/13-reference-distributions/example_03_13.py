@@ -89,11 +89,11 @@ axes[1].legend()
 save(fig, "tails")
 
 # %% [markdown]
-# The empirical table never goes past 215 g/t, and the reflected kernels pass it by only a few g/t (P99.9 220 g/t).
-# Sized on the body at 4.1 g/t wide, they leave each high composite a spike of its own. Kernels on log Au widen with the
-# grade and carry the tail well past the highest composite, with P99.9 at 594 g/t for the Silverman width. A wide log
-# kernel inflates the mean by about exp(h²/2), 1.25 for h = 0.67, which lifts 15.95 g/t to 20.0. The width of 0.3 keeps
-# the mean within 5 % (16.7 g/t) and still sets P99.9 at 323 g/t. Compare the mean of a reference with the declustered
+# The empirical table never goes past 225 g/t, and the reflected kernels pass it by only a few g/t (P99.9 227 g/t).
+# Sized on the body at 2.2 g/t wide, they leave each high composite a spike of its own. Kernels on log Au widen with the
+# grade and carry the tail well past the highest composite, with P99.9 at 434 g/t for the Silverman width. A wide log
+# kernel inflates the mean by about exp(h²/2), 1.18 for h = 0.57, which lifts 10.24 g/t to 12.06. The width of 0.3 keeps
+# the mean within 5 % (10.73 g/t) and still sets P99.9 at 318 g/t. Compare the mean of a reference with the declustered
 # mean before you simulate with it.
 
 # %% [markdown]
@@ -135,7 +135,7 @@ axes[0].set_ylabel(names[1])
 save(fig, "mixture")
 
 # %% [markdown]
-# With 6817 samples, BIC keeps falling up to six components, because the stripes at the detection limits reward more.
+# With 7213 samples, BIC keeps falling up to six components, because the stripes at the detection limits reward more.
 # Narrow components follow the stripes along the arms of the L and wide ones the scattered samples. A sample of the
 # mixture leaves the corner nearly empty, where the single Gaussian fills it. That sample is a smooth reference for both
 # variables at once, as large as you need.

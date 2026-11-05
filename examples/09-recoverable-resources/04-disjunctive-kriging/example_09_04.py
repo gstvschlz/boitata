@@ -2,7 +2,7 @@
 # Disjunctive kriging
 
 Disjunctive kriging estimates, at each node, any function of the grade from kriged Hermite factors of a Gaussian
-anamorphosis; here, the probability that V exceeds a cutoff. The exhaustive Walker Lake grid shows where the grade
+anamorphosis; here, the probability that V exceeds a cutoff. The exhaustive metal survey grid shows where the grade
 exceeds it.
 """
 
@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 
@@ -90,6 +90,6 @@ save(fig, "disjunctive")
 
 
 # %% [markdown]
-# On average the estimate says 23.1% of the nodes exceed 500 ppm; 18.9% do. The error sits in the low bins, which hold
+# On average the estimate says 18.8% of the nodes exceed 500 ppm; 18.7% do. The error sits in the low bins, which hold
 # most nodes: where it predicts 0.1 to 0.4, you observe half to two thirds of that. From 0.5 to 0.9 the error reverses,
 # and more nodes exceed the cutoff than it predicts.

@@ -48,7 +48,7 @@ print(f"{len(composites):,} composites in {len(drillholes)} holes")
 </details>
 
 ```text
-5,453 composites in 289 holes
+6,502 composites in 289 holes
 ```
 
 ## Three domains
@@ -74,11 +74,11 @@ for c, name in enumerate(domains.names):
 </details>
 
 ```text
-Domains(k=3, wcss=1.024, spatial_entropy=0.444)
+Domains(k=3, wcss=0.886, spatial_entropy=0.518)
          n   Zn %   Pb %   Cu %  Ag g/t
-D1    2549   0.05   0.02   0.01     1.0
-D2    2153   0.06   0.02   0.03     1.2
-D3     751   3.90   1.48   0.62    33.4
+D1    2855   0.03   0.01   0.01     0.6
+D2    2699   0.09   0.04   0.06     2.1
+D3     948   3.84   1.53   0.66    35.2
 ```
 
 The domains were drawn from the metals only, yet they line up with the logged rock: `D3` holds the sulfides and
@@ -100,12 +100,12 @@ for r, name in enumerate(rocks.names):
 
 ```text
          D1    D2    D3      n
-OB      88%   12%    0%     25
-HWS     99%    1%    0%    627
-VCL     55%   42%    3%   3426
-SUL      0%    3%   97%    653
-FWV      1%   97%    2%    693
-DYK     28%   62%   10%     29
+OB      63%   37%    0%     30
+HWS     74%   26%    0%    202
+VCL     58%   40%    3%   3789
+SUL      0%   18%   82%   1008
+FWV     34%   65%    1%   1454
+DYK     26%   68%    5%     19
 ```
 
 ## On a section
@@ -156,9 +156,9 @@ for method in ["autocorrelation", "dual", "consensus"]:
 
 ```text
 method             wcss  entropy
-autocorrelation   1.109    0.401
-dual              1.273    0.414
-consensus         1.024    0.444
+autocorrelation   0.937    0.516
+dual              0.943    0.509
+consensus         0.886    0.518
 ```
 
 Full script: [`example_07_09.py`](example_07_09.py)

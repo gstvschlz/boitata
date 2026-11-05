@@ -23,7 +23,7 @@ print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 </details>
 
 ```text
-6817 composites, correlation 0.19
+7213 composites, correlation 0.12
 ```
 
 PCA rotates onto the eigenvectors of the correlation matrix. MAF rotates the sphered data onto the eigenvectors of its
@@ -57,12 +57,12 @@ print("MAF variogram of each factor at 5 m:", np.round(transforms["MAF"].gammas_
 
 ```text
         r(f1, f2)  r(f1², f2)  skew f2  round trip
-PCA         0.000       0.074    -0.07     1.9e-15
-MAF        -0.000      -0.078     0.88     3.8e-15
-SCT         0.014      -0.029    -0.00     0.0e+00
-PPMT        0.001      -0.000     0.00     2.4e-12
-PCA explained variance ratio: [0.595 0.405]
-MAF variogram of each factor at 5 m: [0.087 0.106]
+PCA         0.000      -0.179    -0.35     1.9e-15
+MAF         0.000      -0.008     1.90     2.9e-15
+SCT         0.003       0.012     0.98     1.5e-16
+PPMT       -0.061       0.110     0.65     2.3e-08
+PCA explained variance ratio: [0.56 0.44]
+MAF variogram of each factor at 5 m: [0.177 0.223]
 ```
 
 The data and the four sets of factors. Linear factors are uncorrelated but keep the L-shaped cloud of two mineral
@@ -88,7 +88,7 @@ save(fig, "factors")
 ![factors](factors.png)
 
 Every transform returns the data exactly and leaves uncorrelated factors. PCA and MAF keep some dependence (r(f1², f2)
-of 0.07 and −0.08), and MAF leaves a skewed second factor (0.88). SCT and PPMT bring both to about 0, so you can
+of 0.07 and −0.08), and MAF leaves a skewed second factor (1.90). SCT and PPMT bring both to about 0, so you can
 simulate their factors one at a time and keep the shape of the cloud.
 
 Full script: [`example_04_05.py`](example_04_05.py)

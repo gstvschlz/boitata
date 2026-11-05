@@ -33,9 +33,9 @@ for i, lens in enumerate(lenses, 1):
 </details>
 
 ```text
-lens 1: Mesh(15766 vertices, 31528 triangles, closed), 0 boundary edges, 2,788,266 m3
-lens 2: Mesh(12962 vertices, 25920 triangles, closed), 0 boundary edges, 1,901,081 m3
-lens 3: Mesh(13034 vertices, 26064 triangles, closed), 0 boundary edges, 1,652,929 m3
+lens 1: Mesh(16200 vertices, 32396 triangles, closed), 0 boundary edges, 2,878,257 m3
+lens 2: Mesh(16200 vertices, 32396 triangles, closed), 0 boundary edges, 1,907,872 m3
+lens 3: Mesh(16200 vertices, 32396 triangles, closed), 0 boundary edges, 1,665,272 m3
 ```
 
 `contains` tests points by generalized winding number. Of the 2 m zinc composites, those inside a lens carry
@@ -57,15 +57,15 @@ print(f"outside: {outside.sum()} composites, mean Zn {np.nanmean(zn[outside]):.2
 </details>
 
 ```text
-lens 1:  603 composites, mean Zn 6.19%
-lens 2:  280 composites, mean Zn 5.97%
-lens 3:  252 composites, mean Zn 6.02%
-outside: 12177 composites, mean Zn 0.08%
+lens 1:  783 composites, mean Zn 5.28%
+lens 2:  430 composites, mean Zn 6.10%
+lens 3:  276 composites, mean Zn 6.69%
+outside: 14581 composites, mean Zn 0.09%
 ```
 
 `BlockModel.from_extents` builds a 20 × 20 × 10 m model around the lenses ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). `proportion` settles
 blocks that no triangle passes through with one centroid test and samples `discretization`³ points in the others,
-here 8. Summed over the blocks, the proportions give back each lens's volume to within 1 %.
+here 8. Summed over the blocks, the proportions give back each lens's volume to within 2 %.
 
 <details><summary>Python</summary>
 
@@ -81,13 +81,13 @@ blocks = blocks.with_column("proportion", np.sum(proportions, axis=0))
 </details>
 
 ```text
-lens 1: mesh 2,788,266 m3, blocks 2,788,500 m3
-lens 2: mesh 1,901,081 m3, blocks 1,884,000 m3
-lens 3: mesh 1,652,929 m3, blocks 1,652,500 m3
+lens 1: mesh 2,878,257 m3, blocks 2,862,500 m3
+lens 2: mesh 1,907,872 m3, blocks 1,905,000 m3
+lens 3: mesh 1,665,272 m3, blocks 1,638,500 m3
 ```
 
 `mask` keeps the blocks more than half inside a lens. The lenses are thin next to the blocks, so many blocks
-they cross are less than half filled, and the kept blocks hold under two thirds of the lens volume. [Sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
+they cross are less than half filled, and the kept blocks hold under four fifths of the lens volume. [Sub-blocks](../../02-data-and-geometry/06-sub-blocks/README.md)
 sub-blocks the edges instead.
 
 <details><summary>Python</summary>
@@ -101,8 +101,8 @@ print(f"lenses: {sum(lens.volume for lens in lenses):,.0f} m3")
 </details>
 
 ```text
-79,200 blocks, 1,001 more than half inside: 4,004,000 m3
-lenses: 6,342,276 m3
+80,388 blocks, 1,270 more than half inside: 5,080,000 m3
+lenses: 6,451,401 m3
 ```
 
 A vertical section across strike (the lenses strike N22.5°E) shows the block proportions with the lens

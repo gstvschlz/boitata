@@ -27,7 +27,7 @@ print(f"{len(composites)} composites of 2 m: {len(hematite)} hematite, {len(itab
 </details>
 
 ```text
-24875 composites of 2 m: 7585 hematite, 13403 itabirite
+22663 composites of 2 m: 5145 hematite, 12769 itabirite
 ```
 
 ## Correlation matrices
@@ -54,15 +54,15 @@ save(fig, "correlation")
 </details>
 
 ```text
-Itabirite, Fe against SiO₂ -1.00  Al₂O₃ -0.17  P +0.05  Mn +0.15  LOI +0.24
-Hematite, Fe against SiO₂ -0.63  Al₂O₃ -0.81  P -0.36  Mn -0.15  LOI -0.52
+Itabirite, Fe against SiO₂ -1.00  Al₂O₃ +0.34  P +0.14  Mn +0.19  LOI +0.41
+Hematite, Fe against SiO₂ -0.38  Al₂O₃ -0.44  P +0.09  Mn +0.09  LOI -0.24
 ```
 
 ![correlation](correlation.png)
 
 In itabirite, a banded rock of hematite and quartz, Fe and SiO₂ are opposed at -1.00: one oxide replaces the other, so
-SiO₂ adds nothing to Fe. In the hematite ore most of the silica is gone, and Fe falls instead with Al₂O₃ (-0.81) and
-LOI (-0.52), the clay and goethite that dilute it. The same six oxides relate differently in each rock, one more
+SiO₂ adds nothing to Fe. In the hematite ore most of the silica is gone, and Fe falls instead with Al₂O₃ (-0.44) and
+LOI (-0.24), the clay and goethite that dilute it. The same six oxides relate differently in each rock, one more
 reason to estimate the two apart.
 
 ## Scatter-plot matrix
@@ -84,7 +84,7 @@ save(fig, "scatter_matrix")
 </details>
 
 ```text
-density measured on 40% of the hematite composites
+density measured on 41% of the hematite composites
 ```
 
 ![scatter_matrix](scatter_matrix.png)
@@ -135,14 +135,14 @@ save(fig, "h_scatter")
 </details>
 
 ```text
-h =   2 m:  18924 pairs, correlation 0.80
-h =   8 m:  21880 pairs, correlation 0.32
-h =  32 m:  66886 pairs, correlation 0.08
+h =   2 m:  16830 pairs, correlation 0.72
+h =   8 m:  20978 pairs, correlation 0.30
+h =  32 m:  74294 pairs, correlation 0.05
 ```
 
 ![h_scatter](h_scatter.png)
 
-Fe in itabirite correlates at 0.80 between neighboring composites, 0.32 at 8 m and 0.08 at 32 m. The bands that make
+Fe in itabirite correlates at 0.72 between neighboring composites, 0.30 at 8 m and 0.05 at 32 m. The bands that make
 the grade are thin, and beyond a few tens of meters a composite says little about the Fe of its neighbor. The
 variogram ([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md)) measures the
 same loss of correlation lag by lag.

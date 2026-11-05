@@ -24,7 +24,7 @@ print(f"{len(quartz)} composites of 1 m in quartz vein, mean Au {au.mean():.2f} 
 </details>
 
 ```text
-5826 composites of 1 m in quartz vein, mean Au 9.10 g/t, max 1192 g/t
+6749 composites of 1 m in quartz vein, mean Au 11.46 g/t, max 1192 g/t
 ```
 
 Channels crowd the developed levels, so the composites are first declustered in 20 m cells
@@ -40,7 +40,7 @@ print(f"declustered mean Au {np.average(au, weights=weights):.2f} g/t")
 </details>
 
 ```text
-declustered mean Au 8.33 g/t
+declustered mean Au 12.40 g/t
 ```
 
 ## How much metal sits in the tail
@@ -61,16 +61,16 @@ for cap, above, metal, mean, cv in zip(*(caps[c] for c in caps.column_names), st
 
 ```text
     cap  above (%)  metal (%)   mean    CV
-   18.1       9.99       36.5   5.29  1.07
-   30.8       5.00       25.5   6.21  1.30
-   49.2       2.50       17.6   6.86  1.51
-   81.4       1.00       11.5   7.38  1.74
-  120.3       0.44        8.1   7.66  1.92
-  297.7       0.10        3.4   8.05  2.34
+   26.7      10.00       41.3   7.27  1.16
+   45.9       4.99       30.7   8.60  1.39
+   75.6       2.50       22.3   9.64  1.63
+  155.5       0.96       12.2  10.89  2.05
+  250.4       0.49        6.3  11.61  2.39
+  521.0       0.02        1.3  12.24  2.85
 ```
 
-The top 1 % of the weight holds 11.5 % of the metal, and the top 10 % holds 36.5 %. The CV climbs from 1.07 at the
-lowest cap to 2.34 at the highest: the tail makes gold grades erratic.
+The top 1 % of the weight holds 12.2 % of the metal, and the top 10 % holds 41.3 %. The CV climbs from 1.16 at the
+lowest cap to 2.85 at the highest: the tail makes gold grades erratic.
 
 The log-probability plot shows where the tail breaks away from the body of the distribution. The dotted Tukey fences
 sit 1.5 interquartile ranges beyond the quartiles of log Au, and the dashed line is a cap at the declustered P99 of
@@ -99,7 +99,7 @@ save(fig, "probability")
 ![probability](probability.png)
 
 Both veins plot near a straight line (a lognormal body) up to about P99. Above it the points thin out, with the 1192
-g/t channel alone at the top of V2. The upper fences, near 110 g/t, agree with a cap around P99.
+g/t channel alone at the top of V1. The upper fences, near 110 g/t, agree with a cap around P99.
 
 ## One cap per vein
 
@@ -126,15 +126,15 @@ for name, c, n, cut, mean, capped, cv, cv_capped in zip(*(report[k] for k in col
 
 ```text
 vein     cap     n  cut   mean  capped    CV  capped  metal (%)
-V1      81.3  3659   47   8.52    7.60  2.60    1.72       10.8
-V2      71.7  1968   23   7.95    6.73  4.31    1.67       15.4
-V3      67.5    94    0   6.59    6.59  1.65    1.65        0.0
-V4     183.5   105    1  15.06   14.96  2.04    2.01        0.7
-all           5826   71   8.33    7.41  3.22    1.78       11.1
+V1     100.7  4966   54  10.96    9.96  2.95    1.69        9.1
+V2     215.8  1561   11  13.79   13.36  2.45    2.30        3.1
+V3     521.0   115    0  17.33   17.33  4.17    4.17        0.0
+V4      52.7   107    3   9.12    8.36  2.08    1.58        8.2
+all           6749   68  12.40   11.69  3.10    2.70        5.7
 ```
 
-The caps cut 47 composites in V1 and 23 in V2, and remove 10.8 % and 15.4 % of their metal. Pooled, the veins lose
-11.1 % of the metal and the CV falls from 3.22 to 1.78. V3 and V4 hold about a hundred composites each, too few for a
+The caps cut 54 composites in V1 and 11 in V2, and remove 9.1 % and 3.1 % of their metal. Pooled, the veins lose
+5.7 % of the metal and the CV falls from 3.10 to 2.70. V3 and V4 hold about a hundred composites each, too few for a
 P99 to mean much: in V3 it is the maximum and cuts nothing. Cap a small domain with the cap of a similar, larger one.
 
 Full script: [`example_03_05.py`](example_03_05.py)

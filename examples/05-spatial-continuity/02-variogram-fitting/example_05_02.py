@@ -20,7 +20,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 
@@ -48,8 +48,8 @@ print(single, along, minor.fit(["spherical", "spherical"], weighting=weighting),
 
 
 # %% [markdown]
-# Along the major axis γ climbs to two thirds of the sill within 25 m, then rises slowly to about 80 m: two scales of
-# continuity. One structure (dashed below) splits the difference, overshoots the first lags and puts a third of the sill
+# Along the major axis γ climbs to half of the sill within 25 m, then rises slowly to about 105 m: two scales of
+# continuity. One structure (dashed below) splits the difference, overshoots the first lags and puts a fifth of the sill
 # in the nugget. Two nested spherical structures follow both scales and halve the nugget. Across the axis the short
 # structure takes no sill: γ reaches the sill by 25 m, and the data support one structure.
 #
@@ -126,7 +126,7 @@ print(joint)
 
 
 # %% [markdown]
-# The joint fit puts the major axis at N161°, nine degrees off the map's pick, with the same one-third ratio. Its long
+# The joint fit puts the major axis at N0°, five degrees off the map's pick, with the same one-third ratio. Its long
 # range stops at 115 m, the largest lag, where free ranges are capped unless `ranges` bounds them. Spread over all eight
 # directions, it fits the major and minor axes worse than the fits made along them: the dashed curves fall below the
 # short lags on both.

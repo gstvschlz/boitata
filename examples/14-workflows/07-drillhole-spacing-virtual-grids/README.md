@@ -1,10 +1,10 @@
 # Drill-hole spacing from virtual grids
 
-A mine plans quarterly production from 40 × 40 m areas of Walker Lake and needs each quarter's grade within ±15 %
+A mine plans quarterly production from 40 × 40 m areas of the metal survey and needs each quarter's grade within ±15 %
 at 90 % confidence. Which drill spacing delivers that? Wilde (2010) answers it by drilling simulated deposits:
 take realizations conditioned to today's data as the truth, sample them on regular grids, simulate again from those
 samples alone, and measure the uncertainty of each production volume. You run his virtual grids at 5 to 20 m, read
-the spacing each criterion needs, and check the result against a reference study of the same data.
+the spacing each criterion needs, and check that the model's uncertainty covers the truths.
 
 <details><summary>Python</summary>
 
@@ -28,8 +28,8 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
 ## The data
 
-The 470 samples of V (ppm), declustered with cell weights, give the normal-score variogram: a nugget of 0.37 and
-one spherical structure of range 103 m along azimuth 170°, a third of that across. Turning bands with 500 bands
+The 470 samples of V (ppm), declustered with cell weights, give the normal-score variogram: a nugget of 0.11 and
+one spherical structure of range 105 m along azimuth 170°, half of that across. Turning bands with 500 bands
 simulate on 2 m nodes. The production volumes are moving windows. For a quarter, `blocks=` averages the nodes to
 8 m panels and `window=(40, 40)` gives each panel the mean of the 5 × 5 panels around it, a 40 × 40 m window;
 for a year, 16 m panels and `window=(80, 80)`. A window spans an odd number of panels, so the panel side is a
@@ -38,7 +38,7 @@ fifth of the window. The study counts only windows that lie wholly inside the ar
 <details><summary>Python</summary>
 
 ```python
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 scores = bt.NormalScore().fit(v, weights=weights).transform(v)
@@ -71,7 +71,7 @@ print(f"{len(nodes.coords)} nodes, {inside(40).sum()} quarterly and {inside(80).
 </details>
 
 ```text
-Variogram(nugget=0.3712292816104307, structures=[Structure("spherical", sill=0.6287707183895693, range=102.93174851181992)], rotation=(170.0, 0.0, 0.0), ratios=(0.34469006793164536, 1.0))
+Variogram(nugget=0.11060343270425142, structures=[Structure("spherical", sill=0.8893965672957486, range=104.50278028080879)], rotation=(170.0, 0.0, 0.0), ratios=(0.48446742261870374, 1.0))
 19500 nodes, 924 quarterly and 168 yearly windows inside
 ```
 
@@ -98,7 +98,7 @@ print(
 </details>
 
 ```text
-candidate means 302 to 335 ppm; truths [9, 19, 5]: 318, 307, 334 ppm
+candidate means 271 to 295 ppm; truths [3, 6, 8]: 280, 278, 293 ppm
 ```
 
 !!! step "Step 2: Drill each truth on virtual grids"
@@ -197,18 +197,18 @@ save(fig, "virtual_grids")
 
 ```text
 spacing  median MEE 40 m  share ≤ 15 %: 40 m   80 m
-      5          10.2%              89.1%  100.0%
-    7.5          14.6%              53.1%  99.8%
-     10          18.4%              22.4%  94.2%
-   12.5          22.1%               9.8%  81.3%
-     15          26.5%               3.8%  48.0%
-     20          32.1%               0.0%  14.3%
+      5           7.1%              89.7%  100.0%
+    7.5          10.6%              70.9%  100.0%
+     10          13.5%              56.9%  100.0%
+   12.5          18.5%              33.8%  93.8%
+     15          21.7%              21.5%  79.0%
+     20          29.2%               6.5%  46.8%
 ```
 
 ![virtual_grids](virtual_grids.png)
 
-The median quarterly MEE grows from 10.2 % at 5 m to 32.1 % at 20 m. At 5 m, 89.1 % of the quarterly windows
-meet the criterion; at 7.5 m, 53.1 %; at 10 m, 22.4 %. A yearly window covers four times the area, and 94.2 %
+The median quarterly MEE grows from 7.1 % at 5 m to 29.2 % at 20 m. At 5 m, 89.7 % of the quarterly windows
+meet the criterion; at 7.5 m, 70.9 %; at 10 m, 56.9 %. A yearly window covers four times the area, and 100.0 %
 of them still meet it at 10 m.
 
 !!! step "Step 4: Required spacing"
@@ -241,15 +241,15 @@ save(fig, "required_spacing")
 </details>
 
 ```text
-40 m windows: P90 MEE at 5 m 15.3%; required spacing for the median window 7.7 m, for 90 % of windows nan m
-80 m windows: P90 MEE at 5 m 7.1%; required spacing for the median window 14.8 m, for 90 % of windows 11.4 m
+40 m windows: P90 MEE at 5 m 15.2%; required spacing for the median window 10.8 m, for 90 % of windows nan m
+80 m windows: P90 MEE at 5 m 5.3%; required spacing for the median window 19.5 m, for 90 % of windows 13.5 m
 ```
 
 ![required_spacing](required_spacing.png)
 
-The yearly volume needs holes every 11.4 m for 90 % of its windows, and its median window meets ±15 % up to
-14.8 m. The quarterly volume misses the 90 % mark on every grid tried: its P90 MEE is 15.3 % at 5 m, so
-`required_spacing` returns NaN. Its median window crosses 15 % at 7.7 m.
+The yearly volume needs holes every 13.5 m for 90 % of its windows, and its median window meets ±15 % up to
+19.5 m. The quarterly volume misses the 90 % mark on every grid tried: its P90 MEE is 15.2 % at 5 m, so
+`required_spacing` returns NaN. Its median window crosses 15 % at 10.8 m.
 
 !!! key "Key idea"
     The required spacing belongs to a volume and a confidence, not to the deposit. Averaging over a larger
@@ -257,10 +257,9 @@ The yearly volume needs holes every 11.4 m for 90 % of its windows, and its medi
 
 !!! check "Check before you move on"
     First, `covered` says whether the truth of a window lies within its MEE of the simulated mean; a calibrated
-    model covers about 90 % of the windows. Second, a reference study of the same data (Wilde's method on 2 m
-    nodes, three truths, 50 realizations) found 83.6 % of the quarterly windows within ±15 % at 5 m and 24.2 % at
-    10 m. Its holes sat half a spacing in from the edge, between the nodes. `planned_drillholes` with that
-    `offset` builds the same grids, and `spacing_study(plans=)` drills them on ten truths.
+    model covers about 90 % of the windows. Second, the grids of Step 2 put their holes on node centers.
+    `planned_drillholes` with an `offset` of half a spacing from the edge puts them between the nodes, and
+    `spacing_study(plans=)` drills those grids on ten truths.
 
 <details><summary>Python</summary>
 
@@ -268,7 +267,7 @@ The yearly volume needs holes every 11.4 m for 90 % of its windows, and its medi
 for side, table in study.items():
     print(f"{side} m windows covered: {np.mean(table['covered']):.1%}")
 plans = {f"{s:g}": bt.planned_drillholes(nodes, s, offset=(s / 2 - 2, s / 2 - 2)) for s in (5, 10)}
-reference = bt.spacing_study(
+between = bt.spacing_study(
     tb,
     nodes,
     plans=plans,
@@ -279,11 +278,11 @@ reference = bt.spacing_study(
     window=(40, 40),
     composite_length=np.inf,
 )
-reference = reference.filter(inside(40)[np.asarray(reference["row"], dtype=int)])
-plan = reference["plan"]
+between = between.filter(inside(40)[np.asarray(between["row"], dtype=int)])
+plan = between["plan"]
 for name in plans:
-    meets = reference["mee"][plan == name] <= 0.15
-    truth_of = reference["realization"][plan == name]
+    meets = between["mee"][plan == name] <= 0.15
+    truth_of = between["realization"][plan == name]
     per_truth = [np.mean(meets[truth_of == k]) for k in range(10)]
     print(
         f"holes between nodes, {name} m: {meets.mean():.1%} of quarterly windows; per truth "
@@ -294,23 +293,21 @@ for name in plans:
 </details>
 
 ```text
-40 m windows covered: 86.8%
-80 m windows covered: 86.0%
-holes between nodes, 5 m: 84.5% of quarterly windows; per truth 78.4% to 90.6%, standard deviation 4.1%
-holes between nodes, 10 m: 21.8% of quarterly windows; per truth 13.3% to 26.0%, standard deviation 3.7%
+40 m windows covered: 84.4%
+80 m windows covered: 84.3%
+holes between nodes, 5 m: 88.6% of quarterly windows; per truth 85.6% to 92.3%, standard deviation 2.2%
+holes between nodes, 10 m: 54.0% of quarterly windows; per truth 49.5% to 59.2%, standard deviation 3.6%
 ```
 
-The MEE covers the truth in 86.8 % of the quarterly windows and 86.0 % of the yearly ones, a little short of
-90 %. With the holes between nodes, 84.5 % of the quarterly windows meet ±15 % at 5 m and 21.8 % at 10 m,
-against the reference's 83.6 % and 24.2 %. The share changes from truth to truth: at 10 m one truth scores
-13.3 %, another 26.0 %, a standard deviation of 3.7 points. The reference averaged three truths, so its share
-carries a standard error of about 2 points, and gaps of 0.9 and 2.4 points lie within Monte Carlo noise.
-The grids of Step 2 put holes on node centers, and they score 89.1 % at 5 m:
+The MEE covers the truth in 84.4 % of the quarterly windows and 84.3 % of the yearly ones, a little short of
+90 %. With the holes between nodes, 88.6 % of the quarterly windows meet ±15 % at 5 m and 54.0 % at 10 m. The
+share changes from truth to truth: at 10 m one truth scores 49.5 %, another 59.2 %, a standard deviation of
+3.6 points. The grids of Step 2 put holes on node centers, and they score 89.7 % at 5 m:
 a node that holds a sample keeps its value in every realization, which narrows its window.
 
 ## The decision
 
-Drill on 11 m or closer for yearly planning: at 10 m, 94.2 % of the 80 × 80 m windows meet ±15 % at 90 %.
+Drill on 13 m or closer for yearly planning: at 12.5 m, 93.8 % of the 80 × 80 m windows meet ±15 % at 90 %.
 A quarter needs holes closer than 5 m, which no resource drilling pays for; plan quarters from grade control.
 [The learning curve](../../14-workflows/08-drillhole-spacing-learning-curve/README.md) reads the same
 relation from one simulation of the current data.

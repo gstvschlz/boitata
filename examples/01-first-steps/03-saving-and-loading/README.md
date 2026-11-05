@@ -20,14 +20,14 @@ from common import map_axes, save
 
 ## A small workflow
 
-Walker Lake `V` goes through five fitted pieces: cell declustering weights, a cap at the declustered P99, a
+The metal survey `V` goes through five fitted pieces: cell declustering weights, a cap at the declustered P99, a
 normal-score transform, a variogram of the scores and a search. Simple kriging of the scores, back-transformed,
 gives the estimate on a 5 m grid.
 
 <details><summary>Python</summary>
 
 ```python
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 declustering = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5))
 capping = bt.Capping(quantile=0.99).fit("V", weights=declustering.weights, data=samples)
 capped = capping.transform("V", data=samples)
@@ -48,8 +48,8 @@ print(variogram)
 </details>
 
 ```text
-cap: 982 ppm | declustered mean: 290.7 ppm
-Variogram(nugget=0.3052597668357192, structures=[Structure("spherical", sill=0.501613916596432, range=39.9400880709822), Structure("spherical", sill=0.32454526508977327, range=63.403682315084254)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+cap: 1004 ppm | declustered mean: 284.9 ppm
+Variogram(nugget=0.21620453152825336, structures=[Structure("spherical", sill=0.02458756578790813, range=13.51462901377918), Structure("spherical", sill=0.7329031679722345, range=72.72082684056754)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
 ## Saving
@@ -78,10 +78,10 @@ print((folder / "search.json").read_text())
 </details>
 
 ```text
- declustering.json:   9959 bytes
+ declustering.json:   9962 bytes
       capping.json:    174 bytes
- normal_score.json:  21183 bytes
-    variogram.json:    240 bytes
+ normal_score.json:  21200 bytes
+    variogram.json:    242 bytes
        search.json:    146 bytes
 {"type":"Search","format":1,"min_samples":4,"max_samples":24,"radius":60.0,"max_per_hole":null,"octant":false,"anisotropy":null,"high_grade":null}
 ```
@@ -109,7 +109,7 @@ def rerun(folder, samples):
     return normal_score.inverse_transform(kriged)
 
 
-again = rerun(folder, bt.datasets.walker_lake())
+again = rerun(folder, bt.datasets.clustered_metal_survey())
 assert np.array_equal(again, estimate)
 print("identical estimate:", np.array_equal(again, estimate))
 weights = bt.Declustering.from_json((folder / "declustering.json").read_text()).weights
@@ -128,7 +128,7 @@ save(fig, "estimate")
 
 ```text
 identical estimate: True
-declustered mean from the saved weights: 288.8 ppm (capped)
+declustered mean from the saved weights: 283.9 ppm (capped)
 ```
 
 ![estimate](estimate.png)

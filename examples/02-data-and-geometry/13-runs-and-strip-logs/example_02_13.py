@@ -64,11 +64,11 @@ for name, r in runs.items():
 #
 # ## Internal dilution by hand
 #
-# Hole UD0030 cuts vein V1 as 1 m of ore, 2 m of waste, then 2 m of ore:
+# Hole UD0097 cuts vein V1 as 1 m of ore, 1.5 m of waste, then 2.5 m of ore:
 
 # %%
 raw = runs["raw"]
-near = (raw["HOLE_ID"] == "UD0030") & (raw["from"] > 157) & (raw["to"] < 164)
+near = (raw["HOLE_ID"] == "UD0097") & (raw["from"] > 250) & (raw["to"] < 256)
 for f, t, au, ore in zip(
     raw["from"][near], raw["to"][near], raw["AU_GPT"][near], raw["ore"][near], strict=True
 ):
@@ -76,12 +76,12 @@ for f, t, au, ore in zip(
 L = (raw["to"] - raw["from"])[near]
 by_hand = np.dot(L, raw["AU_GPT"][near]) / L.sum()
 diluted = runs["+ dilution 3 m"]
-row = np.flatnonzero((diluted["HOLE_ID"] == "UD0030") & (diluted["from"] == 158.25))[0]
+row = np.flatnonzero((diluted["HOLE_ID"] == "UD0097") & (diluted["from"] == 250.52))[0]
 print(f"by hand: {by_hand:.3f} g/t over {L.sum():.2f} m")
 print(f"runs:    {diluted['AU_GPT'][row]:.3f} g/t over {diluted['length'][row]:.2f} m")
 
 # %% [markdown]
-# The waste band spans 2 m, within the 3 m allowed, and the three runs together grade 2.38 g/t, above the cutoff, so
+# The waste band spans 1.5 m, within the 3 m allowed, and the three runs together grade 3.73 g/t, above the cutoff, so
 # the rule takes it in. Had the combined grade fallen below 0.5 g/t, the two ore runs would have stayed apart.
 #
 # ## Strip logs
@@ -93,7 +93,7 @@ print(f"runs:    {diluted['AU_GPT'][row]:.3f} g/t over {diluted['length'][row]:.
 final = runs["+ minimum 2 m"]
 lith = bt.Categories(["AND", "BX", "QV", "RHY"], colors=[LIGHT, GRAY, HIGHLIGHT, "#f2e0c9"])
 vein = bt.Categories(["V1", "V2", "V3", "V4"])
-windows = {"UD0030": (150, 170), "UD0037": (258, 282), "UD0044": (114, 136)}
+windows = {"UD0097": (240, 260), "UD0045": (190, 210), "UD0061": (262, 286)}
 fig, axes = plt.subplots(1, 3, figsize=(10, 4.8), layout="constrained")
 for ax, (hole, (top, bottom)) in zip(axes, windows.items(), strict=True):
     bt.plot.strip_log(
@@ -115,7 +115,7 @@ save(fig, "strip_logs")
 
 # %% [markdown]
 # Each ore run covers the quartz vein and the gold-bearing breccia around it, with the lean assays between them
-# taken in as internal dilution. In UD0044 veins V4 and V2 touch and one intercept spans both. The shading starts half
+# taken in as internal dilution. In UD0061 veins V4 and V1 touch and one intercept spans both. The shading starts half
 # a meter above the first ore assay and ends half a meter below the last: the skins.
 #
 # ## Ore intercepts
@@ -173,5 +173,5 @@ for min_length in [0.0, 2.0]:
     )
 
 # %% [markdown]
-# Half of the quartz vein runs are thinner than 2 m. At a 2 m minimum they fall to waste, and the rest take in the
+# Seven tenths of the quartz vein runs are thinner than 2 m. At a 2 m minimum they fall to waste, and the rest take in the
 # thin waste bands between vein runs: fewer, thicker runs, at about the same grade.

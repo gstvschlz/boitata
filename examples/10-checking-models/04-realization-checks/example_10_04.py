@@ -22,11 +22,11 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# Walker Lake V, simulated as in [sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
+# Metal survey V, simulated as in [sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
 # and 50 SGS realizations on a 5 m grid.
 
 # %%
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
@@ -73,7 +73,7 @@ bt.plot.variogram_reproduction(check, ax=axes[2])
 axes[0].set(xlim=(0, 1600), xlabel="V (ppm)", title="Histogram")
 axes[1].set(xlim=(-3, 3), title="Normal scores")
 axes[2].set(xlabel="Lag distance (m)", title="Variogram of normal scores")
-save(fig, "walker_lake")
+save(fig, "metal_survey")
 
 # %% [markdown]
 # ## Several variables

@@ -41,12 +41,12 @@ print(
 </details>
 
 ```text
-grid 63 x 70 cells of 20 m, 50% inside the outline
-against the true surface: mean -0.18 m, 90% within 0.50 m
+grid 60 x 69 cells of 20 m, 55% inside the outline
+against the true surface: mean +0.03 m, 90% within 0.15 m
 ```
 
 Each collar's residual is its elevation minus the surface through the other collars. The default threshold, 3 robust
-standard deviations of the residuals, adapts to the data: on these clean collars it sits a quarter of a meter out and
+standard deviations of the residuals, adapts to the data: on these clean collars it sits a fifth of a meter out and
 catches only the bends of the terrain between holes. A collar is flagged only where its residual also beats those of
 its neighbors, since one bad collar pulls its neighbors' residuals up too.
 
@@ -60,8 +60,8 @@ print(f"largest residual {np.abs(t.residuals).max():.2f} m")
 </details>
 
 ```text
-default threshold 0.24 m: 12 of 289 flagged
-largest residual 3.82 m
+default threshold 0.20 m: 6 of 289 flagged
+largest residual 0.88 m
 ```
 
 A typed elevation 10 m too high on one collar stands out against a threshold set from the survey's accuracy. The
@@ -91,8 +91,8 @@ save(fig, "topography")
 </details>
 
 ```text
-flagged DD0101: +9.80 m
-other residuals above 2 m: 5
+flagged DD0101: +9.96 m
+other residuals above 2 m: 2
 ```
 
 ![topography](topography.png)
@@ -121,7 +121,7 @@ print(
 </details>
 
 ```text
-DD0101 moved -10.02 m; the other holes within 0.09 m
+DD0101 moved -9.98 m; the other holes within 0.07 m
 ```
 
 Full script: [`example_02_19.py`](example_02_19.py)

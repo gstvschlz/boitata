@@ -23,7 +23,7 @@ size = (20, 20, 10)
 </details>
 
 A model around all holes covers the whole drilled volume. One around the lens solids plus a 20 m buffer is a
-quarter of it. `snap=True` puts both origins on multiples of the block size, so their blocks coincide.
+third of it. `snap=True` puts both origins on multiples of the block size, so their blocks coincide.
 
 <details><summary>Python</summary>
 
@@ -57,8 +57,8 @@ save(fig, "extents")
 </details>
 
 ```text
-drill holes    origin [11820.0, 29220.0, -390.0]  count [60, 66, 80]  316,800 blocks
-lenses + 20 m  origin [11900.0, 29460.0, -260.0]  count [31, 45, 62]  86,490 blocks
+drill holes    origin [11740.0, 29200.0, -280.0]  count [61, 67, 68]  277,916 blocks
+lenses + 20 m  origin [11900.0, 29480.0, -250.0]  count [33, 44, 60]  87,120 blocks
 ```
 
 ![extents](extents.png)
@@ -110,7 +110,7 @@ save(fig, "aligned")
 </details>
 
 ```text
-1,527 blocks inside, 6.11 Mm3 of blocks for 6.34 Mm3 of lens
+1,669 blocks inside, 6.68 Mm3 of blocks for 6.45 Mm3 of lens
 ```
 
 ![aligned](aligned.png)

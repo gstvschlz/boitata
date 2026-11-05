@@ -46,11 +46,11 @@ print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 </details>
 
 ```text
-3437 composites, 658 at or above 60 % Fe
+3332 composites, 530 at or above 60 % Fe
       RBF: 100.0% of composites on their side
 RBF, flat: 100.0% of composites on their side
-       GP: 87.2% of composites on their side
-GP ranges [744, 1475, 262] m
+       GP: 87.1% of composites on their side
+GP ranges [12232, 761, 98] m
 ```
 
 Each field goes onto the supplied block model, 25 × 25 × 12 m blocks below topography, and against the solid: the
@@ -76,13 +76,13 @@ for name, model in models.items():
 </details>
 
 ```text
-    solid:  75.5 Mm3, 91.4% of composites on their side
-      RBF:  58.5 Mm3, covers 56% of the solid, 31% outside it
-RBF, flat:  67.4 Mm3, covers 65% of the solid, 29% outside it
-       GP:  47.7 Mm3, covers 50% of the solid, 23% outside it
+    solid:  71.5 Mm3, 86.2% of composites on their side
+      RBF:  32.0 Mm3, covers 36% of the solid, 31% outside it
+RBF, flat:  50.8 Mm3, covers 56% of the solid, 33% outside it
+       GP:  37.4 Mm3, covers 58% of the solid, 5% outside it
 ```
 
-Both RBFs honor each code, yet they cover only 56 % and 65 % of the solid, and the solid leaves 8.6 % of the
+Both RBFs honor each code, yet they cover only 36 % and 56 % of the solid, and the solid leaves 13.8 % of the
 composites on the wrong side: a cutoff on Fe and a solid interpreted around the shallow friable hematite are two
 different surfaces. Flattening the RBF adds a tenth of the solid at no cost in spill. The GP explains an eighth of
 the codes as noise and returns a smooth sheet. On an east-west section through the high-grade composites, at true
@@ -138,7 +138,7 @@ print(
 </details>
 
 ```text
-flat RBF shell: 74,916 triangles, closed True, 64.6 Mm3; blocks inside 67.4 Mm3
+flat RBF shell: 71,372 triangles, closed True, 46.8 Mm3; blocks inside 50.8 Mm3
 ```
 
 Full script: [`example_11_01.py`](example_11_01.py)

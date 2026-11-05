@@ -67,7 +67,7 @@ print(f"{len(section)} cells of {section.volumes[0]:.0f} m³")
 </details>
 
 ```text
-7645 cells of 1000 m³
+7992 cells of 1000 m³
 ```
 
 ## Removing the specks
@@ -96,14 +96,14 @@ print(f"total volume kept: {volume[section['rock'] >= 0].sum() == volume[section
 </details>
 
 ```text
-12 cells change rock
+16 cells change rock
        before (m³)  after (m³)
-OB           67000       64000
-HWS        3549000     3551000
-VCL         929000      932000
-SUL         188000      181000
-FWV        2901000     2906000
-DYK          11000       11000
+OB           18000       11000
+HWS        3732000     3737000
+VCL         800000      797000
+SUL         186000      186000
+FWV        3256000     3261000
+DYK              0           0
 total volume kept: True
 ```
 
@@ -183,8 +183,8 @@ save(fig, "buffer")
 </details>
 
 ```text
-SUL cells in the buffer: 150
-host cells in the buffer: 199
+SUL cells in the buffer: 157
+host cells in the buffer: 251
 ```
 
 ![buffer](buffer.png)

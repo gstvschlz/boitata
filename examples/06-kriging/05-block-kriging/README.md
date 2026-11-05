@@ -1,6 +1,6 @@
 # Block kriging
 
-Block kriging estimates the average of `V` over a block instead of its value at the center. Walker Lake's true block
+Block kriging estimates the average of `V` over a block instead of its value at the center. The metal survey's true block
 averages are known, so you can check block and point estimates against them for several block sizes.
 
 <details><summary>Python</summary>
@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -52,15 +52,15 @@ print(
 </details>
 
 ```text
-block kriging: RMSE 101.5 ppm, mean kriging variance 19404
-point kriging: RMSE 105.8 ppm, mean kriging variance 54073
-actual mean squared error of block kriging 10303
+block kriging: RMSE 90.9 ppm, mean kriging variance 13981
+point kriging: RMSE 93.7 ppm, mean kriging variance 40898
+actual mean squared error of block kriging 8269
 ```
 
 The two estimates are close, and block kriging is a little more accurate against the block averages. The larger
 difference is in the variance: point kriging reports the error of predicting one point, nugget included, while block
 kriging reports the error of predicting the block mean, a third of it here. The actual mean squared error of the block
-estimates, 10 303, is below even that, as the model's variance was pessimistic in
+estimates, 8 269, is below even that, as the model's variance was pessimistic in
 [ordinary kriging](../../06-kriging/01-ordinary-kriging/README.md) too.
 
 <details><summary>Python</summary>
@@ -127,14 +127,14 @@ save(fig, "sizes")
 </details>
 
 ```text
- 5 m blocks: variance of estimates  37470 (model  43577), of true blocks  52287 (model  67472)
-10 m blocks: variance of estimates  35207 (model  40355), of true blocks  46694 (model  57129)
-20 m blocks: variance of estimates  30203 (model  34703), of true blocks  37617 (model  41648)
+ 5 m blocks: variance of estimates  42229 (model  38890), of true blocks  55716 (model  58927)
+10 m blocks: variance of estimates  40735 (model  37091), of true blocks  50729 (model  50068)
+20 m blocks: variance of estimates  38384 (model  34110), of true blocks  42878 (model  40289)
 ```
 
 ![sizes](sizes.png)
 
-The variance of true block values falls with block size, from 52 287 for 5 m blocks to 37 617 for 20 m blocks, and the
+The variance of true block values falls with block size, from 55 716 for 5 m blocks to 42 878 for 20 m blocks, and the
 estimates stay below it at every size. Kriging smooths, so selecting blocks on the estimates misclassifies some of
 them. The gap narrows as the blocks grow, one reason not to estimate blocks much smaller than the data spacing. The
 model overstates both variances, the true one most for small blocks, but gets their order and trend right.

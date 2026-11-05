@@ -28,7 +28,7 @@ print(f"{len(holes)} holes, declustered mean {mean:.2f} m, standard deviation {s
 </details>
 
 ```text
-295 holes, declustered mean 1.91 m, standard deviation 0.83 m
+295 holes, declustered mean 1.75 m, standard deviation 0.66 m
 ```
 
 The resampling runs on the variogram of the normal scores. Thicknesses are logged to the centimeter and many repeat,
@@ -55,14 +55,14 @@ print(f"        σ/√n: {sd / np.sqrt(len(holes)):.3f} m")
 </details>
 
 ```text
-Variogram(nugget=0.1952192065899283, structures=[Structure("spherical", sill=0.8047807934100717, range=2960.08750426967)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-independent: standard deviation of the mean 0.048 m
-    spatial: standard deviation of the mean 0.206 m
-        σ/√n: 0.048 m
+Variogram(nugget=0.20261889315270679, structures=[Structure("spherical", sill=0.7973811068472932, range=8545.79884269509)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+independent: standard deviation of the mean 0.039 m
+    spatial: standard deviation of the mean 0.372 m
+        σ/√n: 0.038 m
 ```
 
 A pure-nugget variogram makes every draw independent, which gives the classical bootstrap: its spread matches σ/√n.
-With the fitted variogram, whose range is about 3 km over an 11 × 7 km lease, the spread is four times wider:
+With the fitted variogram, whose range is about 9 km over an 11 × 7 km lease, the spread is ten times wider:
 
 <details><summary>Python</summary>
 
@@ -85,7 +85,7 @@ save(fig, "means")
 ## Range and effective number of holes
 
 The spread grows with the range. As an effective number of independent holes, (σ / spread)², the 295 holes count as
-about a dozen at the fitted range of 3 km, and as one once the range spans the whole lease.
+about three at the fitted range of 9 km, and as one once the range spans the whole lease.
 
 <details><summary>Python</summary>
 
@@ -123,15 +123,15 @@ save(fig, "ranges")
 </details>
 
 ```text
-range     250 m: spread 0.055 m, effective holes 228
-range     500 m: spread 0.065 m, effective holes 163
-range    1000 m: spread 0.096 m, effective holes 75
-range    2000 m: spread 0.172 m, effective holes 23
-range    3000 m: spread 0.241 m, effective holes 12
-range    5000 m: spread 0.369 m, effective holes 5
-range    8000 m: spread 0.521 m, effective holes 3
-range   15000 m: spread 0.699 m, effective holes 1
-range   50000 m: spread 0.844 m, effective holes 1
+range     250 m: spread 0.044 m, effective holes 225
+range     500 m: spread 0.053 m, effective holes 157
+range    1000 m: spread 0.079 m, effective holes 70
+range    2000 m: spread 0.140 m, effective holes 22
+range    3000 m: spread 0.197 m, effective holes 11
+range    5000 m: spread 0.296 m, effective holes 5
+range    8000 m: spread 0.412 m, effective holes 3
+range   15000 m: spread 0.551 m, effective holes 1
+range   50000 m: spread 0.659 m, effective holes 1
 ```
 
 ![ranges](ranges.png)
@@ -161,12 +161,12 @@ for name, v in (("independent", nugget), ("spatial", variogram)):
 </details>
 
 ```text
-independent: P10 185 Mt, P50 191 Mt, P90 198 Mt; thicker than 2 m 34% to 41%
-    spatial: P10 167 Mt, P50 190 Mt, P90 219 Mt; thicker than 2 m 25% to 51%
+independent: P10 172 Mt, P50 177 Mt, P90 182 Mt; thicker than 2 m 32% to 39%
+    spatial: P10 129 Mt, P50 172 Mt, P90 226 Mt; thicker than 2 m 8% to 65%
 ```
 
 Independent resampling promises the tonnage within a few percent; with the spatial correlation the P10 to P90 range is
-four times wider. That range is the uncertainty in the global mean from the holes alone, before any estimate or
+ten times wider. That range is the uncertainty in the global mean from the holes alone, before any estimate or
 simulation. It sets a lower bound on what a resource can claim and tells you whether more holes would pay.
 
 Full script: [`example_03_12.py`](example_03_12.py)

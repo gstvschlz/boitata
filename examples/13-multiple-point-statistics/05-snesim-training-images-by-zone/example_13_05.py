@@ -20,14 +20,14 @@ import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-channels = bt.datasets.strebelle()
+channels = bt.datasets.channel_training_image()
 n = channels.count[0]
 grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 
 
 # %% [markdown]
 # Objects build the second image: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size of
-# Strebelle.
+# the channel image.
 
 # %%
 lens = {"shape": "ellipsoid", "code": 1, "proportion": 0.3, "radii": (18, 5), "azimuth": (80, 100)}

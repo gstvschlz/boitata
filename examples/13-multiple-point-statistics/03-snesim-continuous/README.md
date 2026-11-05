@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, LIGHT, save
 
-seismic = bt.datasets.f3_seismic()
+seismic = bt.datasets.seismic_cube()
 nx, ny, nz = seismic.count
 cube = seismic.grid("amplitude")[::-1]  # time down: row 0 at 1600 ms
 print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.max():.0f}")
@@ -22,7 +22,7 @@ print(f"{nx} x {ny} traces of {nz} samples, amplitude {cube.min():.0f} to {cube.
 </details>
 
 ```text
-45 x 45 traces of 51 samples, amplitude -17711 to 10591
+45 x 45 traces of 51 samples, amplitude -30956 to 14917
 ```
 
 A section is 45 traces by 51 samples. One section holds few patterns, so the training image lays ten sections side
@@ -68,9 +68,9 @@ print(
 </details>
 
 ```text
-cutoffs: [-2649.  -214.  2266.]
+cutoffs: [-1089.   296.  1962.]
 hard data reproduced: True
-correlation with the true section: realizations 0.70, mean of 50 0.89
+correlation with the true section: realizations 0.59, mean of 50 0.80
 ```
 
 Each realization carries the main reflectors from trace to trace, but it is rougher than the seismic: the patterns

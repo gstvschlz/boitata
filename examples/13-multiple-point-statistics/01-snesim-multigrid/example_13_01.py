@@ -21,7 +21,7 @@ import numpy as np
 from common import INK, save
 from matplotlib.colors import ListedColormap
 
-ti = bt.datasets.strebelle()
+ti = bt.datasets.channel_training_image()
 nx, ny = ti.count[:2]
 image = ti.grid("facies")[0]
 print(f"{nx} x {ny} cells, sand (code 1) in {image.mean():.1%} of them")

@@ -50,7 +50,7 @@ show(scene, "grade", "Zn composites and the grid blocks above 2 %, on one scale"
 </details>
 
 ```text
-18% of 25,004 blocks null
+26% of 25,004 blocks null
 filters: {'grid': {'ZN_PCT': (2.0, None)}}
 ```
 
@@ -89,7 +89,7 @@ show(scene, "lenses", "Lens of each composite and sub-block, one color per lens"
 </details>
 
 ```text
-3,233 sub-blocks, 1,135 of 13,312 composites in a lens
+2,818 sub-blocks, 1,489 of 16,070 composites in a lens
 ```
 
 ![lenses](lenses.png)
@@ -118,7 +118,7 @@ show(scene, "holes", "Zn assays down a fence of holes, as tubes")
 </details>
 
 ```text
-21 of 289 holes, 1,000 intervals
+21 of 289 holes, 1,429 intervals
 ```
 
 ![holes](holes.png)

@@ -24,13 +24,16 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, LIGHT, save
 
 # %% [markdown]
-# `bt.datasets.fetch` gives the local path of a dataset file. STL stores each triangle with its own three corners,
+# `bt.write_mesh` writes each vein of the dataset to a file. STL stores each triangle with its own three corners,
 # so reading welds the repeated corners. The veins come back closed, with a volume and an area.
 
 # %%
+data = bt.datasets.vein_gold_grade_control()
+folder = Path(tempfile.mkdtemp())
 veins = {}
 for name in ("V1", "V2", "V3", "V4"):
-    path = bt.datasets.fetch(f"mining/3d/vein-gold-grade-control/vein_{name}.stl")
+    path = folder / f"vein_{name}.stl"
+    bt.write_mesh(path, data[f"vein_{name}"])
     veins[name] = bt.read_mesh(path)
     mesh = veins[name]
     print(f"{name}: {path.stat().st_size / 1e6:.1f} MB, {mesh}, {mesh.volume:,.0f} m3, {mesh.area:,.0f} m2")

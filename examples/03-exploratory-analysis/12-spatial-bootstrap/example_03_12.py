@@ -52,7 +52,7 @@ print(f"        σ/√n: {sd / np.sqrt(len(holes)):.3f} m")
 
 # %% [markdown]
 # A pure-nugget variogram makes every draw independent, which gives the classical bootstrap: its spread matches σ/√n.
-# With the fitted variogram, whose range is about 3 km over an 11 × 7 km lease, the spread is four times wider:
+# With the fitted variogram, whose range is about 9 km over an 11 × 7 km lease, the spread is ten times wider:
 
 # %%
 bins = np.linspace(1.3, 2.5, 49)
@@ -69,7 +69,7 @@ save(fig, "means")
 # ## Range and effective number of holes
 #
 # The spread grows with the range. As an effective number of independent holes, (σ / spread)², the 295 holes count as
-# about a dozen at the fitted range of 3 km, and as one once the range spans the whole lease.
+# about three at the fitted range of 9 km, and as one once the range spans the whole lease.
 
 # %%
 ranges = np.array([250.0, 500.0, 1000.0, 2000.0, 3000.0, 5000.0, 8000.0, 15000.0, 50000.0])
@@ -123,5 +123,5 @@ for name, v in (("independent", nugget), ("spatial", variogram)):
 
 # %% [markdown]
 # Independent resampling promises the tonnage within a few percent; with the spatial correlation the P10 to P90 range is
-# four times wider. That range is the uncertainty in the global mean from the holes alone, before any estimate or
+# ten times wider. That range is the uncertainty in the global mean from the holes alone, before any estimate or
 # simulation. It sets a lower bound on what a resource can claim and tells you whether more holes would pay.

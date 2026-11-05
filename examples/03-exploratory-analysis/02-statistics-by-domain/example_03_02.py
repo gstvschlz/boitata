@@ -37,8 +37,8 @@ for row in zip(*(stats[c] for c in ["category", "n", "mean", "cv", "P10", "P50",
     print(f"{row[0]:<6}{row[1]:>7.0f}{row[2]:>8.2f}{row[3]:>6.2f}" + "".join(f"{v:>8.2f}" for v in row[4:]))
 
 # %% [markdown]
-# Mean Zn falls from 8.94 % in MS to 3.44 % in SMS and 0.38 % in STR; the host rocks and the dike hold 0.05 to 0.06 %.
-# Each lithology has a CV between 0.55 and 0.68, and all of them pooled reach 3.57: mixing populations makes that
+# Mean Zn falls from 8.27 % in MS to 3.24 % in SMS and 0.37 % in STR; the host rocks and the dike hold 0.05 to 0.06 %.
+# Each lithology has a CV between 0.48 and 0.71, and all of them pooled reach 3.46: mixing populations makes that
 # spread.
 #
 # Box plots show the same quantiles side by side, sorted by median. The box spans P25 to P75, the whiskers P10 to P90,
@@ -57,7 +57,7 @@ save(fig, "boxplot")
 # Cumulative distributions compare whole distributions; `stats=True` lists the count, mean, CV and deciles of each curve
 # in the corner. The Q-Q plot pairs the quantiles of two lithologies, and points along the 1:1 line would mean the same
 # distribution. MS against SMS falls on a line parallel to it on log axes, a constant ratio: MS is SMS scaled up about
-# 2.7 times, the same shape at a different grade.
+# 2.6 times, the same shape at a different grade.
 
 # %%
 zn = composites["ZN_PCT"]

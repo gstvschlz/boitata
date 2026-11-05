@@ -19,7 +19,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 
@@ -55,8 +55,8 @@ print(f"sample variance {variance:.0f}")
 
 
 # %% [markdown]
-# Across the major axis γ passes the sample variance by 25 m. Along it γ is seven tenths of the variance at 25 m and
-# reaches the variance at 65 m. The omnidirectional variogram averages the two and hides the anisotropy. The first lag
+# Across the major axis γ passes the sample variance by 65 m. Along it γ is five tenths of the variance at 25 m and
+# reaches the variance at 105 m. The omnidirectional variogram averages the two and hides the anisotropy. The first lag
 # holds few pairs, and any fit near the origin leans on it.
 
 # %%

@@ -22,8 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-jura = bt.datasets.jura()
-train, test = jura["prediction"], jura["validation"]
+soil = bt.datasets.topsoil_metals()
+train, test = soil["prediction"], soil["validation"]
 xy = train.coords
 cd, zn = train["Cd"], train["Zn"]
 lag, max_lag = 0.1, 1.5
@@ -32,7 +32,7 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 # %% [markdown]
 # ## Cd and Zn
 #
-# The data are the Jura soil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md)
+# The data are the topsoil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md)
 # (mg/kg, coordinates in km). `experimental_variograms` computes both variograms and the cross-variogram as a
 # `VariogramSet`, which the fit takes as it is. The intrinsic model has one shape (a nugget and two spherical
 # structures) and one 2 × 2 sill matrix.

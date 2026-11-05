@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import HIGHLIGHT, save
 
-seismic = bt.datasets.f3_seismic()
+seismic = bt.datasets.seismic_cube()
 nx, ny, nz = seismic.count
 cube = seismic.grid("amplitude")[::-1]  # time down: row 0 at 1600 ms
 image = np.hstack([cube[:, j, :] for j in range(0, 30, 3)])
@@ -56,9 +56,9 @@ for name, summary in summaries.items():
 </details>
 
 ```text
-quilting, patch 9: hard data reproduced True, correlation with the true section: realization 1 0.84, mean of 50 0.89
-quilting, patch 25: hard data reproduced True, correlation with the true section: realization 1 0.61, mean of 50 0.70
-SNESIM: hard data reproduced True, correlation with the true section: realization 1 0.69, mean of 50 0.89
+quilting, patch 9: hard data reproduced True, correlation with the true section: realization 1 0.74, mean of 50 0.88
+quilting, patch 25: hard data reproduced True, correlation with the true section: realization 1 0.86, mean of 50 0.82
+SNESIM: hard data reproduced True, correlation with the true section: realization 1 0.56, mean of 50 0.80
 ```
 
 Small patches follow the traces, and a single realization is nearer the truth than SNESIM's, since each value

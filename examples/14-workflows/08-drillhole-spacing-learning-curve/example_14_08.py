@@ -2,7 +2,7 @@
 # Drill-hole spacing from a learning curve
 
 [Virtual grids](../../14-workflows/07-drillhole-spacing-virtual-grids/README.md) drilled simulated truths of
-Walker Lake on regular grids to find the spacing a production volume needs. A deposit with years of drilling
+The metal survey on regular grids to find the spacing a production volume needs. A deposit with years of drilling
 already holds that relation in its own data: dense areas and sparse areas sit side by side. Cabral Pinto's
 learning curve reads it from one conditional simulation. You map the data spacing, measure the uncertainty of
 every production window, plot one against the other, and compare the curve with the virtual grids and with the
@@ -37,11 +37,11 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 #
 # The setup repeats the virtual-grid study: the normal-score variogram of the declustered V, turning bands on 2 m
 # nodes, and moving windows of 40 × 40 m (a quarter) over 8 m panels and 80 × 80 m (a year) over 16 m panels.
-# Walker Lake also has an exhaustive grid of V, averaged here to the 2 m nodes; a real deposit has no such
+# The metal survey also has an exhaustive grid of V, averaged here to the 2 m nodes; a real deposit has no such
 # truth, and here it tests the result.
 
 # %%
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 scores = bt.NormalScore().fit(v, weights=weights).transform(v)
@@ -57,7 +57,7 @@ panels = {
 tb = bt.TurningBands(gaussian, bands=500, search=bt.Search(radius=100, max_samples=24)).fit(
     xy, v, weights=weights
 )
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(150, 2, 130, 2).mean(axis=(1, 3)).ravel()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(150, 2, 130, 2).mean(axis=(1, 3)).ravel()
 
 
 def inside(side):
@@ -102,8 +102,8 @@ map_axes(ax, "Data spacing, n = 4 to 10")
 save(fig, "spacing_map")
 
 # %% [markdown]
-# The median data spacing is 15.6 m; the infilled high-grade areas read under 8 m and the
-# edges over 22 m.
+# The median data spacing is 15.3 m; the infilled high-grade areas read under 8 m and the
+# edges over 20 m.
 #
 # !!! step "Step 2: Uncertainty of every window"
 #     One conditional simulation of 100 realizations, summarized at each window size, gives the MEE of every
@@ -147,8 +147,8 @@ for side, (summary, at_window, _) in windows.items():
     )
 
 # %% [markdown]
-# A quarterly window meets ±15 % at the median up to 9.9 m of data spacing and at the P90 up to 8.8 m; a yearly
-# window up to 14.2 m and 12.7 m.
+# A quarterly window meets ±15 % at the median up to 11.3 m of data spacing and at the P90 up to 9.9 m; a yearly
+# window up to 15.8 m and 14.5 m.
 #
 # !!! step "Step 4: Overlay the virtual grids"
 #     Wilde (2010, §5.3) checks one method with the other. `spacing_study` repeats the quarterly virtual grids of the
@@ -189,8 +189,8 @@ for s, p50 in zip(grid["spacing"], grid["P50"], strict=True):
     print(f"virtual grid {s:4.1f} m: median MEE {p50:.1%}")
 
 # %% [markdown]
-# Up to 12.5 m the virtual grids lie up to 3 points above the quarterly median of the learning curve: their
-# median crosses 15 % near 8 m, against 9.9 m. Beyond 13 m they fall below it. The sparse windows of the learning
+# Up to 12.5 m the virtual grids lie up to 4 points above the quarterly median of the learning curve: their
+# median crosses 15 % near 11 m, against 11.3 m. Beyond 13 m they fall below it. The sparse windows of the learning
 # curve sit at the edges of the area, with data on one side only, while a virtual grid has holes all around every
 # window. Where the deposit has both kinds of data, the two methods agree within 2 m on the required spacing.
 #
@@ -199,7 +199,7 @@ for s, p50 in zip(grid["spacing"], grid["P50"], strict=True):
 #     The learning curve only spans the spacings the deposit already has, and virtual grids reach any spacing.
 #
 # !!! check "Check before you move on"
-#     Walker Lake's exhaustive grid tests the MEE: for a calibrated model, the true grade of about 90 % of the
+#     The metal survey's exhaustive grid tests the MEE: for a calibrated model, the true grade of about 90 % of the
 #     windows lies within the MEE of the simulated mean. `SimulationSummary.validate` counts them.
 
 # %%
@@ -214,5 +214,5 @@ for side, (summary, _, true_window) in windows.items():
 #
 # ## The decision
 #
-# On the learning curve, 90 % of the yearly windows meet ±15 % where the data spacing is 12.7 m or less; the
-# virtual grids gave 11.4 m. Drill to about 11 m for yearly planning, and leave the quarters to grade control.
+# On the learning curve, 90 % of the yearly windows meet ±15 % where the data spacing is 14.5 m or less; the
+# virtual grids gave 13.5 m. Drill to about 13 m for yearly planning, and leave the quarters to grade control.

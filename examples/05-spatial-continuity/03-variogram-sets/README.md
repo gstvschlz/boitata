@@ -12,13 +12,13 @@ import boitata as bt
 import numpy as np
 from common import save
 
-train = bt.datasets.jura()["prediction"]
+train = bt.datasets.topsoil_metals()["prediction"]
 metals = ["Cd", "Co", "Cr", "Cu", "Ni", "Pb", "Zn"]
 ```
 
 </details>
 
-Jura has seven metals at 259 soil samples, in km. One call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
+The topsoil survey has seven metals at 259 soil samples, in km. One call gives the 7 direct and 21 cross variograms. `vs[i, j]` and
 `vs[j, i]` are the same cross variogram, and you can name variables by column.
 
 <details><summary>Python</summary>
@@ -33,7 +33,7 @@ print(f"Cd × Zn: {len(vs['Cd', 'Zn'].lags)} lags, {int(vs['Cd', 'Zn'].counts.su
 
 ```text
 VariogramSet(7 variables, omnidirectional)
-Cd × Zn: 15 lags, 11,376 pairs
+Cd × Zn: 15 lags, 9,807 pairs
 ```
 
 The linear model of coregionalization fits all 28 at once. Each structure has a 7 × 7 sill matrix, kept positive
@@ -56,10 +56,10 @@ print(f"largest |model - sample| correlation: {np.abs(model_corr - sample_corr)[
 </details>
 
 ```text
-nugget             smallest eigenvalue -5.8e-14
-spherical 0.27 km  smallest eigenvalue -6.8e-14
-spherical 1.36 km  smallest eigenvalue -6.5e-14
-largest |model - sample| correlation: 0.10
+nugget             smallest eigenvalue 0.1
+spherical 0.48 km  smallest eigenvalue -2.2e-14
+spherical 1.03 km  smallest eigenvalue -4.5e-14
+largest |model - sample| correlation: 0.03
 ```
 
 The diagonal holds the direct variograms and the panels above it the cross variograms, each with the fitted model. Co
@@ -75,14 +75,14 @@ for ax in axes.flat:
     ax.tick_params(labelsize=6)
     ax.xaxis.label.set_visible(False)
     ax.yaxis.label.set_visible(False)
-save(fig, "jura")
+save(fig, "topsoil_metals")
 ```
 
 </details>
 
-![jura](jura.png)
+![topsoil_metals](topsoil_metals.png)
 
-The Walker Lake exhaustive grid holds V and U at all 78 000 cells of a 260 × 300 m grid. Given a `BlockModel`, all
+The exhaustive metal survey grid holds V and U at all 78 000 cells of a 260 × 300 m grid. Given a `BlockModel`, all
 pairs one cell offset apart share a separation, so the call bins each offset once and gathers its pairs by index
 shifts. With a half-degree tolerance only the offsets along the rows and columns remain: 30 lags per direction, each
 one pass over the cells.
@@ -90,7 +90,7 @@ one pass over the cells.
 <details><summary>Python</summary>
 
 ```python
-table = bt.datasets.walker_lake_exhaustive()
+table = bt.datasets.clustered_metal_survey_exhaustive()
 grid = bt.BlockModel((0.5, 0.5), (1.0, 1.0), (260, 300), attributes={"V": table["V"], "U": table["U"]})
 axes_set = bt.experimental_variograms(
     grid, ["V", "U"], 2.0, 60.0, directions=[(90.0, 0.0), (0.0, 0.0)], tolerance=0.5
@@ -124,7 +124,7 @@ print(f"largest relative difference in γ: {np.max(np.abs(by_shift.gammas / by_s
 
 ```text
 same pair counts: True
-largest relative difference in γ: 1.1e-15
+largest relative difference in γ: 8.9e-16
 ```
 
 V is more continuous north to south than east to west, and U follows it. The same call on a simulated realization
@@ -134,11 +134,11 @@ checks it against the variogram model it was drawn from.
 
 ```python
 fig, axes = bt.plot.variograms(axes_set)
-save(fig, "walker_lake")
+save(fig, "metal_survey")
 ```
 
 </details>
 
-![walker_lake](walker_lake.png)
+![metal_survey](metal_survey.png)
 
 Full script: [`example_05_03.py`](example_05_03.py)

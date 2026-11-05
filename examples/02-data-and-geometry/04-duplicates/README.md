@@ -21,7 +21,7 @@ print(f"{len(collars)} collars, {len(names)} hole ids, repeated: {', '.join(name
 </details>
 
 ```text
-290 collars, 288 hole ids, repeated: DD0058, DD0067
+290 collars, 288 hole ids, repeated: DD0032, DD0224
 ```
 
 ## Collars
@@ -44,14 +44,18 @@ for name in names[counts > 1]:
 </details>
 
 ```text
-DD0058 and DD0058: 0.0 m apart
-DD0187 and RC0043: 2.7 m apart
-DD0058 twice: 0 m apart
-DD0067 twice: 290 m apart
+DD0060 and DD0121: 3.0 m apart
+DD0065 and RC0003 and RC0036: 4.8 m apart
+DD0069 and DD0070: 3.1 m apart
+DD0224 and DD0224: 0.0 m apart
+RC0001 and RC0038: 4.0 m apart
+RC0004 and RC0045: 1.3 m apart
+DD0032 twice: 225 m apart
+DD0224 twice: 0 m apart
 ```
 
-DD0058 is one row entered twice: drop one. DD0067 names two collars 290 m apart, an id clash that `check_drillholes`
-flags ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)). DD0187 and RC0043 are two holes collared 2.7 m apart at
+DD0224 is one row entered twice: drop one. DD0032 names two collars 225 m apart, an id clash that `check_drillholes`
+flags ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)). DD0065 and RC0003 are two holes collared 3.9 m apart at
 different dips. Nearby holes of two drilling types are [paired data](../../03-exploratory-analysis/01-paired-data/README.md).
 
 ## Samples
@@ -79,10 +83,10 @@ print(f"{len(samples)} samples at their midpoints")
 </details>
 
 ```text
-16779 samples at their midpoints
+19055 samples at their midpoints
 ```
 
-With a tolerance of 0, only samples at the same location are grouped: three intervals of DD0162 were entered twice,
+With a tolerance of 0, only samples at the same location are grouped: three intervals of DD0216 were entered twice,
 with grades within 10 % of each other.
 
 <details><summary>Python</summary>
@@ -109,11 +113,11 @@ for k, x, y in zip(close["group"], close["x"], close["y"], strict=True):
     )
 map_axes(a, "Collars")
 a.legend(loc="upper left")
-rows = np.flatnonzero((hole == "DD0162") & (depth > 595) & (depth < 630))
+rows = np.flatnonzero((hole == "DD0216") & (depth > 710) & (depth < 745))
 b.plot(depth[rows], zn[rows], "o", ms=3, color=ACCENT)
 twice = rows[group[rows] >= 0]
 b.plot(depth[twice], zn[twice], "o", ms=8, mfc="none", color=HIGHLIGHT, label="Entered twice")
-b.set(title="DD0162, 595 to 630 m", xlabel="Depth (m)", ylabel="Zn (%)")
+b.set(title="DD0216, 710 to 745 m", xlabel="Depth (m)", ylabel="Zn (%)")
 b.legend(loc="upper right")
 save(fig, "duplicates")
 ```
@@ -121,9 +125,9 @@ save(fig, "duplicates")
 </details>
 
 ```text
-DD0162 at 609.8 m: Zn 0.024 and 0.022 %
-DD0162 at 611.8 m: Zn 0.018 and 0.019 %
-DD0162 at 613.8 m: Zn 0.086 and 0.082 %
+DD0216 at 725.5 m: Zn 0.031 and 0.032 %
+DD0216 at 727.5 m: Zn 0.035 and 0.033 %
+DD0216 at 729.5 m: Zn 0.050 and 0.050 %
 ```
 
 ![duplicates](duplicates.png)
@@ -144,7 +148,7 @@ print(f"{len(merged)} samples, {int(twins.sum())} of them merged pairs, Zn {mean
 </details>
 
 ```text
-16776 samples, 3 of them merged pairs, Zn 0.023, 0.018, 0.084 %
+19052 samples, 3 of them merged pairs, Zn 0.032, 0.034, 0.050 %
 ```
 
 Full script: [`example_02_04.py`](example_02_04.py)

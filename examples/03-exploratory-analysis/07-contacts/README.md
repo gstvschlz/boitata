@@ -20,7 +20,7 @@ print(f"{len(points)} assays of 1 m in {len(data['collars'])} holes")
 </details>
 
 ```text
-10810 assays of 1 m in 448 holes
+11770 assays of 1 m in 448 holes
 ```
 
 `contact` measures, down each hole, the distance from every sample of the two horizons to the nearest sample of the
@@ -62,18 +62,18 @@ save(fig, "contacts")
 </details>
 
 ```text
-NI_PCT LIM contact: 1.10 % at -0.5 m, 1.32 % at +0.5 m
-NI_PCT SAP contact: 2.21 % at -0.5 m, 0.29 % at +0.5 m
-CO_PCT LIM contact: 0.12 % at -0.5 m, 0.04 % at +0.5 m
+NI_PCT LIM contact: 1.06 % at -0.5 m, 1.30 % at +0.5 m
+NI_PCT SAP contact: 2.17 % at -0.5 m, 0.30 % at +0.5 m
+CO_PCT LIM contact: 0.11 % at -0.5 m, 0.04 % at +0.5 m
 CO_PCT SAP contact: 0.04 % at -0.5 m, 0.02 % at +0.5 m
 ```
 
 ![contacts](contacts.png)
 
-Ni is soft at the LIM/SAP contact: it rises from 1.10 to 1.32 % across it, then keeps climbing for several meters into
+Ni is soft at the LIM/SAP contact: it rises from 1.06 to 1.30 % across it, then keeps climbing for several meters into
 the saprolite, so Ni in either horizon near the contact can borrow samples from the other. At the base of the
-saprolite it falls from 2.21 to 0.29 % within a meter, a hard boundary: keep bedrock samples out of the saprolite
-estimate. Co shows the other pattern, stepping from 0.12 to 0.04 % at the LIM/SAP contact and staying flat on each
+saprolite it falls from 2.17 to 0.30 % within a meter, a hard boundary: keep bedrock samples out of the saprolite
+estimate. Co shows the other pattern, stepping from 0.11 to 0.04 % at the LIM/SAP contact and staying flat on each
 side. The same horizons can be a hard boundary for one grade and a soft one for another.
 
 Full script: [`example_03_07.py`](example_03_07.py)

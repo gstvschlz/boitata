@@ -51,12 +51,12 @@ for g in grades:
 </details>
 
 ```text
-16907 intervals in, 16905 with zinc
-zn_pct      0 null, mean 0.902
-pb_pct      1 null, mean 0.343
-cu_pct      1 null, mean 0.152
-ag_gpt      1 null, mean 8.184
-au_gpt   4386 null, mean 0.221
+19151 intervals in, 19149 with zinc
+zn_pct      0 null, mean 0.674
+pb_pct      1 null, mean 0.271
+cu_pct      1 null, mean 0.132
+ag_gpt      1 null, mean 6.860
+au_gpt   5029 null, mean 0.151
 ```
 
 Units live in the column metadata and survive Parquet. `convert_units` rescales a column and relabels its unit; here
@@ -75,7 +75,7 @@ print(f"mean gold {np.nanmean(assays['au_gpt']):.0f} ppb")
 
 ```text
 {'zn_pct': '%', 'pb_pct': '%', 'cu_pct': '%', 'ag_gpt': 'g/t', 'au_gpt': 'ppb'}
-mean gold 221 ppb
+mean gold 151 ppb
 ```
 
 The zinc grades span three orders of magnitude; on a log axis their two populations separate.

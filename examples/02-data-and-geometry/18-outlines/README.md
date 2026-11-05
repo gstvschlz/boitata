@@ -55,8 +55,8 @@ save(fig, "outlines")
 </details>
 
 ```text
-convex            0.94 km²
-concave           0.78 km²
+convex            0.92 km²
+concave           0.81 km²
 concave + buffer  1.03 km²
 ```
 
@@ -76,8 +76,8 @@ for label, area in zip(programs["TYPE"], programs.area(), strict=True):
 </details>
 
 ```text
-DD: 0.78 km²
-RC: 0.03 km²
+DD: 0.81 km²
+RC: 0.02 km²
 ```
 
 Full script: [`example_02_18.py`](example_02_18.py)

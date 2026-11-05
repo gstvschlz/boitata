@@ -2,7 +2,7 @@
 
 Multiple indicator kriging reaches the selective blocks inside a panel without a Gaussian model. Kriged at each panel
 centroid, its conditional distribution describes point grades; an affine correction shrinks it to block support, and
-ranked blocks share its bands. The exhaustive Walker Lake grid gives the true 10 m blocks.
+ranked blocks share its bands. The exhaustive metal survey grid gives the true 10 m blocks.
 
 <details><summary>Python</summary>
 
@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
@@ -44,7 +44,7 @@ print(grade)
 </details>
 
 ```text
-Variogram(nugget=23074.111587443243, structures=[Structure("spherical", sill=21197.40782959466, range=35.64043704679606), Structure("spherical", sill=48384.99966079545, range=79.33065065479494)], rotation=(170.0, 0.0, 0.0), ratios=(0.343967906520505, 1.0))
+Variogram(nugget=11558.10092732776, structures=[Structure("spherical", sill=8962.09782891368, range=10.622550182295146), Structure("spherical", sill=57876.09523498103, range=99.00105173141803)], rotation=(170.0, 0.0, 0.0), ratios=(0.4316396545722994, 1.0))
 ```
 
 The 50 × 50 m panels over the western 250 m hold 25 blocks of 10 m each, ranked by their ordinary block kriging.
@@ -72,9 +72,9 @@ print(f"true blocks: variance {true_smu.var():.0f}")
 </details>
 
 ```text
-kriged: variance 35064, correlation with truth 0.89
-localized: variance 54348, correlation with truth 0.82
-true blocks: variance 47350
+kriged: variance 41398, correlation with truth 0.92
+localized: variance 55442, correlation with truth 0.85
+true blocks: variance 50084
 ```
 
 Grade-tonnage of the three sets of blocks:
@@ -124,17 +124,17 @@ save(fig, "localized-mik")
 </details>
 
 ```text
-above 300 ppm: localized 45.1%, kriged 42.9%, true 40.9%
-above 500 ppm: localized 23.3%, kriged 13.6%, true 16.8%
-above 800 ppm: localized 3.2%, kriged 2.3%, true 2.1%
+above 300 ppm: localized 47.1%, kriged 42.3%, true 38.9%
+above 500 ppm: localized 20.7%, kriged 14.0%, true 16.9%
+above 800 ppm: localized 4.4%, kriged 1.6%, true 2.7%
 ```
 
 ![localized-mik](localized-mik.png)
 
-The localized blocks spread wider than the true ones (variance 54 348 against 47 350), while kriging smooths them to
-35 064. Block by block they follow the truth a little less well than kriging (correlation 0.82 against 0.89). The
+The localized blocks spread wider than the true ones (variance 55 442 against 50 084), while kriging smooths them to
+41 398. Block by block they follow the truth a little less well than kriging (correlation 0.85 against 0.92). The
 affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking: at 500
-ppm the localized blocks put 23.3% above cutoff against a true 16.8%, overshooting by as much as kriging falls short.
+ppm the localized blocks put 20.7% above cutoff against a true 16.9%, overshooting by as much as kriging falls short.
 [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) localizes the same panels
 from a Gaussian model.
 

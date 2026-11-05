@@ -13,7 +13,7 @@ import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-ti = bt.datasets.strebelle()
+ti = bt.datasets.channel_training_image()
 n = ti.count[0]
 grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 xy = grid.coords
@@ -77,11 +77,11 @@ for title, (azimuth, semi, scale) in fields.items():
 </details>
 
 ```text
-As the image: template classes 1, sand runs 18.1 cells along Y
-Turned 45°: template classes 1, sand runs 9.9 cells along Y
-Twice as long: template classes 1, sand runs 21.8 cells along Y
-Fan, -40° to 40°: template classes 9, sand runs 13.4 cells along Y
-Three zones: template classes 3, sand runs 9.2 cells along Y
+As the image: template classes 1, sand runs 21.4 cells along Y
+Turned 45°: template classes 1, sand runs 13.8 cells along Y
+Twice as long: template classes 1, sand runs 25.9 cells along Y
+Fan, -40° to 40°: template classes 9, sand runs 20.3 cells along Y
+Three zones: template classes 3, sand runs 12.7 cells along Y
 ```
 
 <details><summary>Python</summary>
@@ -110,21 +110,21 @@ save(fig, "rotation")
 
 ![rotation](rotation.png)
 
-Turned 45°, a channel crosses the Y runs on the diagonal, so they shorten. "Twice as long" lengthens the runs from 18
-to 22 cells instead of doubling them: a doubled channel reaches past the grid template, and the coarse levels, which
+Turned 45°, a channel crosses the Y runs on the diagonal, so they shorten. "Twice as long" lengthens the runs from 21
+to 26 cells instead of doubling them: a doubled channel reaches past the grid template, and the coarse levels, which
 keep their spacing, see only half as far into the stretched image.
 
 The channels cross the zone boundaries without a seam: a cell near a boundary sees neighbors simulated under the
 other zone's transform and continues them.
 
-Continuous images turn the same way. The F3 sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
+Continuous images turn the same way. The seismic sections of [continuous SNESIM](../../13-multiple-point-statistics/03-snesim-continuous/README.md)
 have nearly flat reflectors; an azimuth rising from -25° in the west to 25° in the east and back bends them into a
 fold. Here the cells are one trace by one sample, so angles follow those units.
 
 <details><summary>Python</summary>
 
 ```python
-seismic = bt.datasets.f3_seismic()
+seismic = bt.datasets.seismic_cube()
 nx, ny, nz = seismic.count
 cube = seismic.grid("amplitude")[::-1]
 image = np.hstack([cube[:, j, :] for j in range(0, 45, 3)])

@@ -40,8 +40,8 @@ def profile(points, values):
 </details>
 
 ```text
-LIM: 3334 samples of 1 m, mean 1.08 % Ni
-SAP: 4901 samples of 1 m, mean 1.81 % Ni
+LIM: 3279 samples of 1 m, mean 1.08 % Ni
+SAP: 5250 samples of 1 m, mean 1.68 % Ni
 ```
 
 Down each hole, the mean grade against the distance to the `LIM`/`SAP` contact:
@@ -67,12 +67,12 @@ save(fig, "contact")
 
 ```text
 distance: [-6.5 -5.5 -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5  5.5  6.5]
-mean Ni:  [1.86 1.78 1.73 1.63 1.48 1.43 1.32 1.1  1.09 1.07 1.08 1.08 1.1  1.07]
+mean Ni:  [1.75 1.63 1.54 1.51 1.38 1.34 1.3  1.06 1.09 1.07 1.08 1.07 1.08 1.1 ]
 ```
 
 ![contact](contact.png)
 
-`LIM` is flat up to the contact. `SAP` loses grade toward it, from 1.86 % Ni 6 to 7 m below to 1.32 % in the last
+`LIM` is flat up to the contact. `SAP` loses grade toward it, from 1.75 % Ni 6 to 7 m below to 1.30 % in the last
 meter, and the step at the contact itself is small: the boundary is gradational on the saprolite side.
 
 One normal-score variogram serves both horizons: each is scored on its own, then the scores are pooled. The nugget and
@@ -96,7 +96,7 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=0.32861112557336725, structures=[Structure("spherical", sill=0.6938819610021464, range=54.74522060744121)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.13561192309647335))
+Variogram(nugget=0.2606053672947485, structures=[Structure("spherical", sill=0.7041406693380989, range=53.72070332938034)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.14798946971838695))
 ```
 
 The holes on the 50 m mesh do the estimating; the 25 m infill holes are held out to check it. Three rules share one
@@ -138,10 +138,10 @@ for name, search in searches.items():
 </details>
 
 ```text
-301 mesh holes, 147 infill holes held out
-              hard: RMSE LIM 0.410, SAP 0.774; other horizon used by 0% of LIM, 0% of SAP targets
-    soft both ways: RMSE LIM 0.424, SAP 0.770; other horizon used by 70% of LIM, 42% of SAP targets
-soft, SAP from LIM: RMSE LIM 0.410, SAP 0.770; other horizon used by 0% of LIM, 42% of SAP targets
+315 mesh holes, 133 infill holes held out
+              hard: RMSE LIM 0.398, SAP 0.692; other horizon used by 0% of LIM, 0% of SAP targets
+    soft both ways: RMSE LIM 0.407, SAP 0.686; other horizon used by 78% of LIM, 52% of SAP targets
+soft, SAP from LIM: RMSE LIM 0.398, SAP 0.686; other horizon used by 0% of LIM, 52% of SAP targets
 ```
 
 Most targets lie far from the contact, so the errors change little. The mean estimate by distance to the contact shows
@@ -165,10 +165,10 @@ for name, values in kriged.items():
 
 ```text
           distance: [-6.5 -5.5 -4.5 -3.5 -2.5 -1.5 -0.5  0.5  1.5  2.5  3.5  4.5  5.5  6.5]
-          held out: [1.84 1.77 1.68 1.57 1.44 1.36 1.28 1.06 1.05 1.06 1.05 1.05 1.   1.01]
-              hard: [1.89 1.84 1.76 1.68 1.61 1.57 1.55 1.03 1.04 1.05 1.05 1.06 1.06 1.08]
-    soft both ways: [1.88 1.81 1.71 1.59 1.48 1.39 1.34 1.21 1.18 1.13 1.1  1.09 1.08 1.09]
-soft, SAP from LIM: [1.88 1.81 1.71 1.59 1.48 1.39 1.34 1.03 1.04 1.05 1.05 1.06 1.06 1.08]
+          held out: [1.83 1.71 1.61 1.55 1.46 1.37 1.33 1.08 1.08 1.09 1.09 1.13 1.14 1.16]
+              hard: [1.72 1.67 1.63 1.61 1.57 1.55 1.52 1.07 1.08 1.08 1.09 1.1  1.1  1.11]
+    soft both ways: [1.69 1.63 1.57 1.51 1.46 1.4  1.35 1.25 1.22 1.19 1.18 1.17 1.16 1.15]
+soft, SAP from LIM: [1.69 1.63 1.57 1.51 1.46 1.4  1.35 1.07 1.08 1.08 1.09 1.1  1.1  1.11]
 ```
 
 SGS takes the same searches and the same domains. Each horizon keeps its own normal-score table; a `LIM` sample
@@ -188,9 +188,9 @@ for name, search in searches.items():
 </details>
 
 ```text
-              hard: [1.84 1.8  1.74 1.67 1.64 1.61 1.6  1.05 1.07 1.09 1.08 1.08 1.1  1.11]
-    soft both ways: [1.8  1.74 1.64 1.53 1.44 1.35 1.31 1.25 1.23 1.2  1.16 1.13 1.13 1.13]
-soft, SAP from LIM: [1.79 1.73 1.63 1.5  1.4  1.29 1.24 1.05 1.07 1.09 1.08 1.08 1.1  1.11]
+              hard: [1.72 1.69 1.67 1.65 1.65 1.62 1.6  1.06 1.08 1.08 1.09 1.1  1.11 1.09]
+    soft both ways: [1.66 1.61 1.56 1.51 1.46 1.4  1.35 1.32 1.29 1.25 1.23 1.21 1.19 1.15]
+soft, SAP from LIM: [1.65 1.59 1.52 1.47 1.4  1.32 1.24 1.06 1.08 1.08 1.09 1.1  1.11 1.09]
 ```
 
 <details><summary>Python</summary>
@@ -228,10 +228,10 @@ save(fig, "profiles")
 
 ![profiles](profiles.png)
 
-In the last meter of `SAP` the hard boundary kriges 1.55 % Ni against 1.28 % held out: it sees only saprolite, richer
-deeper down. Letting `SAP` draw on `LIM` brings it to 1.34 % and follows the gradient. Opened both ways, the boundary
-also lifts the first meter of `LIM` from 1.03 % to 1.21 %, where the held-out samples stay at 1.06 %. SGS agrees: 1.60
-% hard and 1.24 % one way in the last meter of `SAP`, and 1.25 % in the first meter of `LIM` when soft both ways. The
+In the last meter of `SAP` the hard boundary kriges 1.52 % Ni against 1.33 % held out: it sees only saprolite, richer
+deeper down. Letting `SAP` draw on `LIM` brings it to 1.35 % and follows the gradient. Opened both ways, the boundary
+also lifts the first meter of `LIM` from 1.07 % to 1.25 %, where the held-out samples stay at 1.08 %. SGS agrees: 1.60
+% hard and 1.24 % one way in the last meter of `SAP`, and 1.32 % in the first meter of `LIM` when soft both ways. The
 contact profile says which way to open a boundary; here only the saprolite side is gradational.
 
 Full script: [`example_06_13.py`](example_06_13.py)

@@ -21,7 +21,7 @@ A transform learns a mapping from the data and applies it to any values. `Normal
 import boitata as bt
 import numpy as np
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 
 normal_score = bt.NormalScore().fit(samples["V"])
 scores = normal_score.transform(samples["V"])
@@ -33,7 +33,7 @@ print(f"std {scores.std():.2f}, back to V: {np.allclose(back, samples['V'])}")
 std 1.00, back to V: True
 ```
 
-`fit_transform` does both steps at once, with one difference: it gives tied values, such as Walker Lake's 22 zeros, distinct scores by breaking ties at random from `seed`, while `transform` sends equal values to one score.
+`fit_transform` does both steps at once, with one difference: it gives tied values, such as the metal survey's 12 zeros, distinct scores by breaking ties at random from `seed`, while `transform` sends equal values to one score.
 
 `Capping`, `BoxCox`, `HermiteAnamorphosis`, `PPMT`, `PCA`, `MAF` and the other transforms follow the same pattern; the [transforms API](../api/transforms/index.md) lists them.
 

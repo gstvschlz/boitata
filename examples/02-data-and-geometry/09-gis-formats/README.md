@@ -90,7 +90,7 @@ print(lines)
 </details>
 
 ```text
-Polylines(14 features, 14 parts, crs: none)
+Polylines(15 features, 15 parts, crs: none)
   NORTHING: Float64
 ```
 
@@ -173,14 +173,14 @@ BlockModel(regular, 9600 of 9600 cells, count [120, 80, 1], size [50.0, 50.0, 1.
   MAG_NT: Float64
   LITHOLOGY: Float64
 0.04 MB
-same origin: True | cells with data: 7193 of 9600
- FELSIC_VOLCANIC: 1065 cells
-         GRANITE: 1687 cells
-  MAFIC_VOLCANIC: 2499 cells
-    METASEDIMENT: 1942 cells
+same origin: True | cells with data: 7073 of 9600
+ FELSIC_VOLCANIC: 1042 cells
+         GRANITE: 391 cells
+  MAFIC_VOLCANIC: 2871 cells
+    METASEDIMENT: 2769 cells
 ```
 
-The raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
+The raster comes back as a regular grid: the 2527 cells outside the survey area are null in every band.
 
 <details><summary>Python</summary>
 

@@ -1,7 +1,7 @@
 """
 # Kriging diagnostics
 
-Block kriging of Walker Lake `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
+Block kriging of the metal survey `V` on 10 × 10 m blocks with `diagnostics=True`: kriging efficiency and slope of
 regression per block, then the neighborhood behind each estimate. The exhaustive grid checks what they predict.
 """
 
@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, map_axes, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -78,8 +78,8 @@ for g, label in enumerate(("efficiency < 0.5", "0.5 to 0.7", ">= 0.7")):
 # The other diagnostics explain why a block is weak. `mean_distance` is the mean distance to the samples used, and
 # `max_samples_reached` flags searches that stopped at 24 samples before the ellipse ran out: those blocks sit in
 # denser data and have the higher slope. `negative_weight_sum` adds the weights below zero, which samples screened
-# by closer ones receive. `lagrange` (the Lagrange multiplier) and `n_holes` (distinct drill holes used; each Walker
-# Lake sample is its own) complete the set.
+# by closer ones receive. `lagrange` (the Lagrange multiplier) and `n_holes` (distinct drill holes used; each metal
+# survey sample is its own) complete the set.
 
 # %%
 full = d["max_samples_reached"] == 1

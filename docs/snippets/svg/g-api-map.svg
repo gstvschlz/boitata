@@ -4,7 +4,7 @@
 <text class="small" x="16" y="47">1 · Get data</text>
 <rect class="f-paper s-muted" x="130" y="20" width="267" height="46" rx="6" stroke-width="1.5"/>
 <text x="263.5" y="40" text-anchor="middle">bt.datasets</text>
-<text class="small" x="263.5" y="57" text-anchor="middle">Downloaded once, cached, checksummed</text>
+<text class="small" x="263.5" y="57" text-anchor="middle">Generated on the call</text>
 <rect class="f-paper s-muted" x="413" y="20" width="267" height="46" rx="6" stroke-width="1.5"/>
 <text x="546.5" y="40" text-anchor="middle">read_csv · read_parquet · read_mesh</text>
 <text class="small" x="546.5" y="57" text-anchor="middle">Open formats; sentinels such as -999 become null</text>

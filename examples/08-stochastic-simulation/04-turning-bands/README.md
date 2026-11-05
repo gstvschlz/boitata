@@ -13,7 +13,7 @@ import numpy as np
 from common import GRAY, HIGHLIGHT, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 ```
@@ -38,7 +38,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.3315861183518779, structures=[Structure("spherical", sill=0.6684138816481222, range=82.43111673409601)], rotation=(170.0, 0.0, 0.0), ratios=(0.42564072265384956, 1.0))
+Variogram(nugget=0.08618178903417904, structures=[Structure("spherical", sill=0.913818210965821, range=124.0562547366332)], rotation=(170.0, 0.0, 0.0), ratios=(0.4095872533818296, 1.0))
 ```
 
 Both methods normal-score the data, simulate and back-transform; `bands` sets how many lines turning bands sums.
@@ -63,8 +63,8 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 </details>
 
 ```text
-          SGS: 20 realizations in 0.01 s, mean 300 ppm, variance 71089 ppm²
-turning bands: 20 realizations in 0.09 s, mean 295 ppm, variance 69672 ppm²
+          SGS: 20 realizations in 0.01 s, mean 275 ppm, variance 62852 ppm²
+turning bands: 20 realizations in 0.08 s, mean 275 ppm, variance 61205 ppm²
 ```
 
 Both follow the same high-grade trends, with the same short-scale scatter:

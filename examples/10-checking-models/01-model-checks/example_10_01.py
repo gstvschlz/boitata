@@ -1,7 +1,7 @@
 """
 # Model checks
 
-Block kriging of Walker Lake `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
+Block kriging of the metal survey `V` on 10 × 10 m blocks, checked against the declustered samples: the global bias,
 distributions side by side with `validate_model`, and swaths of grade and metal along easting and northing. The
 exhaustive grid gives the true blocks as a reference.
 """
@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -68,7 +68,7 @@ for row in zip(
     )
 
 # %% [markdown]
-# The blocks reproduce the declustered mean within 0.3 %. Both sit about 5 % above the truth, a bias no check against
+# The blocks reproduce the declustered mean within 0.3 %. Both sit about 2 % above the truth, a bias no check against
 # the samples can see. The blocks are 10 × 10 m averages smoothed by kriging, so their variance is much smaller. The
 # true blocks sit in between, since averaging over a block removes part of the sample variance. The cumulative
 # distributions show the same smoothing: the blocks have fewer low and high grades than the true blocks, the

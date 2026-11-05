@@ -1,7 +1,7 @@
 """
 # Local variogram parameters
 
-[Locally varying anisotropy](../../06-kriging/14-local-anisotropy/README.md) bent the variogram along Walker Lake's
+[Locally varying anisotropy](../../06-kriging/14-local-anisotropy/README.md) bent the variogram along the metal survey's
 high-`V` bodies but kept one set of ranges everywhere. Here the local frames of
 [locally varying anisotropy](../../06-kriging/14-local-anisotropy/README.md) measure experimental variograms that follow
 the bodies. Moving-window fits of those variograms give a range scale and a ratio per region, and kriging takes them the
@@ -22,8 +22,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
@@ -158,10 +158,10 @@ fig.colorbar(im, ax=axes, shrink=0.8, label="V (ppm)")
 save(fig, "kriging")
 
 # %% [markdown]
-# The scales alone change the estimate little: RMSE 148.1 against 148.3 ppm. Longer ranges with the same nugget and
+# The scales alone change the estimate little: RMSE 145.9 against 145.6 ppm. Longer ranges with the same nugget and
 # ratios leave the kriging weights close. The fitted ratios change them: the windows see bodies about 0.14 as wide as
 # they are long, against 0.33 in the global model, and kriging with those needle-thin ellipses streaks along the field's
 # directions. Wherever the guide's directions are off, the estimate follows them across the bodies, and the RMSE rises
-# to 161.1 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
+# to 146.3 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
 # field. With a field this rough, keep the global ratios and take the local angles and scales. SGS, indicator and
 # categorical kriging take the same `anisotropy=` field, scales included.

@@ -58,8 +58,8 @@ fig.tight_layout()
 save(fig, "contacts")
 
 # %% [markdown]
-# Ni is soft at the LIM/SAP contact: it rises from 1.10 to 1.32 % across it, then keeps climbing for several meters into
+# Ni is soft at the LIM/SAP contact: it rises from 1.06 to 1.30 % across it, then keeps climbing for several meters into
 # the saprolite, so Ni in either horizon near the contact can borrow samples from the other. At the base of the
-# saprolite it falls from 2.21 to 0.29 % within a meter, a hard boundary: keep bedrock samples out of the saprolite
-# estimate. Co shows the other pattern, stepping from 0.12 to 0.04 % at the LIM/SAP contact and staying flat on each
+# saprolite it falls from 2.17 to 0.30 % within a meter, a hard boundary: keep bedrock samples out of the saprolite
+# estimate. Co shows the other pattern, stepping from 0.11 to 0.04 % at the LIM/SAP contact and staying flat on each
 # side. The same horizons can be a hard boundary for one grade and a soft one for another.

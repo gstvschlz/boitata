@@ -35,7 +35,7 @@ print(f"{len(quartz)} composites in {len(veins)} veins")
 </details>
 
 ```text
-5826 composites in 4 veins
+6749 composites in 4 veins
 ```
 
 ## One cap per vein
@@ -64,15 +64,15 @@ for vein in veins:
 
 ```text
 vein          P99  metal (%)  5 % metal  metal (%)     CV 1.5  metal (%)
-V1           81.3      10.76      160.6       5.00       48.4      17.07
-V2           71.7      15.38      591.8       5.00       48.7      19.38
-V3           67.5       0.00       50.5       5.00       54.0       3.97
-V4          183.5       0.71      111.6       5.00       52.0      30.36
+V1          100.7       9.10      202.3       5.00       63.2      14.89
+V2          215.8       3.09      190.8       5.00       59.4      27.80
+V3          521.0       0.00      466.1       5.00       36.3      64.84
+V4           52.7       8.25      109.1       5.00       39.2      13.81
 ```
 
-The rules disagree most where the tail is longest. V1 and V2 lose 11 and 15 % of their metal at the P99; holding the
-loss to 5 % lifts their caps to 161 and 592 g/t, the latter just under the extreme channels of V2. In the small veins
-the P99 barely cuts: it is the maximum of V3. A CV of 1.5 caps V1 and V2 near 50 g/t and costs them 17 to 19 % of
+The rules disagree most where the tail is longest. V1 and V2 lose 9 and 3 % of their metal at the P99; holding the
+loss to 5 % lifts their caps to 202 and 191 g/t, the latter just under the extreme channels of V2. In the small veins
+the P99 barely cuts: it is the maximum of V3. A CV of 1.5 caps V1 and V2 near 60 g/t and costs them 15 to 28 % of
 their metal.
 
 ## The same numbers as [top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)
@@ -101,10 +101,10 @@ for k, vein in enumerate(report["domain"][:-1]):
 
 ```text
 vein      P99  fitted cap  report (%)  fitted (%)
-V1      81.35       81.35       10.76       10.76
-V2      71.68       71.68       15.38       15.38
-V3      67.53       67.53        0.00        0.00
-V4     183.55      183.55        0.71        0.71
+V1     100.67      100.67        9.10        9.10
+V2     215.80      215.80        3.09        3.09
+V3     521.00      521.00        0.00        0.00
+V4      52.74       52.74        8.25        8.25
 ```
 
 On a log-probability plot the dashed caps cut the last percent of the tail of each vein.
@@ -140,7 +140,7 @@ save(fig, "probability")
 The capped grades feed the estimate as any other column. Ordinary kriging estimates 5 m blocks inside the V1 solid
 from the raw and from the capped composites of V1, with one variogram and search. The extreme channels no longer
 spread their grade over their neighborhood: the richest blocks drop below the diagonal and the low-grade ones stay on
-it. The blocks lose 5 % of their mean grade, against 11 % for the declustered composites, because most blocks draw on
+it. The blocks lose 8.6 % of their mean grade, against 9.1 % for the declustered composites, because most blocks draw on
 samples below the cap, which capping leaves unchanged.
 
 <details><summary>Python</summary>
@@ -166,9 +166,9 @@ print(
 </details>
 
 ```text
-AU_GPT: 5225 blocks, mean 7.73 g/t
-AU_CAPPED: 5225 blocks, mean 7.31 g/t
-composites: 8.52 and 7.60 g/t
+AU_GPT: 3744 blocks, mean 10.55 g/t
+AU_CAPPED: 3744 blocks, mean 9.64 g/t
+composites: 10.96 and 9.96 g/t
 ```
 
 <details><summary>Python</summary>
@@ -191,7 +191,7 @@ save(fig, "kriged")
 ## In a pipeline
 
 `Capping` has `fit`, `transform` and `fit_transform` like `NormalScore`, so the two chain: cap, then score, the usual
-preparation for a Gaussian simulation. Fitted once, both apply to new samples: a 500 g/t sample is capped to 81 g/t
+preparation for a Gaussian simulation. Fitted once, both apply to new samples: a 500 g/t sample is capped to 101 g/t
 before scoring, so its score is that of the cap. The fitted caps round-trip through JSON and pickle.
 
 <details><summary>Python</summary>
@@ -209,7 +209,7 @@ print(restored.caps_ == pipeline.caps_)
 </details>
 
 ```text
-[-1.305  0.386  1.981  2.658]
+[-1.311  0.173  1.705  2.605]
 True
 ```
 

@@ -1,7 +1,7 @@
 # Disjunctive kriging
 
 Disjunctive kriging estimates, at each node, any function of the grade from kriged Hermite factors of a Gaussian
-anamorphosis; here, the probability that V exceeds a cutoff. The exhaustive Walker Lake grid shows where the grade
+anamorphosis; here, the probability that V exceeds a cutoff. The exhaustive metal survey grid shows where the grade
 exceeds it.
 
 <details><summary>Python</summary>
@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 ```
@@ -37,7 +37,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.3880895785084983, structures=[Structure("spherical", sill=0.6541303654567798, range=95.35466468171232)], rotation=(170.0, 0.0, 0.0), ratios=(0.3490856295281619, 1.0))
+Variogram(nugget=0.13142396427109918, structures=[Structure("spherical", sill=0.7667951113063376, range=103.06084513552106)], rotation=(170.0, 0.0, 0.0), ratios=(0.4626805674523921, 1.0))
 ```
 
 `predict_tonnage` gives P(V > cutoff) on a 5 m grid. Binned against the truth, a calibrated estimate would sit on the
@@ -95,22 +95,22 @@ save(fig, "disjunctive")
 </details>
 
 ```text
-mean predicted P(V > 500) 0.231, true proportion 0.189
-bin 0.0–0.1: 1021 nodes, predicted 0.03, observed 0.01
-bin 0.1–0.2: 740 nodes, predicted 0.15, observed 0.07
-bin 0.2–0.3: 527 nodes, predicted 0.25, observed 0.17
-bin 0.3–0.4: 277 nodes, predicted 0.34, observed 0.25
-bin 0.4–0.5: 174 nodes, predicted 0.45, observed 0.41
-bin 0.5–0.6: 111 nodes, predicted 0.55, observed 0.59
-bin 0.6–0.7: 99 nodes, predicted 0.65, observed 0.72
-bin 0.7–0.8: 56 nodes, predicted 0.75, observed 0.89
-bin 0.8–0.9: 40 nodes, predicted 0.84, observed 0.95
-bin 0.9–1.0: 75 nodes, predicted 0.98, observed 0.96
+mean predicted P(V > 500) 0.188, true proportion 0.187
+bin 0.0–0.1: 1675 nodes, predicted 0.02, observed 0.01
+bin 0.1–0.2: 426 nodes, predicted 0.15, observed 0.10
+bin 0.2–0.3: 284 nodes, predicted 0.25, observed 0.24
+bin 0.3–0.4: 186 nodes, predicted 0.35, observed 0.37
+bin 0.4–0.5: 147 nodes, predicted 0.45, observed 0.44
+bin 0.5–0.6: 106 nodes, predicted 0.54, observed 0.57
+bin 0.6–0.7: 90 nodes, predicted 0.65, observed 0.74
+bin 0.7–0.8: 79 nodes, predicted 0.75, observed 0.91
+bin 0.8–0.9: 56 nodes, predicted 0.85, observed 0.95
+bin 0.9–1.0: 71 nodes, predicted 0.98, observed 1.00
 ```
 
 ![disjunctive](disjunctive.png)
 
-On average the estimate says 23.1% of the nodes exceed 500 ppm; 18.9% do. The error sits in the low bins, which hold
+On average the estimate says 18.8% of the nodes exceed 500 ppm; 18.7% do. The error sits in the low bins, which hold
 most nodes: where it predicts 0.1 to 0.4, you observe half to two thirds of that. From 0.5 to 0.9 the error reverses,
 and more nodes exceed the cutoff than it predicts.
 

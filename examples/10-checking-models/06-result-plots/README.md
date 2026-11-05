@@ -2,7 +2,7 @@
 
 Three plots read the tables other functions return. `grade_tonnage` draws tonnage and mean grade above cutoff for
 any grade-tonnage table, `cross_validation` draws the leave-one-out kriging results for an estimate, and `contact`
-draws grade against distance to a geological contact. The page krigs and cross-validates Walker Lake `V`; the nickel
+draws grade against distance to a geological contact. The page krigs and cross-validates the metal survey `V`; the nickel
 laterite horizons give the contacts.
 
 <details><summary>Python</summary>
@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -56,7 +56,7 @@ save(fig, "cross_validation")
 
 ![cross_validation](cross_validation.png)
 
-The slope is close to 1 and the mean error small against an RMSE of about 185. The accuracy curve runs above the
+The slope is close to 1 and the mean error small against an RMSE of about 154. The accuracy curve runs above the
 diagonal and error²/variance is 0.7: the kriging variance is too large for these errors, so its intervals are too
 wide. It also depends on the data layout alone and ignores the local grade, and the Gaussian interval ignores the
 skew of `V`. Indicator kriging builds each sample's distribution from indicators at several thresholds instead. Its
@@ -98,7 +98,7 @@ narrows the distribution, and kriging narrows it further.
 ```python
 blocks = bt.BlockModel(origin=(0.5, 0.5), size=(10, 10), count=(26, 30))
 block_kriging = bt.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(xy, v)
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 blocks = blocks.with_columns(
     {"kriged": block_kriging.predict(blocks), "true": truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()}
 )
@@ -109,7 +109,7 @@ curves = {
     "Blocks": bt.compare_models(blocks, ["kriged", "true"], cutoffs, reference="true"),
 }
 fig, ax = bt.plot.grade_tonnage(curves, relative=True)
-ax.set_title("Walker Lake V, declustered samples and 10 × 10 m blocks")
+ax.set_title("Metal survey V, declustered samples and 10 × 10 m blocks")
 save(fig, "grade_tonnage")
 ```
 
