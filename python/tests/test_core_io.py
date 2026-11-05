@@ -442,3 +442,19 @@ def test_write_parquet_keeps_nan_as_null(tmp_path):
     pq = pytest.importorskip("pyarrow.parquet")
     bt.write_parquet(tmp_path / "t.parquet", {"v": np.array([1.0, np.nan], dtype=np.float32)})
     assert pq.read_table(tmp_path / "t.parquet")["v"].null_count == 1
+
+
+def test_stl_welds_negative_zero(tmp_path):
+    corners = [(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)]
+    lines = ["solid a"]
+    n = 0
+    for tri in [(0, 2, 1), (0, 1, 3), (1, 2, 3), (0, 3, 2)]:
+        lines += ["facet normal 0 0 1", "outer loop"]
+        for j in tri:
+            x, y, z = corners[j]
+            n += 1
+            lines.append(f"vertex {'-0.0' if n == 1 else float(x)} {float(y)} {float(z)}")
+        lines += ["endloop", "endfacet"]
+    path = tmp_path / "a.stl"
+    path.write_text("\n".join([*lines, "endsolid a", ""]))
+    assert bt.read_mesh(path).is_closed
