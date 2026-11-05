@@ -601,3 +601,13 @@ def test_mesh_intervals_at_zero_tolerance_ends():
     f += [[2, 6, 3], [3, 6, 7], [0, 4, 2], [2, 4, 6], [1, 3, 5], [3, 7, 5]]
     runs = bt.Drillholes(VERTICAL_COLLAR, survey).mesh_intervals(bt.Mesh(v, f), tolerance=0.0)
     assert len(runs) == 3
+
+
+def test_a_hole_surveyed_at_its_collar_extends_down_its_direction():
+    np.testing.assert_allclose(
+        bt.Drillholes(VERTICAL_COLLAR, VERTICAL_SURVEY).at(["A"], [50.0]), [[0.0, 0.0, 50.0]]
+    )
+    inclined = dict(VERTICAL_SURVEY, AZIMUTH=[90.0], DIP=[0.0])
+    np.testing.assert_allclose(
+        bt.Drillholes(VERTICAL_COLLAR, inclined).at(["A"], [50.0]), [[50.0, 0.0, 100.0]], atol=1e-9
+    )
