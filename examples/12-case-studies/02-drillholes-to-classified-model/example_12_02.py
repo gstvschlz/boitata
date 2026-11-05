@@ -90,7 +90,7 @@ b.set(xlabel="Zn (%)", title="Probability plot")
 save(fig, "statistics")
 
 # %% [markdown]
-# Declustering lowers every lens mean, most in lens 1. Capping the top 1 % of composites at 18.9 % Zn removes 0.9 %
+# Declustering lowers every lens mean, most in lens 1. Capping the top 1 % of composites at 23.3 % Zn removes 0.8 %
 # of the metal, and the probability plot shows no break in the upper tail: leave the grades uncapped.
 
 # %% [markdown]
@@ -190,7 +190,7 @@ sure = np.mean(summary.probability_above[:, 0] > 0.9)
 print(f"mean {summary.mean.mean():.2f} % Zn; blocks above 5 % in more than 90 % of realizations: {sure:.0%}")
 
 # %% [markdown]
-# In eight realizations out of ten, between 42 and 51 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
+# In eight realizations out of ten, between 36 and 46 % of the parent blocks exceed 5 % Zn, yet only 1 % of them do
 # so in more than 90 % of the realizations: at this drill spacing few single blocks are certain ore, although the
 # share of ore across the lens is well known.
 #
@@ -245,7 +245,7 @@ save(fig, "swath")
 # ## Classification
 #
 # Measured blocks come from the first pass with a slope of regression of at least 0.6; indicated, from the first
-# two passes with a slope of 0.3; the rest is inferred. With a nugget of 43 % of the sill and a 38 m range, only
+# two passes with a slope of 0.3; the rest is inferred. With a nugget of 42 % of the sill and a 46 m range, only
 # blocks close to several holes qualify as measured.
 
 # %%
@@ -303,8 +303,8 @@ for groups in (block_lens, classes):
         print(f"{category:10} ≥ {cutoff:1.0f} % Zn{tonnes / 1e3:8.0f}{grade:7.2f}{metal / 1e5:8.1f}")
 
 # %% [markdown]
-# The three lenses hold 21.5 Mt at 5.48 % Zn, 1.18 Mt of zinc, of which 11.2 Mt at 6.97 % lie above 5 % Zn. Lens 1
-# carries 45 % of the metal; measured blocks, only 628 kt, are its rich core near the top.
+# The three lenses hold 22.3 Mt at 5.66 % Zn, 1.26 Mt of zinc, of which 12.0 Mt at 7.45 % lie above 5 % Zn. Lens 1
+# carries 38 % of the metal; measured blocks, only 628 kt, are its rich core near the top.
 #
 # The model, sub-blocks, lens names, grades, classes and all, goes to Parquet and back unchanged.
 

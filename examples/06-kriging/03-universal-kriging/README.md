@@ -35,8 +35,8 @@ print(f"variance {holes['THICKNESS_M'].var():.2f} m², of the residuals {residua
 </details>
 
 ```text
-thickness = 11.54 -0.161 m/km east -0.096 m/km north
-variance 0.93 m², of the residuals 0.66 m²
+thickness = 2.88 -0.153 m/km east +0.054 m/km north
+variance 0.48 m², of the residuals 0.27 m²
 ```
 
 The drift inflates the variogram of the thickness at long lags, and the residuals level off lower. Universal kriging
@@ -63,8 +63,8 @@ save(fig, "variograms")
 </details>
 
 ```text
-Variogram(nugget=0.3462976754436873, structures=[Structure("spherical", sill=0.5010714601661295, range=2488.157730375319)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-Variogram(nugget=0.35259576488935374, structures=[Structure("spherical", sill=0.38656878888594104, range=1869.901439094896)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=0.1459396754263775, structures=[Structure("spherical", sill=0.3811662964513839, range=6584.422965022648)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=0.13996863610961927, structures=[Structure("spherical", sill=0.1589539799393791, range=2545.427930839723)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
 ![variograms](variograms.png)
@@ -90,9 +90,9 @@ for name, estimator in (("ordinary", ordinary), ("universal", universal)):
 </details>
 
 ```text
-inside the lease: mean |UK - OK| 0.027 m
- ordinary cross-validation: ME +0.004  RMSE 0.596  slope 1.04
-universal cross-validation: ME -0.002  RMSE 0.599  slope 1.02
+inside the lease: mean |UK - OK| 0.020 m
+ ordinary cross-validation: ME +0.001  RMSE 0.432  slope 1.02
+universal cross-validation: ME -0.006  RMSE 0.432  slope 1.00
 ```
 
 <details><summary>Python</summary>
@@ -170,16 +170,16 @@ save(fig, "profile")
 </details>
 
 ```text
-easternmost hole at 31703 m
-x = 32000: ordinary 1.63 m, universal 1.49 m, trend 1.21 m
-x = 34000: ordinary 1.41 m, universal 1.27 m, trend 0.88 m
-x = 36000: ordinary 1.37 m, universal 0.66 m, trend 0.56 m
+easternmost hole at 31892 m
+x = 32000: ordinary 1.15 m, universal 1.04 m, trend 0.90 m
+x = 34000: ordinary 1.26 m, universal 0.37 m, trend 0.59 m
+x = 36000: ordinary 1.17 m, universal 0.59 m, trend 0.29 m
 ```
 
 ![profile](profile.png)
 
-Past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.4 m, while universal kriging
-carries the thinning on, down to 0.66 m at 36 km against 0.56 m for the trend. Whether that is right is a geological
+Past the last hole ordinary kriging levels off at the mean of its neighbors, about 1.2 m, while universal kriging
+carries the thinning on, down to 0.59 m at 36 km against 0.29 m for the trend. Whether that is right is a geological
 call. Universal kriging fits the local drift from the neighbors, so it needs a wider search than ordinary kriging:
 with a few one-sided samples the drift is poorly determined and its extrapolation erratic.
 

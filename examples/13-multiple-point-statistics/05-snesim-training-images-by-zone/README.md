@@ -13,7 +13,7 @@ import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-channels = bt.datasets.strebelle()
+channels = bt.datasets.channel_training_image()
 n = channels.count[0]
 grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 ```
@@ -21,7 +21,7 @@ grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 </details>
 
 Objects build the second image: sand lenses about 36 by 10 cells, lying east-west, over 30 % of a grid the size of
-Strebelle.
+the channel image.
 
 <details><summary>Python</summary>
 
@@ -34,7 +34,7 @@ print(f"sand: channels {channels['facies'].mean():.1%}, lenses {lenses['facies']
 </details>
 
 ```text
-sand: channels 27.7%, lenses 30.2%
+sand: channels 29.4%, lenses 30.2%
 ```
 
 A line dipping east splits two domains: channels in the south, lenses in the north. Twenty realizations, with the
@@ -55,8 +55,8 @@ for name, image in (("channels", channels), ("lenses", lenses)):
 </details>
 
 ```text
-channels: realizations 29.2% sand, image 27.7%
-lenses: realizations 30.4% sand, image 30.2%
+channels: realizations 29.3% sand, image 29.4%
+lenses: realizations 30.3% sand, image 30.2%
 ```
 
 <details><summary>Python</summary>

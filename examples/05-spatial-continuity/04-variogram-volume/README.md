@@ -60,10 +60,10 @@ lens_pole /= np.linalg.norm(lens_pole)
 </details>
 
 ```text
-13312 composites
-lens 1: dips 59 degrees towards 111
-lens 2: dips 61 degrees towards 110
-lens 3: dips 59 degrees towards 110
+16070 composites
+lens 1: dips 56 degrees towards 114
+lens 2: dips 54 degrees towards 112
+lens 3: dips 55 degrees towards 112
 ```
 
 ## The volume and its axes
@@ -93,15 +93,15 @@ print(f"minor axis to lens pole: {angle:.1f} degrees")
 </details>
 
 ```text
-rotation (azimuth, dip, rake): [199.3  10.7 123.6]
-ranges (major, semi, minor):   [179. 100.  80.]
-ratios:                        [0.56 0.44]
-     major axis: azimuth 199.3, dip 10.7
-semi-major axis: azimuth 093.6, dip 54.9
-     minor axis: azimuth 296.3, dip 32.9
-plane of the major and semi-major axes: dips 57 towards 116
-mean lens plane:                        dips 60 towards 110
-minor axis to lens pole: 5.6 degrees
+rotation (azimuth, dip, rake): [171.5  36.1 136.2]
+ranges (major, semi, minor):   [237. 219.  31.]
+ratios:                        [0.93 0.13]
+     major axis: azimuth 171.5, dip 36.1
+semi-major axis: azimuth 052.0, dip 34.0
+     minor axis: azimuth 293.1, dip 35.7
+plane of the major and semi-major axes: dips 54 towards 113
+mean lens plane:                        dips 55 towards 112
+minor axis to lens pole: 0.9 degrees
 ```
 
 The major axis runs along strike, nearly horizontal; the semi-major axis runs down dip; the minor axis lies within a
@@ -133,7 +133,7 @@ save(fig, "slices")
 ## From the volume to a model
 
 With the rotation and ratios held at the volume's values, experimental variograms along the three axes leave
-`Variogram.fit_directional` only the nugget, sill and range to find. Across the lenses γ reaches the sill near 90 m
+`Variogram.fit_directional` only the nugget, sill and range to find. Across the lenses γ reaches the sill near 25 m
 and then falls back, as pairs 130 m apart land in the next lens: a hole effect the single structure ignores.
 
 <details><summary>Python</summary>
@@ -162,7 +162,7 @@ save(fig, "axes")
 </details>
 
 ```text
-nugget 0.53, sill 2.02, major range 218 m
+nugget 0.50, sill 1.98, major range 196 m
 ```
 
 ![axes](axes.png)

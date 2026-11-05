@@ -19,15 +19,15 @@ from common import ACCENT, GRAY, save
 
 ## Rock types
 
-Jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+The topsoil survey's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
 geology. A `Categories` scheme names the five types and gives each a color: `encode` turns labels into the codes 0
 to 4 that SIS takes, and `shares` gives their proportions.
 
 <details><summary>Python</summary>
 
 ```python
-jura = bt.datasets.jura()
-train, grid = jura["prediction"], jura["grid"]
+data = bt.datasets.topsoil_metals()
+train, grid = data["prediction"], data["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
 rock_types = bt.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
 rock = rock_types.encode(train["Rock"]).astype(int)
@@ -41,9 +41,9 @@ for k, name in enumerate(names):
 </details>
 
 ```text
-259 samples, 5957 grid nodes
+259 samples, 6751 grid nodes
               samples  share  true grid
-Argovian           53   0.20       0.20
+Argovian           53   0.20       0.21
 Kimmeridgian       85   0.33       0.34
 Sequanian          63   0.24       0.27
 Portlandian         3   0.01       0.05
@@ -75,11 +75,11 @@ for name, v in zip(names, variograms):
 </details>
 
 ```text
-Argovian     nugget 0.013, sill 0.135, range 0.79 km
-Kimmeridgian nugget 0.077, sill 0.152, range 1.62 km
-Sequanian    nugget 0.015, sill 0.176, range 0.61 km
+Argovian     nugget 0.076, sill 0.115, range 2.01 km
+Kimmeridgian nugget 0.077, sill 0.141, range 0.62 km
+Sequanian    nugget 0.108, sill 0.080, range 0.90 km
 Portlandian  nugget 0.000, sill 0.011, range 0.50 km
-Quaternary   nugget 0.000, sill 0.172, range 0.43 km
+Quaternary   nugget 0.049, sill 0.118, range 0.42 km
 ```
 
 <details><summary>Python</summary>
@@ -132,13 +132,13 @@ print(
 
 ```text
               true grid   mean    min    max
-Argovian           0.20   0.16   0.14   0.19
-Kimmeridgian       0.34   0.44   0.39   0.49
-Sequanian          0.27   0.24   0.20   0.28
+Argovian           0.21   0.22   0.18   0.25
+Kimmeridgian       0.34   0.33   0.29   0.38
+Sequanian          0.27   0.27   0.23   0.32
 Portlandian        0.05   0.02   0.01   0.03
-Quaternary         0.13   0.14   0.12   0.16
-a realization matches the true rock type at 53% to 60% of the nodes
-the most likely type matches at 64%; mean entropy 0.38
+Quaternary         0.13   0.17   0.13   0.21
+a realization matches the true rock type at 45% to 49% of the nodes
+the most likely type matches at 58%; mean entropy 0.53
 ```
 
 <details><summary>Python</summary>
@@ -171,10 +171,10 @@ save(fig, "realizations")
 
 ![realizations](realizations.png)
 
-Each realization matches the true rock type at 53 % to 60 % of the nodes, and two realizations differ wherever the
+Each realization matches the true rock type at 45 % to 49 % of the nodes, and two realizations differ wherever the
 samples leave room. The proportions drift from the samples: Kimmeridgian, whose indicator has the longest range,
 grows to 0.44 on average against 0.33 in the samples, while Argovian and Portlandian shrink. No realization
-recovers Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 64 %, more than any
+recovers Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 58 %, more than any
 realization, though it is a smooth estimate and no possible map looks like it. Entropy peaks at the contacts and
 far from the samples.
 

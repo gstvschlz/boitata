@@ -3,7 +3,7 @@
 
 Kriged panels are too large to mine selectively, and kriged selective blocks are too smooth. Uniform conditioning
 takes the kriged grade of each panel and returns the grade-tonnage curve of the selective blocks inside it;
-localization then places those blocks. The exhaustive Walker Lake grid gives the true 10 m blocks to check against.
+localization then places those blocks. The exhaustive metal survey grid gives the true 10 m blocks to check against.
 """
 
 # %% [hidden]
@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
@@ -101,7 +101,7 @@ save(fig, "uniform-conditioning")
 
 
 # %% [markdown]
-# At 500 ppm uniform conditioning keeps 15.6% of the blocks against a true 16.8%; the smoothed kriged blocks keep 13.6%.
+# At 500 ppm uniform conditioning keeps 19.1% of the blocks against a true 16.9%; the smoothed kriged blocks keep 14.0%.
 # At 300 ppm it overstates the tonnage by a few percent, as kriging does. At 800 ppm, where few blocks remain, it thins
 # the rich tail to 1.1% against a true 2.1%.
 
@@ -139,6 +139,6 @@ save(fig, "localized")
 
 # %% [markdown]
 # The localized blocks spread as the model says blocks should, and the model says too little here: variance 35 465
-# against the true 47 350. Block by block they match the truth less well than kriging (correlation 0.80 against 0.89),
+# against the true 47 350. Block by block they match the truth less well than kriging (correlation 0.88 against 0.92),
 # since the ranking inside a panel is only as good as the kriging that sets it. Localization keeps the grade of each
 # panel and its tonnage above every cutoff.

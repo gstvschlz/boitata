@@ -17,7 +17,7 @@ from common import ACCENT, GRAY, save
 
 ## Rules
 
-Jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+The topsoil survey's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
 geology. A `Categories` scheme names the rock types and gives each a color: `encode` turns labels into the codes 0
 to 4 that the simulations take, and `shares` gives their proportions.
 
@@ -29,8 +29,8 @@ stage touches only the next. Both use a guessed latent variogram of 0.8 km.
 <details><summary>Python</summary>
 
 ```python
-jura = bt.datasets.jura()
-train, grid = jura["prediction"], jura["grid"]
+data = bt.datasets.topsoil_metals()
+train, grid = data["prediction"], data["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
 rock_types = bt.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
 rock = rock_types.encode(train["Rock"]).astype(int)
@@ -58,11 +58,11 @@ for label, cats in simulated:
 ```text
              Argov   Kimme   Sequa   Portl   Quate
    samples    0.20    0.33    0.24    0.01    0.21
- true grid    0.20    0.34    0.27    0.05    0.13
-   ordered    0.14    0.37    0.29    0.01    0.19
-      rule    0.18    0.41    0.21    0.01    0.19
-ordered: 37% of nodes match the true rock type
-rule: 51% of nodes match the true rock type
+ true grid    0.21    0.34    0.27    0.05    0.13
+   ordered    0.17    0.39    0.28    0.01    0.15
+      rule    0.20    0.39    0.21    0.02    0.18
+ordered: 42% of nodes match the true rock type
+rule: 52% of nodes match the true rock type
 ```
 
 <details><summary>Python</summary>
@@ -86,7 +86,7 @@ save(fig, "categories")
 
 The single field keeps close to the sample proportions but allows contacts only between neighbors in the order, so
 Portlandian appears as specks along each Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next
-to Kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. Neither
+to Kimmeridgian and under the cover, as in the true map, and matches 52 % of the nodes against 42 %. Neither
 recovers Portlandian's 5 % of the area from 3 of 259 samples.
 
 ## Local proportions
@@ -117,7 +117,7 @@ print(f"rule, local proportions: {np.mean(by_local == true_rock):.0%} of nodes m
 </details>
 
 ```text
-rule, local proportions: 57% of nodes match the true rock type
+rule, local proportions: 55% of nodes match the true rock type
 ```
 
 <details><summary>Python</summary>
@@ -139,7 +139,7 @@ save(fig, "local-proportions")
 ![local-proportions](local-proportions.png)
 
 With local proportions, Argovian keeps to the north-west and the south, near its samples, and the realization
-matches the true rock type at 57 % of the nodes, against 51 % with global proportions.
+matches the true rock type at 55 % of the nodes, against 52 % with global proportions.
 
 ## Latent variograms
 
@@ -170,8 +170,8 @@ print(
 </details>
 
 ```text
-fitted latent ranges: 0.49 km for the cover field, 1.87 km for the stages field
-rule, local proportions, fitted: 59% of nodes match the true rock type
+fitted latent ranges: 0.44 km for the cover field, 1.25 km for the stages field
+rule, local proportions, fitted: 54% of nodes match the true rock type
 ```
 
 <details><summary>Python</summary>
@@ -193,7 +193,7 @@ save(fig, "latent-variograms")
 
 ![latent-variograms](latent-variograms.png)
 
-The fitted cover field is short (0.49 km) and the stages field long (1.87 km), so the stages form broad bands that
+The fitted cover field is short (0.44 km) and the stages field long (1.25 km), so the stages form broad bands that
 the cover patches over; with 0.8 km on both, the stages varied too fast. The fitted variograms follow the
 experimental points of each rock type and bring the match to 59 %.
 

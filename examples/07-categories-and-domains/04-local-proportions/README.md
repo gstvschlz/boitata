@@ -40,7 +40,7 @@ print(f"{len(composites)} composites, {height.min():.1f} to {height.max():.1f} m
 </details>
 
 ```text
-583 composites, -2.2 to 24.4 m above the original ground
+578 composites, -2.4 to 19.9 m above the original ground
 ```
 
 ## Vertical proportion curve
@@ -160,7 +160,7 @@ print(
 </details>
 
 ```text
-17346 cells, proportions 0.00 to 1.00, sums 1.000000000000
+16030 cells, proportions 0.00 to 1.00, sums 1.000000000000
 ```
 
 ## SIS with and without local proportions
@@ -212,7 +212,7 @@ save(fig, "sections")
 ## Checks
 
 `check_realizations` ([realization checks](../../10-checking-models/04-realization-checks/README.md)) compares the category proportions of each realization with the declustered
-data's. Both runs come within five points of them, the local one with more cap, which the curve spreads over each
+data's. Both runs come within seven points of them, the local one with more cap, which the curve spreads over each
 height the facility's top reaches. The global shares hide where each category went. The share of clay in each meter
 of height shows it, and only the run with local proportions follows the curve.
 
@@ -244,8 +244,8 @@ save(fig, "checks")
 </details>
 
 ```text
-Global             [0.031 0.41  0.389 0.169] data [0.028 0.439 0.374 0.158]
-Local proportions  [0.044 0.397 0.386 0.173] data [0.028 0.439 0.374 0.158]
+Global             [0.02  0.47  0.35  0.161] data [0.013 0.512 0.319 0.156]
+Local proportions  [0.028 0.448 0.335 0.189] data [0.013 0.512 0.319 0.156]
 ```
 
 ![checks](checks.png)

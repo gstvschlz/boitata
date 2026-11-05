@@ -88,7 +88,7 @@ A regular model stores no coordinates: the row number is the block number. A mas
 A fitted estimator saves the same way. Its samples become columns; its variogram, search and options go into the metadata as JSON:
 
 ```python
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 kriging = bt.OrdinaryKriging(variogram, bt.Search(radius=60)).fit(samples, "V")
 kriging.to_parquet("kriging.parquet")
 again = bt.OrdinaryKriging.from_parquet("kriging.parquet")

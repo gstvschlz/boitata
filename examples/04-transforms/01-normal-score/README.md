@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 v = samples["V"]
 w = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 samples = samples.with_column("w", w)
@@ -27,7 +27,7 @@ print(f"back-transform max error {np.abs(ns.inverse_transform(y) - v).max():.1e}
 </details>
 
 ```text
-scores: weighted mean 0.001, sd 0.998
+scores: weighted mean 0.000, sd 0.998
 back-transform max error 0.0e+00
 ```
 
@@ -137,9 +137,9 @@ print(f"transform: {np.unique(ns.transform(v[zero]))[0]:.2f} for all")
 </details>
 
 ```text
-22 of 470 samples at 0 ppm
-fit_transform: scores -2.73 to -1.34
-transform: -1.76 for all
+12 of 470 samples at 0 ppm
+fit_transform: scores -2.81 to -1.67
+transform: -2.01 for all
 ```
 
 Neither order means anything. For a large spike, such as assays at a detection limit,

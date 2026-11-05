@@ -33,7 +33,7 @@ consistent with the samples, and you read the uncertainty from their differences
 # exceeds it (shaded).</figcaption>
 # </figure>
 #
-# The exhaustive Walker Lake data set gives the true value of `V` at every node, so you can measure this. Load the 470
+# The exhaustive metal survey data set gives the true value of `V` at every node, so you can measure this. Load the 470
 # samples and the truth on a 5 m grid of 3 120 nodes, then krige with the variogram from
 # [chapter 4](../04-kriging/learn_04.md):
 
@@ -51,8 +51,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
@@ -73,9 +73,9 @@ print(
 )
 
 # %% [markdown]
-# The kriged map has a standard deviation of 196 ppm against 250 ppm for the truth, and its highest node reaches
-# 1 316 ppm where the truth reaches 1 610 ppm. Above a 500 ppm cutoff, kriging reports 13.1 % of the area and the truth
-# holds 18.9 %. A mine plan built on the kriged map would miss almost a third of the ground above cutoff. The
+# The kriged map has a standard deviation of 208 ppm against 256 ppm for the truth, and its highest node reaches
+# 1 379 ppm where the truth reaches 1 629 ppm. Above a 500 ppm cutoff, kriging reports 14.7 % of the area and the truth
+# holds 18.7 %. A mine plan built on the kriged map would miss a fifth of the ground above cutoff. The
 # cumulative distributions show the squeeze: kriging has fewer low and fewer high values than the truth.
 
 # %%
@@ -115,7 +115,7 @@ save(fig, "smoothing")
 # ## The normal-score transform
 #
 # SGS works with Gaussian values, whose conditional distribution kriging describes fully by a mean and a variance.
-# Grades are rarely Gaussian: Walker Lake `V` is skewed, with 22 samples at 0 ppm. The normal-score transform sorts
+# Grades are rarely Gaussian: The metal survey `V` is skewed, with 12 samples at 0 ppm. The normal-score transform sorts
 # the data, gives each value its cumulative probability and replaces the value with the standard Gaussian score at
 # the same cumulative probability (Figure 3). The back-transform follows the same arrows in reverse, from a score to a
 # value in ppm.
@@ -147,9 +147,9 @@ print(
 print(f"largest round-trip error: {np.abs(score.inverse_transform(y) - v).max():.1e} ppm")
 
 # %% [markdown]
-# The scores have a declustered mean of 0.00 and variance of 0.97, close to the standard Gaussian. A score of 0, the
-# median, maps back to 235 ppm, and the cutoff of 500 ppm sits at a score of 0.80. The round trip returns every sample
-# unchanged. The spike at the left of the score histogram holds the zeros: tied values share one score, so the 9 % of
+# The scores have a declustered mean of 0.00 and variance of 0.98, close to the standard Gaussian. A score of 0, the
+# median, maps back to 234 ppm, and the cutoff of 500 ppm sits at a score of 0.88. The round trip returns every sample
+# unchanged. The spike at the left of the score histogram holds the zeros: tied values share one score, so the 5 % of
 # declustered weight at 0 ppm cannot spread into a Gaussian tail.
 
 # %%
@@ -184,7 +184,7 @@ gaussian = bt.Variogram(
 print(gaussian)
 
 # %% [markdown]
-# The model has a nugget of 0.34 and one spherical structure reaching its sill at 82 m along N170° and at 0.43 of that
+# The model has a nugget of 0.09 and one spherical structure reaching its sill at 119 m along N170° and at 0.48 of that
 # across it.
 #
 # ## Sequential Gaussian simulation, step by step
@@ -231,7 +231,7 @@ print(
 )
 
 # %% [markdown]
-# Each realization has a standard deviation between 258 and 273 ppm, against 196 ppm for kriging and 250 ppm for the
+# Each realization has a standard deviation between 238 and 254 ppm, against 208 ppm for kriging and 256 ppm for the
 # truth. The maps share the texture of the truth: the high-grade trend runs north-northwest, with sharp local contrasts
 # that kriging erases. They differ from each other where samples are sparse.
 
@@ -266,8 +266,8 @@ print(f"seed 7, nodes that differ: {np.mean(other != again):.0%}")
 
 # %% [markdown]
 # The first three realizations of the seed 42 run repeat to the last digit, although this call asked for 3
-# realizations and the first asked for 50. Seed 7 changes 97 % of the nodes. Almost all of the rest back-transform to
-# 0 ppm in both runs, the value that holds 9 % of the declustered data.
+# realizations and the first asked for 50. Seed 7 changes 99 % of the nodes. Almost all of the rest back-transform to
+# 0 ppm in both runs, the value that holds 5 % of the declustered data.
 #
 # !!! pitfall "Pitfall"
 #     Record the seed with the results. Without it, you cannot reproduce a resource figure drawn from simulation next
@@ -291,8 +291,8 @@ for name in ["mean", "std", "P90"]:
     )
 
 # %% [markdown]
-# The declustered data have a mean of 291 ppm, and the realization means range from 274 to 322 ppm around it. The
-# realizations' 90th percentiles, 635 to 687 ppm, bracket the data's 636 ppm. Their standard deviations, 258 to
+# The declustered data have a mean of 285 ppm, and the realization means range from 260 to 287 ppm around it. The
+# realizations' 90th percentiles, 607 to 676 ppm, bracket the data's 676 ppm. Their standard deviations, 258 to
 # 273 ppm, sit just above the data's 255 ppm. The variograms follow the model up to its range along and across N170°,
 # then scatter around the sill. A single 260 × 300 m field cannot settle on the sill, and the band shows how far it
 # wanders.
@@ -335,10 +335,10 @@ print(
 )
 
 # %% [markdown]
-# The E-type map is smooth, with a standard deviation of 186 ppm, and the cutoff applied to it gives 13.1 % of the
+# The E-type map is smooth, with a standard deviation of 213 ppm, and the cutoff applied to it gives 15.2 % of the
 # area, the same as kriging. The realizations give a range: between 20.7 % (P10) and 24.5 % (P90) of the area lies
 # above 500 ppm. The true 18.9 % falls just below that range. The realizations reproduce the declustered histogram,
-# whose mean is 291 ppm against 276 ppm for the truth, so they inherit its excess of high values. Simulation measures
+# whose mean is 285 ppm against 280 ppm for the truth, so they inherit its excess of high values. Simulation measures
 # uncertainty given the data and the model, and it cannot correct a biased histogram.
 #
 # The probability map is the practical output. Its bright areas are high grade in almost every realization, and the

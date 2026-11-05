@@ -12,8 +12,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuth = 170.0
 ```
@@ -40,7 +40,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.3315861183518779, structures=[Structure("spherical", sill=0.6684138816481222, range=82.43111673409601)], rotation=(170.0, 0.0, 0.0), ratios=(0.42564072265384956, 1.0))
+Variogram(nugget=0.08618178903417904, structures=[Structure("spherical", sill=0.913818210965821, range=124.0562547366332)], rotation=(170.0, 0.0, 0.0), ratios=(0.4095872533818296, 1.0))
 ```
 
 SGS normal-scores the data, simulates along a random path and back-transforms. The 50 realizations come out the
@@ -76,10 +76,10 @@ print(
 </details>
 
 ```text
-realization means 274-334, true 276
-realization variance 70844, true 62312
-area above 500 ppm: P10 20.6%, P90 24.6%, true 18.9%
-median cv 0.74; nodes within ±50 % at 90 % confidence: 4%
+realization means 260-298, true 280
+realization variance 61414, true 65444
+area above 500 ppm: P10 17.4%, P90 19.3%, true 18.7%
+median cv 0.58; nodes within ±50 % at 90 % confidence: 18%
 ```
 
 Each realization looks like the truth; their mean is smooth like kriging, and their spread measures uncertainty.

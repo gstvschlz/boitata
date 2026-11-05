@@ -70,7 +70,7 @@ print(f"dense and patches put {same.mean():.2%} of the blocks on the same side")
 # %% [markdown]
 # On the 12 m composites the two solvers give the same volume and put all but one block in a thousand on the same
 # side, the dense one in seconds and the patches in hundredths of a second. Both honor every code. Six times as many
-# composites cost the patches a fraction of a second more, and the shell grows by a fifth. On the section of grade
+# composites cost the patches a fraction of a second more, and the shell grows by two fifths. On the section of grade
 # shells, at true scale, with the trace of the solid in black and topography as a thin line:
 
 # %%
@@ -120,7 +120,7 @@ for patch in (1600, 400, 100):
     )
 
 # %% [markdown]
-# The default of 400 stays within half a percent of the blocks of `patch=1600` at a small fraction of its time.
+# The default of 400 stays within 1 % of the blocks of `patch=1600` at a small fraction of its time.
 # `report` says which solver ran and with how many patches. The 2000-sample switch counts constraint rows: each
 # sample and boundary pick is one, each plane two and each lineation one, so structural readings
 # ([structural data](../../11-geological-modeling/03-structural-data/README.md)) go through patches too.

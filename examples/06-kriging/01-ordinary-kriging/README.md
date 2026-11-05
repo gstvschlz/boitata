@@ -1,6 +1,6 @@
 # Ordinary kriging
 
-Ordinary kriging of Walker Lake `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values and
+Ordinary kriging of the metal survey `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values and
 by leave-one-out cross-validation.
 
 <details><summary>Python</summary>
@@ -12,8 +12,8 @@ import numpy as np
 from common import ACCENT, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 ```
 
 </details>
@@ -35,7 +35,7 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=16458.263904055566, structures=[Structure("spherical", sill=39532.539054973735, range=36.61762520915539), Structure("spherical", sill=39110.929672733, range=115)], rotation=(161.46015029654865, 0.0, 0.0), ratios=(0.33583545063941, 1.0))
+Variogram(nugget=4206.687742369014, structures=[Structure("spherical", sill=22196.35970010602, range=13.985603587057282), Structure("spherical", sill=51357.03331809447, range=115)], rotation=(0.49145436900599293, 0.0, 0.0), ratios=(0.3430416888351493, 1.0))
 ```
 
 The search takes up to 24 samples within 100 m. `predict` accepts a `BlockModel`, a `PointSet` or an array of
@@ -79,9 +79,9 @@ print(
 </details>
 
 ```text
-grid: mean estimate 291.7, true 276.2
-variance of estimates 38466 vs true 62312
-cross-validation: ME 12.1  RMSE 185.6  r 0.79  slope 1.03  error²/variance 0.71
+grid: mean estimate 283.4, true 279.6
+variance of estimates 43066 vs true 65444
+cross-validation: ME 6.7  RMSE 153.2  r 0.84  slope 1.04  error²/variance 0.72
 ```
 
 The kriging standard deviation depends only on the data layout and the model: low near samples, high in gaps.
@@ -111,9 +111,9 @@ save(fig, "maps")
 
 ![maps](maps.png)
 
-Kriging smooths: the estimates vary less than the truth, a variance of 38 000 against 62 000 at the nodes.
+Kriging smooths: the estimates vary less than the truth, a variance of 43 000 against 65 000 at the nodes.
 Cross-validation shows no conditional bias (the slope of actual on estimate is near 1). A mean error² / variance of
-0.71 means the model's variance runs high here.
+0.72 means the model's variance runs high here.
 
 <details><summary>Python</summary>
 

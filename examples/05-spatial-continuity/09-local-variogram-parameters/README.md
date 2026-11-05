@@ -1,6 +1,6 @@
 # Local variogram parameters
 
-[Locally varying anisotropy](../../06-kriging/14-local-anisotropy/README.md) bent the variogram along Walker Lake's
+[Locally varying anisotropy](../../06-kriging/14-local-anisotropy/README.md) bent the variogram along the metal survey's
 high-`V` bodies but kept one set of ranges everywhere. Here the local frames of
 [locally varying anisotropy](../../06-kriging/14-local-anisotropy/README.md) measure experimental variograms that follow
 the bodies. Moving-window fits of those variograms give a range scale and a ratio per region, and kriging takes them the
@@ -15,8 +15,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
 nodes = grid.coords.astype(int)
@@ -56,7 +56,7 @@ print(f"global ratio {model.ratios[0]:.2f}, ranges {[round(s.range) for s in mod
 </details>
 
 ```text
-global ratio 0.33, ranges [20, 81] m
+global ratio 0.37, ranges [8, 104] m
 ```
 
 ## Variograms along the local directions
@@ -106,8 +106,8 @@ for name, field in (("global frame", None), ("local frames", lva)):
 </details>
 
 ```text
-global frame: ratio 0.32, scale 1.01
-local frames: ratio 0.23, scale 1.38
+global frame: ratio 0.22, scale 1.21
+local frames: ratio 0.27, scale 1.18
 ```
 
 ## Moving-window fits
@@ -131,8 +131,8 @@ print("ratio percentiles (10, 50, 90):", np.percentile(fitted.ratios[:, 0], [10,
 </details>
 
 ```text
-scale percentiles (10, 50, 90): [1.45 2.19 3.19]
-ratio percentiles (10, 50, 90): [0.13 0.14 0.19]
+scale percentiles (10, 50, 90): [0.77 0.97 1.24]
+ratio percentiles (10, 50, 90): [0.16 0.33 0.42]
 ```
 
 <details><summary>Python</summary>
@@ -181,10 +181,10 @@ for name, estimate in estimates.items():
 </details>
 
 ```text
-        global N170°: RMSE 157.3 ppm, correlation 0.780
-        local angles: RMSE 148.3 ppm, correlation 0.805
-            + scales: RMSE 148.1 ppm, correlation 0.806
- + scales and ratios: RMSE 161.1 ppm, correlation 0.769
+        global N170°: RMSE 144.2 ppm, correlation 0.826
+        local angles: RMSE 145.6 ppm, correlation 0.823
+            + scales: RMSE 145.9 ppm, correlation 0.822
+ + scales and ratios: RMSE 146.3 ppm, correlation 0.821
 ```
 
 <details><summary>Python</summary>
@@ -210,11 +210,11 @@ save(fig, "kriging")
 
 ![kriging](kriging.png)
 
-The scales alone change the estimate little: RMSE 148.1 against 148.3 ppm. Longer ranges with the same nugget and
+The scales alone change the estimate little: RMSE 145.9 against 145.6 ppm. Longer ranges with the same nugget and
 ratios leave the kriging weights close. The fitted ratios change them: the windows see bodies about 0.14 as wide as
 they are long, against 0.33 in the global model, and kriging with those needle-thin ellipses streaks along the field's
 directions. Wherever the guide's directions are off, the estimate follows them across the bodies, and the RMSE rises
-to 161.1 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
+to 146.3 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
 field. With a field this rough, keep the global ratios and take the local angles and scales. SGS, indicator and
 categorical kriging take the same `anisotropy=` field, scales included.
 

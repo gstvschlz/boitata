@@ -12,7 +12,7 @@ import numpy as np
 from common import map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))
@@ -64,8 +64,8 @@ by_sgs = plain.simulate(grid, n=20, seed=5, keep=True).realizations
 </details>
 
 ```text
-Variogram(nugget=0.19038648061160174, structures=[Structure("spherical", sill=0.8096135193883983, range=22.62299198336531)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-Variogram(nugget=0.3405226282644493, structures=[Structure("spherical", sill=0.6594773717355508, range=51.76429044224697)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=0.1954025835782448, structures=[Structure("spherical", sill=0.8045974164217553, range=21.18654783120769)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram(nugget=0.29338298731700524, structures=[Structure("spherical", sill=0.7066170126829948, range=71.08170719796509)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
 ```
 
 <details><summary>Python</summary>
@@ -88,12 +88,12 @@ for k in range(4):
 </details>
 
 ```text
-correlation with the trend: data 0.52, SGS 0.45, SGS with trend 0.49
+correlation with the trend: data 0.64, SGS 0.60, SGS with trend 0.64
 mean V (ppm) by trend quartile    data   SGS  SGS with trend
-quartile 1                         106   145             114
-quartile 2                         267   261             262
-quartile 3                         320   328             321
-quartile 4                         450   449             451
+quartile 1                          72    98              82
+quartile 2                         222   230             222
+quartile 3                         309   323             311
+quartile 4                         504   520             520
 ```
 
 <details><summary>Python</summary>

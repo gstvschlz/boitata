@@ -2,7 +2,7 @@
 
 SGS simulates normal scores and back-transforms them, so it reproduces the variogram of the scores. DSS kriges the
 grades themselves with their own variogram and draws each node from the declustered histogram, so it needs no
-Gaussian model of the field. This page runs both on Walker Lake and compares what each reproduces.
+Gaussian model of the field. This page runs both on the metal survey and compares what each reproduces.
 
 <details><summary>Python</summary>
 
@@ -15,8 +15,8 @@ import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 stats = bt.describe(v, weights=weights)
@@ -27,7 +27,7 @@ print(f"declustered mean {stats['mean']:.0f} ppm, variance {variance:.0f} ppm²"
 </details>
 
 ```text
-declustered mean 291 ppm, variance 65006 ppm²
+declustered mean 285 ppm, variance 64116 ppm²
 ```
 
 Each method takes the variogram of the variable it kriges: SGS the variogram of the normal scores, DSS the variogram
@@ -55,8 +55,8 @@ print(f"normal scores: {gaussian}\ngrades:        {raw}")
 </details>
 
 ```text
-normal scores: Variogram(nugget=0.3315861183518779, structures=[Structure("spherical", sill=0.6684138816481222, range=82.43111673409601)], rotation=(170.0, 0.0, 0.0), ratios=(0.42564072265384956, 1.0))
-grades:        Variogram(nugget=0.35312835994483693, structures=[Structure("spherical", sill=0.6468716400551631, range=75.41661873855779)], rotation=(170.0, 0.0, 0.0), ratios=(0.3216494539612399, 1.0))
+normal scores: Variogram(nugget=0.08618178903417904, structures=[Structure("spherical", sill=0.913818210965821, range=124.0562547366332)], rotation=(170.0, 0.0, 0.0), ratios=(0.4095872533818296, 1.0))
+grades:        Variogram(nugget=0.21560080761689654, structures=[Structure("spherical", sill=0.7843991923831034, range=102.90381954293758)], rotation=(170.0, 0.0, 0.0), ratios=(0.4598890787188343, 1.0))
 ```
 
 DSS simple kriges each node with the declustered mean and draws it from the declustered histogram, as the
@@ -65,7 +65,7 @@ kriging extrapolates beyond the data, no such draw exists; DSS takes the nearest
 share of nodes it moved. Both simulators run 30 realizations from the same seed.
 
 Each DSS draw matches its kriged mean and variance, but the histogram of a realization need not match the data. V is
-skewed, with 9% of the declustered samples at 0 ppm, and its variogram has a 35% nugget, so the kriging variance
+skewed, with 5% of the declustered samples at 0 ppm, and its variogram has a 22% nugget, so the kriging variance
 stays large where the kriged mean is low. The only draws with a low mean and a large variance put most of their
 weight at 0 ppm and the rest at high grades. `correct_distribution` maps each realization, rank by rank, onto the
 declustered histogram.
@@ -100,15 +100,15 @@ print(
 </details>
 
 ```text
-11.71% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
-DSS: mean 302, variance 72524, at 0 ppm 18.8%, above 500 ppm 24.2%
-corrected DSS: mean 291, variance 65002, at 0 ppm 9.1%, above 500 ppm 21.1%
-SGS: mean 299, variance 71069, at 0 ppm 9.5%, above 500 ppm 22.1%
-true: mean 276, variance 62312, at 0 ppm 7.6%, above 500 ppm 18.9%
+16.49% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
+DSS: mean 283, variance 66393, at 0 ppm 20.1%, above 500 ppm 20.7%
+corrected DSS: mean 285, variance 64081, at 0 ppm 4.8%, above 500 ppm 19.0%
+SGS: mean 274, variance 61386, at 0 ppm 4.1%, above 500 ppm 18.2%
+true: mean 280, variance 65444, at 0 ppm 5.1%, above 500 ppm 18.7%
 ```
 
-DSS puts 19% of the nodes at 0 ppm, twice the declustered share, in wide patches across the low-grade areas. After
-the correction, realization 1 keeps the same pattern of high and low grades with 9% at 0 ppm. The DSS and SGS
+DSS puts 20% of the nodes at 0 ppm, four times the declustered share, in wide patches across the low-grade areas. After
+the correction, realization 1 keeps the same pattern of high and low grades with 5% at 0 ppm. The DSS and SGS
 realizations average about 300 ppm with a variance near 72 000 ppm², above the declustered 291 ppm and 65 006 ppm²:
 the grid nodes near the clustered high-grade samples copy them. The corrected realizations take the declustered mean
 and variance exactly.

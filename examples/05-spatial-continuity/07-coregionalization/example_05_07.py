@@ -1,7 +1,7 @@
 """
 # Coregionalization
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km). Cd correlates with Zn, and a linear model of
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km). Cd correlates with Zn, and a linear model of
 coregionalization (LMC) describes both variograms and their cross-variogram with one set of structures.
 """
 
@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, INK, save
 
-samples = bt.datasets.jura()["prediction"]
+samples = bt.datasets.topsoil_metals()["prediction"]
 xy = samples.coords
 cd, zn = samples["Cd"], samples["Zn"]
 lag, max_lag = 0.1, 1.5

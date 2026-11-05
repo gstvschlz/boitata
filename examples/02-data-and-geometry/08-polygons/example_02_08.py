@@ -100,7 +100,7 @@ map_axes(ax, "Mining method of the nearest hole")
 save(fig, "domains")
 
 # %% [markdown]
-# `MECHANIZED` holes are 81.0 % of the holes, but their domain covers 69.7 % of the lease, because the infill went
+# `MECHANIZED` holes are 78.0 % of the holes, but their domain covers 64.6 % of the lease, because the infill went
 # where the seam is thick. Counting cells instead of holes declusters the shares.
 #
 # ## Majority vote
@@ -129,7 +129,7 @@ save(fig, "majority")
 
 # %% [markdown]
 # The changed cells sit around isolated `SELECTIVE` holes, now outvoted by their `MECHANIZED` neighbors, and
-# `MECHANIZED` grows from 69.7 % to 80.4 % of the lease. Majority smooths the map but gives back the declustering:
+# `MECHANIZED` grows from 64.6 % to 74.7 % of the lease. Majority smooths the map but gives back the declustering:
 # where the drilling is dense, one method wins most votes.
 #
 # ## A polygon with a hole

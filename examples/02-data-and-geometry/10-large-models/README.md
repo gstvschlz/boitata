@@ -47,8 +47,8 @@ for name in ("hematite", "itabirite"):
 </details>
 
 ```text
-hematite   14,889 blocks of 25 m,  1794 composites
-itabirite  32,771 blocks of 25 m,  3635 composites
+hematite   12,642 blocks of 25 m,  1321 composites
+itabirite  34,868 blocks of 25 m,  3588 composites
 ```
 
 `from_extents` sizes a 5 m grid on the block model ([block model from extents](../../02-data-and-geometry/12-block-model-from-extents/README.md)). The model keeps only the blocks whose
@@ -73,7 +73,7 @@ print(f"grid {grid.count}: {len(file):,} of {len(grid):,} blocks of 5 m kept, {s
 </details>
 
 ```text
-grid [445, 405, 80]: 2,849,350 of 14,418,000 blocks of 5 m kept, 0 MB
+grid [445, 405, 80]: 2,834,275 of 14,418,000 blocks of 5 m kept, 0 MB
 ```
 
 Weathering acts from the top of the plateau, so within a domain iron still drifts with position. A smooth trend per
@@ -106,8 +106,8 @@ print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} 
 </details>
 
 ```text
-domains and trend in 1 s
-trend at the composites: variance 65 of 175 %²
+domains and trend in 2 s
+trend at the composites: variance 38 of 143 %²
 ```
 
 Turning bands simulates the bands of each realization once over the model's extent, then evaluates and
@@ -155,10 +155,10 @@ print(f"first realization: mean {first.mean():.2f} % Fe, as accumulated {result[
 </details>
 
 ```text
-residual scores: nugget 0.36, range 35 m
-10 realizations in 4 s; blocks above 60 % Fe: P10 22.3%, P90 22.6%
-output 76 MB
-first realization: mean 46.78 % Fe, as accumulated 46.78
+residual scores: nugget 0.34, range 26 m
+10 realizations in 6 s; blocks above 60 % Fe: P10 22.7%, P90 22.9%
+output 77 MB
+first realization: mean 48.91 % Fe, as accumulated 48.91
 ```
 
 Mining selects 25 × 25 × 12 m blocks. With `discretization`, each block of a file is simulated at nodes, here
@@ -189,10 +189,10 @@ print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {lo
 </details>
 
 ```text
-47,660 blocks of 25 m in 1 s; above 60 % Fe: P10 15.0%, P90 15.4%
+47,510 blocks of 25 m in 2 s; above 60 % Fe: P10 14.0%, P90 14.3%
 ```
 
-Averaging smooths the highs: about 15 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
+Averaging smooths the highs: about 14 % of the 25 m blocks pass 60 % Fe, against 23 % of the 5 m blocks.
 
 The output is too big for memory, so you collect the east-west section with the most composites from the chunks,
 reading only the columns it needs, into a small model of its own.

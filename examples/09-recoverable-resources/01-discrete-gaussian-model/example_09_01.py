@@ -3,7 +3,7 @@
 
 Mining selects blocks. Block grades vary less than point grades, so a point histogram misstates the tonnage above
 cutoffs. The discrete Gaussian model shrinks a Hermite anamorphosis of the points to block support, and the exhaustive
-Walker Lake grid gives the true point and block curves to check it against.
+metal survey grid gives the true point and block curves to check it against.
 """
 
 # %% [hidden]
@@ -19,8 +19,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 
@@ -99,8 +99,8 @@ save(fig, "grade-tonnage")
 
 
 # %% [markdown]
-# The model shrinks the point variance of 64 974 to 32 652 for 10 m blocks, below the true 46 694, so it pulls the rich
-# tail in too far: above 500 ppm it keeps 13.3% of the blocks against a true 16.2%, above 800 ppm 1.0% against 2.1%. The
+# The model shrinks the point variance of 64 054 to 46 822 for 10 m blocks, below the true 50 729, so it pulls the rich
+# tail in too far: above 500 ppm it keeps 16.5% of the blocks against a true 17.1%, above 800 ppm 2.4% against 2.8%. The
 # point curves run a few percent high, since the declustered samples still overstate the rich grades.
 # [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and
 # [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md) carry block support down to panels;

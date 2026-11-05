@@ -26,8 +26,8 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # %% [markdown]
 # ## The estimation problem
 #
-# Figure 1 shows the problem at one location of the Walker Lake area. Seven samples lie within 22 m of the target,
-# with values from 3 to 317 ppm. A sensible estimate is a weighted average of them, so the question is how to choose
+# Figure 1 shows the problem at one location of the metal survey area. Seven samples lie within 15 m of the target,
+# with values from 248 to 714 ppm. A sensible estimate is a weighted average of them, so the question is how to choose
 # the weights.
 #
 # <figure class="bt-figure">
@@ -40,7 +40,7 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # inverse squared distance (**inverse distance**) favor near samples, but the rule sees only distances: it ignores
 # the variogram and where the samples sit relative to each other.
 #
-# The chapter uses the 470 Walker Lake samples and the anisotropic model fitted in chapter 3. The exhaustive data
+# The chapter uses the 470 metal survey samples and the anisotropic model fitted in chapter 3. The exhaustive data
 # give the true value at every node, so you can check each claim against the truth. The last line of the cell
 # describes the seven samples of Figure 1.
 
@@ -52,9 +52,9 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 from matplotlib.colors import PowerNorm
 from matplotlib.patches import Ellipse
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -168,7 +168,7 @@ for name, coords in layouts.items():
 #
 # ## Weights at a real node
 #
-# Back to Walker Lake. A `Search` describes the neighborhood: an ellipse with an 80 m major radius along the
+# Back to the metal survey. A `Search` describes the neighborhood: an ellipse with an 80 m major radius along the
 # model's major axis, half as wide across it, and up to 24 samples. `OrdinaryKriging(model, search)` builds the
 # estimator, `fit` stores the samples and `predict` estimates at targets, the same fit-then-apply shape as the
 # transforms' `fit`/`transform`. The cell reads all 470 weights at the point (100, 180) m of Figure 1.
@@ -192,8 +192,8 @@ print(
 )
 
 # %% [markdown]
-# The search picks 24 samples and the weights sum to one, as the constraint demands. Two weights are negative, the
-# lowest −0.003, and the weighted sum of the values reproduces the estimate of 76.8 ppm. The next cell rebuilds the
+# The search picks 24 samples and the weights sum to one, as the constraint demands. Six weights are negative, the
+# lowest −0.020, and the weighted sum of the values reproduces the estimate of 359.3 ppm. The next cell rebuilds the
 # system of the math box from `model.gamma_between` and solves it with NumPy. The weights agree to machine precision.
 
 # %%
@@ -224,7 +224,7 @@ save(fig, "weights")
 
 # %% [markdown]
 # The largest weights sit along the major axis, north and south of the target, where the variogram keeps samples
-# alike over long distances. The tight group west of the target shares little weight among its members: the
+# alike over long distances. The tight group southeast of the target shares little weight among its members: the
 # declustering effect again.
 #
 # ## A whole grid
@@ -249,7 +249,7 @@ for name in ("ok", "idw"):
     )
 
 # %% [markdown]
-# Kriging misses the truth by 155.1 ppm on average (root mean squared error), inverse distance by 166.2 ppm. The
+# Kriging misses the truth by 144.7 ppm on average (root mean squared error), inverse distance by 160.5 ppm. The
 # difference is modest because both use the same anisotropic search. Both sets of estimates also vary less than the
 # truth (see the last section).
 #
@@ -284,7 +284,7 @@ save(fig, "maps")
 
 # %% [markdown]
 # The standard deviation map follows the sampling: low in the infill clusters, high between sample lines and at the
-# edges. Its correlation with the actual error is −0.01. The Walker Lake survey sampled most densely where `V` is high
+# edges. Its correlation with the actual error is 0.09. The metal survey sampled most densely where `V` is high
 # and erratic, so the nodes with the lowest kriging variance are among the hardest to estimate. The variance cannot
 # know that.
 #
@@ -305,7 +305,7 @@ save(fig, "maps")
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l04-search.svg"
-# <figcaption><b>Figure 4.</b> A search ellipse along N161°, half as wide across, split into quadrants. With eight
+# <figcaption><b>Figure 4.</b> A search ellipse along N0°, half as wide across, split into quadrants. With eight
 # samples and two per quadrant, the cluster northeast of the target contributes two samples and the empty sides
 # still get their share.</figcaption>
 # </figure>
@@ -330,9 +330,9 @@ for m in (4, 8, 24, 48):
     print(f"{m:12d}  {e.var():21.0f}  {slope(e):5.2f}  {rmse:5.1f}")
 
 # %% [markdown]
-# With 4 samples the estimates vary more (44 123 ppm²), but the slope is 0.93: high estimates overshoot. From 24
-# samples on, the slope reaches 1.00 and the variance of the estimates settles near 38 300. The RMSE stays between
-# 154.7 and 155.7 ppm across the four searches. A small search keeps more of the variability, and a larger one
+# With 4 samples the estimates vary more (49 112 ppm²), but the slope is 0.95: high estimates overshoot. From 24
+# samples on, the slope reaches 1.02 and the variance of the estimates settles near 43 300. The RMSE stays between
+# 144.4 and 147.3 ppm across the four searches. A small search keeps more of the variability, and a larger one
 # removes conditional bias. That trade-off drives the choice of search;
 # [search](../../examples/06-kriging/06-search/example_06_06.md) explores it further.
 #
@@ -354,14 +354,14 @@ for name, e, var in (("point", point_estimate, point_variance), ("block", block_
     print(f"{name} kriging of 10 m blocks: RMSE {rmse:.1f} ppm, mean kriging variance {var.mean():.0f}")
 
 # %% [markdown]
-# Against the true block averages, block kriging is more accurate (101.5 against 105.8 ppm), and its mean
-# kriging variance, 19 404, is about a third of the point value, 54 073. Chapter 1's point on
+# Against the true block averages, block kriging is more accurate (90.9 against 93.7 ppm), and its mean
+# kriging variance, 13 981, is about a third of the point value, 40 898. Chapter 1's point on
 # [support](../01-samples-and-support/learn_01.md) applies to estimates too: state the support you estimate.
 #
 # ## Smoothing and conditional bias
 #
 # A weighted average cannot swing as wide as the values it averages, so kriged maps are smoother than reality. Here
-# the estimates have a variance of 38 359 ppm² against 62 312 for the truth at the nodes. Figure 5 shows the effect
+# the estimates have a variance of 43 196 ppm² against 65 444 for the truth at the nodes. Figure 5 shows the effect
 # along one line: the kriged profile follows the trend and misses the peaks and troughs.
 #
 # <figure class="bt-figure">
@@ -392,8 +392,8 @@ print(
 )
 
 # %% [markdown]
-# The measured slope is 1.00, and `predict(..., diagnostics=True)` reports the slope the model expects at each node,
-# 0.96 on average, without seeing the truth. Kriging with a good neighborhood is conditionally unbiased, and you pay
+# The measured slope is 1.02, and `predict(..., diagnostics=True)` reports the slope the model expects at each node,
+# 0.98 on average, without seeing the truth. Kriging with a good neighborhood is conditionally unbiased, and you pay
 # for it with smoothing: the right average at each node, too few extreme values across the map. A tonnage above a
 # high cutoff read from these estimates would be too low. [Chapter 5](../05-simulation/learn_05.md) restores the
 # variability with simulation, and [chapter 6](../06-checking-a-model/learn_06.md) checks both properties on a

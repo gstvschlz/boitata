@@ -116,9 +116,9 @@ PointSet(3 points, crs: none)
 An argument that takes one value per row also takes a column name, as long as the call can see the container. Functions that take the values first get the container through `data=`; estimators read it from the samples you fit them on:
 
 ```python
-bt.describe("Au", data=samples)               # same as bt.describe(samples["Au"])
+bt.describe("Au", data=samples)  # same as bt.describe(samples["Au"])
 kriging.fit(samples, "Au", holes="HOLE_ID", domain_column="ZONE")  # values, holes, domains by name
-kriging.predict(grid, domain_column="ZONE")                        # target domains by name
+kriging.predict(grid, domain_column="ZONE")  # target domains by name
 ```
 
 ## To Polars, pandas and NumPy
@@ -128,10 +128,10 @@ Containers expose the Arrow C stream interface, so libraries that read Arrow tak
 ```python
 import polars as pl
 
-frame = pl.DataFrame(samples)                  # x, y, z, Au, ROCK, Au_log
-frame = samples.to_polars()                    # the same
-frame = samples.to_pandas()                    # a pandas DataFrame
-values = samples["Au"]                         # one column as a NumPy array
+frame = pl.DataFrame(samples)  # x, y, z, Au, ROCK, Au_log
+frame = samples.to_polars()  # the same
+frame = samples.to_pandas()  # a pandas DataFrame
+values = samples["Au"]  # one column as a NumPy array
 ```
 
 Grouping, joining and pivoting belong to Polars or pandas; boitatá keeps to the spatial work.

@@ -27,16 +27,16 @@ sys.path.insert(0, str(HERE.parents[1] / "examples"))
 # ## Near things are more alike
 #
 # Geographers state the idea as a law: near things are more related than distant things. Figure 1 shows it on one
-# east-west line of the Walker Lake exhaustive data. Two points 5 m apart differ by 35 ppm; the same point and one
-# 60 m away differ by 401 ppm.
+# east-west line of the exhaustive metal survey data. Two points 5 m apart differ by 9 ppm; the same point and one
+# 60 m away differ by 570 ppm.
 #
 # <figure class="bt-figure">
 # --8<-- "svg/l03-near-far.svg"
-# <figcaption><b>Figure 1.</b> V along northing 150 m of the exhaustive Walker Lake data. The pair 5 m apart differs
-# by 35 ppm, the pair 60 m apart by 401 ppm.</figcaption>
+# <figcaption><b>Figure 1.</b> V along northing 150 m of the exhaustive metal survey data. The pair 5 m apart differs
+# by 9 ppm, the pair 60 m apart by 570 ppm.</figcaption>
 # </figure>
 #
-# One pair proves nothing, so you look at all of them. This chapter uses the 470 Walker Lake samples of
+# One pair proves nothing, so you look at all of them. This chapter uses the 470 metal survey samples of
 # `V`, in ppm, over a 260 × 300 m area; the last line of the cell reads the three values of Figure 1 from the
 # exhaustive data.
 
@@ -46,12 +46,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 print(f"{len(v)} samples, mean {v.mean():.0f} ppm, variance {v.var():.0f} ppm²")
 
-line = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)[149]
-print(f"northing 150 m: V = {line[89]:.0f} at 90 m, {line[94]:.0f} at 95 m, {line[149]:.0f} at 150 m")
+line = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)[149]
+print(f"northing 150 m: V = {line[50]:.0f} at 51 m, {line[55]:.0f} at 56 m, {line[110]:.0f} at 111 m")
 
 # %% [markdown]
 # ## Pairs at a lag
@@ -95,11 +95,11 @@ axes[0].set_ylabel("V at the other end (ppm)")
 save(fig, "h_scatter")
 
 # %% [markdown]
-# Pairs closer than 10 m cluster around the 1:1 line, with a correlation of 0.47. At 20 to 30 m the cloud widens and
-# the correlation drops to 0.22; at 60 to 70 m it is 0.06, and the two ends of a pair are close to unrelated.
+# Pairs closer than 10 m cluster around the 1:1 line, with a correlation of 0.48. At 20 to 30 m the cloud widens and
+# the correlation drops to 0.34; at 60 to 70 m it is 0.05, and the two ends of a pair are close to unrelated.
 #
 # The last number on each line, half the mean squared difference between head and tail, grows as the cloud widens:
-# 40 404, then 78 353, then 92 469 ppm². That number, computed for every lag, is the variogram.
+# 30 571, then 55 194, then 78 711 ppm². That number, computed for every lag, is the variogram.
 #
 # ## The experimental variogram
 #
@@ -139,8 +139,8 @@ by_hand = 0.5 * np.mean((v[i[first]] - v[j[first]]) ** 2)
 assert np.isclose(by_hand, omni.gammas[0]) and first.sum() == omni.counts[0]
 
 # %% [markdown]
-# The first class holds 526 pairs and the later ones thousands. γ climbs from 40 404 at 5 m to about 94 000 by
-# 35 m, then wanders around the sample variance of 89 738. Short lags carry the fewest pairs and matter most for
+# The first class holds 756 pairs and the later ones thousands. γ climbs from 30 571 at 5 m to about 68 000 by
+# 35 m, then wanders around the sample variance of 77 905. Short lags carry the fewest pairs and matter most for
 # kriging, so read their values with care.
 #
 # !!! pitfall "Pitfall: lags without enough pairs"
@@ -187,7 +187,7 @@ save(fig, "shapes")
 
 # %% [markdown]
 # All three shapes pass close to the points beyond 10 m. They disagree at the origin, where the data are thinnest:
-# the spherical fit puts 31 036 ppm² in the nugget, the exponential 28 925 and the Gaussian 41 808, a third to
+# the spherical fit puts 26 794 ppm² in the nugget, the exponential 18 232 and the Gaussian 33 750, a quarter to
 # nearly half of the sill. Those short-scale choices change kriging weights far more than the tail of the curve.
 #
 # `fit` returns a `Variogram`, a value object: a nugget, a list of `Structure`s (shape, sill, range) and an
@@ -195,7 +195,7 @@ save(fig, "shapes")
 #
 # ## Anisotropy
 #
-# Walker Lake `V` follows elongated, north-northwest trending bodies. Along them grades stay similar over long
+# The metal survey `V` follows elongated, north-northwest trending bodies. Along them grades stay similar over long
 # distances; across them they change fast. A variogram that depends on direction is **anisotropic**.
 #
 # The **variogram map** computes γ for every direction and lag at once and shows the pattern as an image. For each of
@@ -211,7 +211,7 @@ print(
 )
 
 # %% [markdown]
-# The map puts the major axis at N170° with an 80 m range, against 24 m in the shortest direction. Angles follow one
+# The map puts the major axis at N175° with a 108 m range, against 40 m in the shortest direction. Angles follow one
 # convention throughout boitatá (Figure 5): **azimuth** clockwise from north, **dip** positive downward, z up.
 # The ranges along the three axes form the **anisotropy ellipse** (an ellipsoid in 3D); a `Variogram` stores the
 # rotation of its axes and the ratios of the shorter ranges to the major one.
@@ -219,7 +219,7 @@ print(
 # <figure class="bt-figure">
 # --8<-- "svg/l03-anisotropy.svg"
 # <figcaption><b>Figure 5.</b> Left, the anisotropy ellipse of the model fitted below, drawn to scale: major range
-# 115 m at azimuth 161°, minor range 39 m. Right, a dip of 30° in a vertical section.</figcaption>
+# 115 m at azimuth 0°, minor range 39 m. Right, a dip of 30° in a vertical section.</figcaption>
 # </figure>
 #
 # `Variogram.fit_directional` fits one anisotropic model to experimental variograms in several directions at once:
@@ -237,9 +237,9 @@ minor = major * model.ratios[0]
 print(f"major axis N{model.rotation[0]:.0f}°, long range {major:.0f} m along it and {minor:.0f} m across it")
 
 # %% [markdown]
-# The joint fit turns the axis to N161°, nine degrees from the map's pick, and gives the long structure a range of
-# 115 m along it and 39 m across it: a ratio of one third. The nugget falls to 16 458 ppm², because the short
-# 37 m structure describes the fast early rise. The next figure overlays the ellipse on the variogram map and
+# The joint fit turns the axis to N0°, five degrees from the map's pick, and gives the long structure a range of
+# 115 m along it and 39 m across it: a ratio of one third. The nugget falls to 4 207 ppm², because the short
+# 14 m structure describes the fast early rise. The next figure overlays the ellipse on the variogram map and
 # compares the model with the experimental points along both axes.
 
 # %%
@@ -270,7 +270,7 @@ b.legend(loc="lower right")
 save(fig, "anisotropy")
 
 # %% [markdown]
-# Across the axis (N71°) γ reaches the sill within about 25 m; along it (N161°) it climbs until about 100 m. The
+# Across the axis (N90°) γ reaches the sill within about 35 m; along it (N0°) it climbs until about 100 m. The
 # omnidirectional variogram of the previous section averaged these two curves and hid the difference.
 #
 # !!! key "Key idea"
@@ -322,7 +322,7 @@ for name, covariance in (("straight line to the sill", straight), ("spherical", 
 # !!! check "Check before you move on"
 #     - Why is the experimental variogram divided by two, and what does it approach at large lags?
 #     - What would a variogram that is flat from the first lag onward say about the data?
-#     - In which direction is Walker Lake `V` most continuous, and what is the range ratio?
+#     - In which direction is the metal survey `V` most continuous, and what is the range ratio?
 #     - Why can't you use any curve that fits the experimental points as a variogram model?
 #
 # !!! seealso "See also"

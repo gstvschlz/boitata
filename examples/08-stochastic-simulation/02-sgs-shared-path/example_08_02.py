@@ -24,11 +24,11 @@ import numpy as np
 from common import save
 
 # %% [markdown]
-# Walker Lake V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
+# Metal survey V, simulated as in [realization checks](../../10-checking-models/04-realization-checks/README.md) on a 1 m grid of 260 × 300 cells: declustered normal scores and their
 # variogram along N170° and across it.
 
 # %%
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)

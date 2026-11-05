@@ -19,7 +19,7 @@ import numpy as np
 from common import map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 grid = bt.BlockModel(origin=(0.5, 0.5), size=(5, 5), count=(52, 60))

@@ -94,13 +94,8 @@ scene as a standalone page without two-way sync.
 
 ## Datasets
 
-`boitata.datasets` downloads files from raw.githubusercontent.com on first use, checks their SHA-256 and caches
-them in one folder per datasets commit, under `%LOCALAPPDATA%\boitata` on Windows and under
-`$XDG_CACHE_HOME/boitata` or `~/.cache/boitata` elsewhere (macOS included). Set `BOITATA_DATA` to use your own
-folder; the files then sit in it directly.
-
-Downloads honor the `HTTPS_PROXY`, `HTTP_PROXY` and `NO_PROXY` variables (and the system proxy settings on Windows
-and macOS). Behind a proxy that re-signs TLS, point `SSL_CERT_FILE` at its CA bundle.
+`boitata.datasets` generates each dataset on the call, from a seed. Nothing is downloaded or cached, so the datasets
+work offline and behind any proxy.
 
 ## Air-gapped installs
 
@@ -111,8 +106,6 @@ without an index:
 pip download "boitata[all]" -d wheels                                 # connected machine
 pip install --no-index --find-links wheels "boitata[all]"             # offline machine
 ```
-
-For datasets, copy the commit folder of a filled cache and point `BOITATA_DATA` at it.
 
 ## Contributors
 

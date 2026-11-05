@@ -2,7 +2,7 @@
 
 Kriged panels are too large to mine selectively, and kriged selective blocks are too smooth. Uniform conditioning
 takes the kriged grade of each panel and returns the grade-tonnage curve of the selective blocks inside it;
-localization then places those blocks. The exhaustive Walker Lake grid gives the true 10 m blocks to check against.
+localization then places those blocks. The exhaustive metal survey grid gives the true 10 m blocks to check against.
 
 <details><summary>Python</summary>
 
@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
@@ -48,8 +48,8 @@ print(raw)
 </details>
 
 ```text
-r = 0.725
-Variogram(nugget=16180.280562737755, structures=[Structure("spherical", sill=14864.277854678605, range=35.64043704679606), Structure("spherical", sill=33929.057964930726, range=79.33065065479494)], rotation=(170.0, 0.0, 0.0), ratios=(0.343967906520505, 1.0))
+r = 0.866
+Variogram(nugget=9443.636072785894, structures=[Structure("spherical", sill=7322.5515919190875, range=10.622550182295146), Structure("spherical", sill=47288.11282663058, range=99.00105173141803)], rotation=(170.0, 0.0, 0.0), ratios=(0.4316396545722994, 1.0))
 ```
 
 Ordinary block kriging of 50 × 50 m panels over the western 250 m. Its diagnostics give each panel the variance of its
@@ -107,14 +107,14 @@ save(fig, "uniform-conditioning")
 </details>
 
 ```text
-above 300 ppm: uniform conditioning 45.3%, kriged blocks 42.9%, true 40.9%
-above 500 ppm: uniform conditioning 15.6%, kriged blocks 13.6%, true 16.8%
-above 800 ppm: uniform conditioning 1.1%, kriged blocks 2.3%, true 2.1%
+above 300 ppm: uniform conditioning 42.4%, kriged blocks 42.3%, true 38.9%
+above 500 ppm: uniform conditioning 19.1%, kriged blocks 14.0%, true 16.9%
+above 800 ppm: uniform conditioning 3.2%, kriged blocks 1.6%, true 2.7%
 ```
 
 ![uniform-conditioning](uniform-conditioning.png)
 
-At 500 ppm uniform conditioning keeps 15.6% of the blocks against a true 16.8%; the smoothed kriged blocks keep 13.6%.
+At 500 ppm uniform conditioning keeps 19.1% of the blocks against a true 16.9%; the smoothed kriged blocks keep 14.0%.
 At 300 ppm it overstates the tonnage by a few percent, as kriging does. At 800 ppm, where few blocks remain, it thins
 the rich tail to 1.1% against a true 2.1%.
 
@@ -153,15 +153,15 @@ save(fig, "localized")
 </details>
 
 ```text
-kriged: variance 35064, correlation with truth 0.89
-localized: variance 35465, correlation with truth 0.80
-true blocks: variance 47350
+kriged: variance 41398, correlation with truth 0.92
+localized: variance 52518, correlation with truth 0.88
+true blocks: variance 50084
 ```
 
 ![localized](localized.png)
 
 The localized blocks spread as the model says blocks should, and the model says too little here: variance 35 465
-against the true 47 350. Block by block they match the truth less well than kriging (correlation 0.80 against 0.89),
+against the true 47 350. Block by block they match the truth less well than kriging (correlation 0.88 against 0.92),
 since the ranking inside a panel is only as good as the kriging that sets it. Localization keeps the grade of each
 panel and its tonnage above every cutoff.
 

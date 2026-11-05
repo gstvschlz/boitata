@@ -1,7 +1,7 @@
 """
 # Ordinary kriging
 
-Ordinary kriging of Walker Lake `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values and
+Ordinary kriging of the metal survey `V` on a 5 m grid, with its kriging variance, checked against the exhaustive values and
 by leave-one-out cross-validation.
 """
 
@@ -19,8 +19,8 @@ import numpy as np
 from common import ACCENT, HIGHLIGHT, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 
 # %% [markdown]
 # Two nested spherical structures fitted to experimental variograms in eight directions
@@ -82,9 +82,9 @@ fig.colorbar(sd, ax=axes[2], shrink=0.8, label="ppm")
 save(fig, "maps")
 
 # %% [markdown]
-# Kriging smooths: the estimates vary less than the truth, a variance of 38 000 against 62 000 at the nodes.
+# Kriging smooths: the estimates vary less than the truth, a variance of 43 000 against 65 000 at the nodes.
 # Cross-validation shows no conditional bias (the slope of actual on estimate is near 1). A mean error² / variance of
-# 0.71 means the model's variance runs high here.
+# 0.72 means the model's variance runs high here.
 
 # %%
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 4), layout="constrained")

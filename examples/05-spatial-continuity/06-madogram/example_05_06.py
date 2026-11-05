@@ -43,7 +43,7 @@ print(
 # with 5 m lags. Their units differ, so each is divided by its mean beyond 40 m, its plateau. All three level off near
 # 25 m. Beyond, the classical variogram zigzags with the few pairs that hold the highest grades, while the madogram
 # stays flat. The madogram starts higher because it scales like the square root of γ: for Gaussian increments, a
-# madogram at 0.73 of its plateau matches a variogram at 0.73² = 0.53 of its sill.
+# madogram at 0.95 of its plateau matches a variogram at 0.95² = 0.90 of its sill.
 
 # %%
 lag, max_lag = 5.0, 80.0
@@ -60,8 +60,8 @@ save(fig, "estimators")
 # %% [markdown]
 # ## Outliers
 #
-# Drop the five highest composites, 0.14 % of the data, and recompute. The variogram loses 40 % at every lag, the
-# madogram 10 %:
+# Drop the five highest composites, 0.10 % of the data, and recompute. The variogram loses 74 % at every lag, the
+# madogram 12 %:
 
 # %%
 keep = au < np.sort(au)[-5]

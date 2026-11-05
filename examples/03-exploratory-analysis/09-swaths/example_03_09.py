@@ -1,7 +1,7 @@
 """
 # Swaths
 
-Phosphate concentrated by weathering, drilled by 217 RC and 34 diamond holes through soil (SOIL), an aluminous horizon
+Phosphate concentrated by weathering, drilled by 221 RC and 30 diamond holes through soil (SOIL), an aluminous horizon
 (ALU), the oxidized ore (OXI), saprolite (SAP) and fresh rock (ROCK). A swath is the mean grade in slices along one
 direction. A trend in the data shows up as a slope, and the same call on a block model checks the estimate for local
 bias ([model checks](../../10-checking-models/01-model-checks/README.md)).
@@ -30,7 +30,7 @@ print(f"sample length {length.min():.1f} to {length.max():.1f} m")
 
 # %% [markdown]
 # The ore is the OXI horizon, with SAP below it half as rich. `swath` bins the samples in slices of a given width along
-# `axis` ("x", "y", "z") or any `azimuth`, weighted here by sample length since the samples run from 0.5 to 6.6 m.
+# `axis` ("x", "y", "z") or any `azimuth`, weighted here by sample length since the samples run from 2.2 to 5.0 m.
 # `plot.swath` draws several swaths on one axis, with the counts of the first as bars. The slices are 200 m along
 # easting and northing and 10 m in elevation, one line per horizon.
 
@@ -57,8 +57,8 @@ axes[0].set_ylabel("P2O5 (%)")
 save(fig, "swaths")
 
 # %% [markdown]
-# Within each horizon the swaths are flat. OXI stays between 11.9 and 14.1 % along easting and northing and SAP between
-# 8.6 and 9.6 %, about the noise that a hundred-odd samples per slice leave. The step between the two lines is much
+# Within each horizon the swaths are flat. OXI stays between 11.0 and 13.8 % along easting and northing and SAP between
+# 8.0 and 9.4 %, about the noise that a hundred-odd samples per slice leave. The step between the two lines is much
 # larger than any slope along them, so the horizon sets the grade: estimate each horizon on its own samples, with no
 # trend. In elevation the lines are noisier because the horizons follow the rolling topography, and one slice of
 # elevation cuts OXI on a hill and SAP in a valley. The slices at the ends hold few samples, and the bars tell you how

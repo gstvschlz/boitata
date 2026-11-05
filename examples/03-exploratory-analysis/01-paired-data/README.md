@@ -38,7 +38,7 @@ print(f"{len(dd)} DD and {len(ch)} CH vein intercepts")
 </details>
 
 ```text
-206 DD and 2456 CH vein intercepts
+260 DD and 2542 CH vein intercepts
 ```
 
 `pairs` finds, for each DD intercept, the nearest CH intercept within 20 m, with each intercept in at most one pair
@@ -65,20 +65,20 @@ for lo, hi, n, rel in zip(bias["from"], bias["to"], bias["n"], bias["bias"], str
 </details>
 
 ```text
-57 pairs, mean Au DD 9.51 g/t, CH 28.84 g/t
-median Au DD 3.46 g/t, CH 3.81 g/t
-   6.6 m apart: DD    3.5, CH  1192.1 g/t
-   6.1 m apart: DD   29.1, CH   129.8 g/t
-   8.0 m apart: DD   61.2, CH     6.4 g/t
-without the first: mean Au DD 9.61 g/t, CH 8.07 g/t
-   0- 5 m:  19 pairs, bias of CH over DD   -22 %
-   5-10 m:  29 pairs, bias of CH over DD  +498 %
-  10-15 m:   5 pairs, bias of CH over DD   -70 %
-  15-20 m:   4 pairs, bias of CH over DD   -70 %
+59 pairs, mean Au DD 9.76 g/t, CH 29.13 g/t
+median Au DD 2.68 g/t, CH 4.42 g/t
+   1.7 m apart: DD    5.7, CH  1192.0 g/t
+   6.8 m apart: DD  184.0, CH     4.8 g/t
+   6.0 m apart: DD   59.5, CH     0.8 g/t
+without the first: mean Au DD 9.83 g/t, CH 9.08 g/t
+   0- 5 m:  22 pairs, bias of CH over DD  +777 %
+   5-10 m:  24 pairs, bias of CH over DD   -44 %
+  10-15 m:   8 pairs, bias of CH over DD    +3 %
+  15-20 m:   5 pairs, bias of CH over DD  +452 %
 ```
 
-One channel at 1192 g/t, paired with a DD intercept of 3.5 g/t, triples the CH mean on its own. Without it the paired
-means differ by less than 2 g/t, and the medians by less than 0.4 g/t. The bias swings from bin to bin with the few
+One channel at 1192 g/t, paired with a DD intercept of 5.7 g/t, triples the CH mean on its own. Without it the paired
+means differ by less than 2 g/t, and the medians by less than 2 g/t. The bias swings from bin to bin with the few
 pairs in each, so the two sampling methods show no systematic difference. The pairs carry a warning instead: the Q-Q
 plot follows the 1:1 line except for its last few quantiles, and a mean of gold grades that rests on a few extreme
 values needs a top cut ([top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)).

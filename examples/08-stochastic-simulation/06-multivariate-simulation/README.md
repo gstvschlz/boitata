@@ -25,7 +25,7 @@ print(f"{len(pair)} composites, correlation {np.corrcoef(pair.T)[0, 1]:.2f}")
 </details>
 
 ```text
-6817 composites, correlation 0.19
+7213 composites, correlation 0.12
 ```
 
 Each factor gets the omnidirectional variogram of its scores; turning bands simulate 20 realizations on 25 m nodes.
@@ -56,7 +56,7 @@ print(f"{len(nodes.coords)} nodes, 20 realizations")
 </details>
 
 ```text
-36608 nodes, 20 realizations
+33696 nodes, 20 realizations
 ```
 
 Both keep the correlation, the only dependence a linear rotation carries. PPMT also keeps the declustered
@@ -101,10 +101,10 @@ print(f"PPMT at 500 composites: largest departure from the data {error:.1e}")
 
 ```text
            r   chalcocite q10, q50, q90   tennantite q10, q50, q90  both > q80
-data    0.25        -7.61, -5.69, -2.38        -7.62, -6.10, -3.81       0.038
-PPMT    0.27        -7.62, -5.70, -2.28        -7.62, -6.15, -3.87       0.034
-PCA     0.28        -7.78, -5.49, -2.90        -7.67, -5.90, -3.88       0.074
-PPMT at 500 composites: largest departure from the data 2.4e-12
+data    0.11        -7.60, -6.07, -2.44        -7.60, -7.60, -4.12       0.055
+PPMT    0.13        -7.60, -6.15, -2.67        -7.60, -7.60, -4.52       0.053
+PCA     0.11        -7.74, -5.74, -2.76        -8.40, -6.92, -4.57       0.093
+PPMT at 500 composites: largest departure from the data 3.5e-08
 ```
 
 One realization of each: PPMT rebuilds the L-shaped cloud of the data; PCA spreads a rotated square over it,
@@ -146,8 +146,8 @@ for j, s in enumerate(by_block):
 </details>
 
 ```text
-Log chalcocite (%): variance 3.88 at nodes, 1.46 in 1144 blocks
-Log tennantite (%): variance 2.06 at nodes, 0.86 in 1144 blocks
+Log chalcocite (%): variance 3.69 at nodes, 1.25 in 1053 blocks
+Log tennantite (%): variance 2.16 at nodes, 0.68 in 1053 blocks
 ```
 
 ## Missing variables
@@ -180,8 +180,8 @@ print(f"r {r:.2f}, tennantite q10, q50, q90: " + ", ".join(f"{v:.2f}" for v in n
 </details>
 
 ```text
-3334 of 6817 composites miss tennantite
-r 0.27, tennantite q10, q50, q90: -7.62, -6.17, -3.81
+3586 of 7213 composites miss tennantite
+r 0.13, tennantite q10, q50, q90: -7.60, -7.60, -4.62
 ```
 
 Full script: [`example_08_06.py`](example_08_06.py)

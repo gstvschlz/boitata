@@ -64,7 +64,7 @@ for name, model in models.items():
     )
 
 # %% [markdown]
-# Both RBFs honor each code, yet they cover only 56 % and 65 % of the solid, and the solid leaves 8.6 % of the
+# Both RBFs honor each code, yet they cover only 36 % and 56 % of the solid, and the solid leaves 13.8 % of the
 # composites on the wrong side: a cutoff on Fe and a solid interpreted around the shallow friable hematite are two
 # different surfaces. Flattening the RBF adds a tenth of the solid at no cost in spill. The GP explains an eighth of
 # the codes as noise and returns a smooth sheet. On an east-west section through the high-grade composites, at true

@@ -1,6 +1,6 @@
 # Compositing
 
-The stacked sulfide lenses: 16 995 assays, mostly 1 m or 2 m, taken only in and around the mineralized zones, and 1726
+The stacked sulfide lenses: 19 247 assays, mostly 1 m or 2 m, taken only in and around the mineralized zones, and 2239
 lithology intervals. Compositing brings the assays to one support. It must not average across a contact, read
 unsampled core as zero, or create or lose metal.
 
@@ -33,8 +33,8 @@ print(dh)
 </details>
 
 ```text
-16995 assays + 1726 lithology intervals -> 17848 merged
-Drillholes(289 holes, 17848 intervals)
+19247 assays + 2239 lithology intervals -> 20095 merged
+Drillholes(289 holes, 20095 intervals)
   HOLE_ID: Utf8
   FROM: Float64
   TO: Float64
@@ -67,7 +67,7 @@ print(
 </details>
 
 ```text
-13602 composites; 0 partly unsampled for Zn; 2247 without Au (RC holes)
+16864 composites; 222 partly unsampled for Zn; 2578 without Au (RC holes)
 ```
 
 The assays are mostly 1 m or 2 m and the composites 2 m, with shorter tails where a run of one lithology ends.
@@ -128,12 +128,12 @@ for name, c in modes.items():
 </details>
 
 ```text
-               2 m:  13602 composites, median length 2.0 m
-              runs:    873 composites, median length 12.2 m
-      10 m benches:   3176 composites, median length 10.8 m
-  2 m, merge < 1 m:  13301 composites, median length 2.0 m
-   2 m, drop < 1 m:  13284 composites, median length 2.0 m
-2 m, majority LITH:  13390 composites, median length 2.0 m
+               2 m:  16864 composites, median length 2.0 m
+              runs:   1622 composites, median length 9.3 m
+      10 m benches:   4245 composites, median length 9.1 m
+  2 m, merge < 1 m:  16311 composites, median length 2.0 m
+   2 m, drop < 1 m:  16220 composites, median length 2.0 m
+2 m, majority LITH:  16099 composites, median length 2.0 m
 ```
 
 Metal balance: Σ grade × `<grade>_length` over the composites reproduces Σ grade × interval length over the assays,
@@ -165,13 +165,13 @@ print("metal balanced to 1e-9 for", ", ".join(GRADES))
 
 ```text
                       Zn metal     error  by length
-            assays     15710.3
-               2 m     15710.3  -1.1e-16      -0.0%
-              runs     15710.3  +0.0e+00      +0.0%
-      10 m benches     15710.3  -2.2e-16      -0.0%
-  2 m, merge < 1 m     15710.3  -1.1e-16      -0.0%
-   2 m, drop < 1 m     15388.3  -2.0e-02      -2.0%
-2 m, majority LITH     15710.3  -1.1e-16      +0.1%
+            assays     19829.1
+               2 m     19829.1  +0.0e+00      +0.1%
+              runs     19829.1  +0.0e+00      +7.1%
+      10 m benches     19829.1  +0.0e+00      +0.3%
+  2 m, merge < 1 m     19829.1  -2.2e-16      +0.1%
+   2 m, drop < 1 m     19103.6  -3.7e-02      -3.6%
+2 m, majority LITH     19829.1  +0.0e+00      +0.2%
 metal balanced to 1e-9 for ZN_PCT, PB_PCT, CU_PCT, AG_GPT, AU_GPT
 ```
 

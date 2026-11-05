@@ -2,7 +2,7 @@
 # Describing data
 
 Before you model a variable in space, describe it: how its values spread, where the extremes are, how rock types
-differ and how variables move together. This chapter computes these statistics on real datasets and corrects them
+differ and how variables move together. This chapter computes these statistics on synthetic datasets and corrects them
 for clustered samples, extreme values and mixed populations.
 """
 
@@ -52,7 +52,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, LIGHT, map_axes, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 v = samples["V"]
 
 
@@ -68,12 +68,12 @@ print(f"skewness {skewness(v):.2f}")
 
 fig, ax = plt.subplots(figsize=(6, 3.4), layout="constrained")
 bt.plot.histogram(v, bins=30, stats=True, ax=ax, color=ACCENT)
-ax.set(title="Walker Lake V, 470 samples", xlabel="V (ppm)")
+ax.set(title="Metal survey V, 470 samples", xlabel="V (ppm)")
 save(fig, "histogram")
 
 # %% [markdown]
-# The 470 samples of `V` have a mean of 435 ppm, a standard deviation of 300 ppm and a CV of 0.69. The median
-# (`P50`) is 424 ppm, close to the mean, and the skewness is a mild 0.46. Chapter 1 showed that these samples
+# The 470 samples of `V` have a mean of 428 ppm, a standard deviation of 279 ppm and a CV of 0.65. The median
+# (`P50`) is 411 ppm, close to the mean, and the skewness is a mild 0.39. Chapter 1 showed that these samples
 # crowd into the rich zones, and that crowding distorts every number above.
 #
 # ??? math "The math"
@@ -108,7 +108,7 @@ print(
     f"weights from {weights.min():.2f} to {weights.max():.2f}, mean {weights.mean():.2f}"
 )
 
-truth = bt.datasets.walker_lake_exhaustive()["V"]
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"]
 print(f"{'':12}{'mean':>6}{'variance':>10}{'CV':>6}{'skew':>6}")
 for name, values, w in (("naive", v, None), ("declustered", v, weights), ("exhaustive", truth, None)):
     s = bt.describe(values, weights=w)
@@ -134,12 +134,12 @@ print(
 )
 
 # %% [markdown]
-# The mean falls from 435 ppm to a minimum of 291 ppm at 22.5 m cells, then climbs as the cells grow. At
-# 22.5 m, the weights run from 0.29 in the dense clusters to 3.00 on the sparse grid.
+# The mean falls from 428 ppm to a minimum of 285 ppm at 22.5 m cells, then climbs as the cells grow. At
+# 22.5 m, the weights run from 0.26 in the dense clusters to 2.86 on the sparse grid.
 #
-# Walker Lake is one of the few datasets where you can check the answer. Declustering moves the mean from 435 to
-# 291 ppm against a true 278 ppm, the variance from 89 738 to 65 006 ppm² against 62 422, and the skewness from 0.46
-# to 0.95 against 1.02. Every statistic moves toward the truth. The CV rises from 0.69 to 0.88 because the mean
+# The metal survey is one of the few datasets where you can check the answer. Declustering moves the mean from 428 to
+# 285 ppm against a true 280 ppm, the variance from 77 905 to 64 116 ppm² against 64 277, and the skewness from 0.39
+# to 0.97 against 1.12. Every statistic moves toward the truth. The CV rises from 0.65 to 0.89 because the mean
 # falls faster than the standard deviation.
 #
 # !!! key "Key idea"
@@ -182,7 +182,7 @@ print(f"{len(quartz)} composites; declustered mean {raw['mean']:.2f} g/t, CV {ra
 print(f"largest five: {np.round(np.sort(au)[::-1][:5], 0)}")
 
 # %% [markdown]
-# The CV of 3.22 is high for a grade; the largest composite, 1192 g/t, is more than twice the next. `bt.capping`
+# The CV of 3.10 is high for a grade; the largest composite, 1192 g/t, is more than twice the next. `bt.capping`
 # tries a cap at each of several high quantiles and reports the share of weight above it, the share of metal it
 # removes, and the capped mean and CV:
 
@@ -205,8 +205,8 @@ ax.legend(loc="lower right")
 save(fig, "probability")
 
 # %% [markdown]
-# A cap at the declustered 99th percentile, 81.4 g/t, cuts 67 composites and removes 11.5 % of the metal: the mean
-# falls from 8.33 to 7.38 g/t and the CV from 3.22 to 1.74. `Capping` follows the
+# A cap at the declustered 99th percentile, 155.5 g/t, cuts 40 composites and removes 12.2 % of the metal: the mean
+# falls from 12.40 to 10.89 g/t and the CV from 3.10 to 2.05. `Capping` follows the
 # library's transform pattern: `fit` learns the cap from the data, `transform` applies it to any values.
 #
 # Use the probability plot to choose the cap. On a log scale, a lognormal distribution plots as a straight line.
@@ -249,9 +249,9 @@ ax.set(title="Zn by lithology, 2 m composites", ylabel="Zn (%)")
 save(fig, "domains")
 
 # %% [markdown]
-# Zinc averages 8.94 % in massive sulfide (`MS`), 3.44 % in semi-massive sulfide (`SMS`), 0.38 % in the stringer
-# zone (`STR`) and 0.05 to 0.06 % in the host rocks. Within each lithology the CV lies between 0.55 and 0.68;
-# pooled, it is 3.57. Mixing the populations creates the pooled spread.
+# Zinc averages 8.27 % in massive sulfide (`MS`), 3.24 % in semi-massive sulfide (`SMS`), 0.37 % in the stringer
+# zone (`STR`) and 0.05 to 0.06 % in the host rocks. Within each lithology the CV lies between 0.48 and 0.71;
+# pooled, it is 3.46. Mixing the populations creates the pooled spread.
 #
 # Domains also constrain estimation. A variogram, a kriging estimate or a simulation assumes one population
 # throughout. Estimate the lenses and the host rock together and the high grades of `MS` leak into the waste around
@@ -277,7 +277,7 @@ print(f"Zn and Pb in MS: Pearson {np.corrcoef(zinc['ZN_PCT'][ms], zinc['PB_PCT']
 
 fig, (a, b) = plt.subplots(1, 2, figsize=(9, 3.8), layout="constrained")
 a.scatter(v[both], u[both], s=6, color=ACCENT, alpha=0.6, linewidths=0)
-a.set(title="U against V, Walker Lake", xlabel="V (ppm)", ylabel="U (ppm)")
+a.set(title="U against V, metal survey", xlabel="V (ppm)", ylabel="U (ppm)")
 b.scatter(zinc["ZN_PCT"][ms], zinc["PB_PCT"][ms], s=4, color=ACCENT, alpha=0.4, linewidths=0)
 b.set(title="Pb against Zn, massive sulfide", xlabel="Zn (%)", ylabel="Pb (%)")
 save(fig, "scatter")
@@ -288,9 +288,9 @@ print(f"U above 3000 ppm: {(u[both] > 3000).sum()} samples")
 
 # %% [markdown]
 # `U` was measured on 275 samples; the other 195 are nulls and drop out of the pairs. On those 275, the Pearson
-# coefficient is 0.55 and the Spearman coefficient 0.76. The gap comes from the tail of `U`: six samples above
+# coefficient is 0.58 and the Spearman coefficient 0.69. The gap comes from the tail of `U`: seven samples above
 # 3000 ppm sit far from any straight line, and Pearson pays for them. In the massive sulfide, zinc and lead reach a
-# Pearson coefficient of 0.81: the two metals rise together.
+# Pearson coefficient of 0.99: the two metals rise together.
 #
 # ## A first look at the normal-score transform
 #
@@ -326,16 +326,16 @@ save(fig, "normal_score")
 print(f"back-transform: largest error {np.abs(transform.inverse_transform(scores) - v).max():.1e} ppm")
 
 # %% [markdown]
-# The weighted scores have mean 0.001, standard deviation 0.998 and skewness 0.01: a standard normal variable.
+# The weighted scores have mean 0.000, standard deviation 0.998 and skewness 0.01: a standard normal variable.
 # The back-transform returns every original grade with an error of 0 ppm, so a simulation can work in scores and
 # report in ppm. [Chapter 5](../05-simulation/learn_05.md) uses the transform in earnest.
 #
 # !!! check "Check before you move on"
 #     - Why does the mean of a positively skewed variable exceed its median?
-#     - Walker Lake's declustered mean is 291 ppm. Why is it lower than the naive 435 ppm, and what would make
+#     - the metal survey's declustered mean is 285 ppm. Why is it lower than the naive 428 ppm, and what would make
 #       declustering raise the mean instead?
-#     - A cap at the 99th percentile removes 11.5 % of the gold. What must you report next to the capped mean?
-#     - The pooled CV of zinc is 3.57 while each lithology's CV is below 0.7. What does that tell you?
+#     - A cap at the 99th percentile removes 12.2 % of the gold. What must you report next to the capped mean?
+#     - The pooled CV of zinc is 3.46 while each lithology's CV is below 0.8. What does that tell you?
 #     - Why can the Spearman coefficient differ from the Pearson coefficient on the same pairs?
 #
 # !!! seealso "See also"

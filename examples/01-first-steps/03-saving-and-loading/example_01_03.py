@@ -25,12 +25,12 @@ from common import map_axes, save
 # %% [markdown]
 # ## A small workflow
 #
-# Walker Lake `V` goes through five fitted pieces: cell declustering weights, a cap at the declustered P99, a
+# The metal survey `V` goes through five fitted pieces: cell declustering weights, a cap at the declustered P99, a
 # normal-score transform, a variogram of the scores and a search. Simple kriging of the scores, back-transformed,
 # gives the estimate on a 5 m grid.
 
 # %%
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 declustering = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5))
 capping = bt.Capping(quantile=0.99).fit("V", weights=declustering.weights, data=samples)
 capped = capping.transform("V", data=samples)
@@ -92,7 +92,7 @@ def rerun(folder, samples):
     return normal_score.inverse_transform(kriged)
 
 
-again = rerun(folder, bt.datasets.walker_lake())
+again = rerun(folder, bt.datasets.clustered_metal_survey())
 assert np.array_equal(again, estimate)
 print("identical estimate:", np.array_equal(again, estimate))
 weights = bt.Declustering.from_json((folder / "declustering.json").read_text()).weights

@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 samples = samples.drop_null("U")
 w = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 samples = samples.with_column("w", w)
@@ -35,7 +35,7 @@ print(f"factor correlation {np.corrcoef(factors['U'], factors['V'])[0, 1]:.3f}")
 
 ```text
 Pipeline([('cap', 'Capping', 'V'), ('ns_u', 'NormalScore', 'U'), ('ns_v', 'NormalScore', 'V'), ('ppmt', 'PPMT', ['U', 'V'])])
-factor correlation -0.001
+factor correlation 0.002
 ```
 
 The steps replace `U` and `V` in place, so the output keeps the columns of the input and the next step reads the
@@ -76,8 +76,8 @@ print(
 </details>
 
 ```text
-V cap 1111 ppm, back-transformed V max 1111 ppm
-U-V correlation: data 0.55, back-transformed 0.53
+V cap 1052 ppm, back-transformed V max 1052 ppm
+U-V correlation: data 0.58, back-transformed 0.54
 ```
 
 Full script: [`example_04_11.py`](example_04_11.py)

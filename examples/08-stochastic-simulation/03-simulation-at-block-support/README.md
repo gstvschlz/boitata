@@ -2,7 +2,7 @@
 
 Simulation reaches block support by averaging each realization on fine nodes over the nodes of each selective block,
 with no change-of-support model. The realizations give block grade-tonnage curves with their uncertainty and, pooled
-inside panels, localized block grades. The exhaustive Walker Lake grid gives the true 10 m blocks.
+inside panels, localized block grades. The exhaustive metal survey grid gives the true 10 m blocks.
 
 <details><summary>Python</summary>
 
@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 size = 10
@@ -38,7 +38,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.3712292816104307, structures=[Structure("spherical", sill=0.6287707183895693, range=102.93174851181992)], rotation=(170.0, 0.0, 0.0), ratios=(0.34469006793164536, 1.0))
+Variogram(nugget=0.11060343270425142, structures=[Structure("spherical", sill=0.8893965672957486, range=104.50278028080879)], rotation=(170.0, 0.0, 0.0), ratios=(0.48446742261870374, 1.0))
 ```
 
 Thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of each 10 × 10 m block before
@@ -83,9 +83,9 @@ save(fig, "simulated-blocks")
 </details>
 
 ```text
-above 300 ppm: P10 39.8%, P90 47.9%, true 40.1%
-above 500 ppm: P10 14.1%, P90 17.7%, true 16.2%
-above 800 ppm: P10 1.8%, P90 2.6%, true 2.1%
+above 300 ppm: P10 38.2%, P90 41.8%, true 38.3%
+above 500 ppm: P10 15.2%, P90 18.1%, true 17.1%
+above 800 ppm: P10 1.9%, P90 2.8%, true 2.8%
 ```
 
 ![simulated-blocks](simulated-blocks.png)
@@ -116,12 +116,12 @@ for label, volumes in (
 </details>
 
 ```text
-blocks: 780 rows, median relative error 58.8%
-periods: 6 rows, median relative error 11.0%
-50 m windows: 780 rows, median relative error 24.1%
+blocks: 780 rows, median relative error 58.3%
+periods: 6 rows, median relative error 8.1%
+50 m windows: 780 rows, median relative error 20.7%
 ```
 
-The median error falls from 59 % on single blocks to 24 % on 50 m windows and 11 % on periods of 130 blocks.
+The median error falls from 58 % on single blocks to 21 % on 50 m windows and 8 % on periods of 130 blocks.
 
 `tolerances=` adds each row's precision, the share of realizations within ±15 % of its mean; a common criterion
 for measured resources asks that share to reach 90 %. `validate` compares the summary with the true blocks. `covered`
@@ -144,13 +144,13 @@ print(f"at 500 ppm: type 1 {np.mean(table['type_1']):.1%}, type 2 {np.mean(table
 </details>
 
 ```text
-precision at ±15 % reaching 90 %: 0.8% of blocks
-truth within the MEE: 80.5% of blocks
-at 500 ppm: type 1 2.1%, type 2 5.3% of blocks
+precision at ±15 % reaching 90 %: 3.1% of blocks
+truth within the MEE: 84.5% of blocks
+at 500 ppm: type 1 2.3%, type 2 4.1% of blocks
 ```
 
-Single 10 m blocks almost never meet ±15 % at 90 %. The truth lies within the MEE for 80 % of blocks, short of the
-nominal 90 %, and 7 % of blocks fall on the wrong side of 500 ppm.
+Single 10 m blocks almost never meet ±15 % at 90 %. The truth lies within the MEE for 85 % of blocks, short of the
+nominal 90 %, and 6 % of blocks fall on the wrong side of 500 ppm.
 
 Localization pools the realizations panel by panel. Over the western 250 m, each 50 × 50 m panel holds 25 blocks.
 25 blocks × 30 realizations give 750 values, sorted and cut into 25 chunks of 30, and the block ranked i by
@@ -205,15 +205,15 @@ save(fig, "localized-simulation")
 </details>
 
 ```text
-kriged: variance 35064, correlation with truth 0.89
-localized: variance 41003, correlation with truth 0.85
-true blocks: variance 47350
+kriged: variance 41398, correlation with truth 0.92
+localized: variance 49387, correlation with truth 0.91
+true blocks: variance 50084
 ```
 
 ![localized-simulation](localized-simulation.png)
 
-Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 41 411,
-between kriging's 35 064 and the true 47 350, with a correlation to the truth of 0.86 against kriging's 0.89. The
+Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 49 387,
+between kriging's 41 398 and the true 50 084, with a correlation to the truth of 0.91 against kriging's 0.92. The
 pooling uses no change-of-support model, so its result depends on the realizations alone. [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md)
 localize the same panels from a change-of-support model.
 

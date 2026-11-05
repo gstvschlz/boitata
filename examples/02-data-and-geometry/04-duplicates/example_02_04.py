@@ -40,8 +40,8 @@ for name in names[counts > 1]:
     print(f"{name} twice: {np.linalg.norm(first - second):.0f} m apart")
 
 # %% [markdown]
-# DD0058 is one row entered twice: drop one. DD0067 names two collars 290 m apart, an id clash that `check_drillholes`
-# flags ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)). DD0187 and RC0043 are two holes collared 2.7 m apart at
+# DD0224 is one row entered twice: drop one. DD0032 names two collars 225 m apart, an id clash that `check_drillholes`
+# flags ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)). DD0065 and RC0003 are two holes collared 3.9 m apart at
 # different dips. Nearby holes of two drilling types are [paired data](../../03-exploratory-analysis/01-paired-data/README.md).
 #
 # ## Samples
@@ -66,7 +66,7 @@ samples = bt.Drillholes(fixed["collar"], fixed["survey"], fixed["assays"]).sampl
 print(f"{len(samples)} samples at their midpoints")
 
 # %% [markdown]
-# With a tolerance of 0, only samples at the same location are grouped: three intervals of DD0162 were entered twice,
+# With a tolerance of 0, only samples at the same location are grouped: three intervals of DD0216 were entered twice,
 # with grades within 10 % of each other.
 
 # %%
@@ -91,11 +91,11 @@ for k, x, y in zip(close["group"], close["x"], close["y"], strict=True):
     )
 map_axes(a, "Collars")
 a.legend(loc="upper left")
-rows = np.flatnonzero((hole == "DD0162") & (depth > 595) & (depth < 630))
+rows = np.flatnonzero((hole == "DD0216") & (depth > 710) & (depth < 745))
 b.plot(depth[rows], zn[rows], "o", ms=3, color=ACCENT)
 twice = rows[group[rows] >= 0]
 b.plot(depth[twice], zn[twice], "o", ms=8, mfc="none", color=HIGHLIGHT, label="Entered twice")
-b.set(title="DD0162, 595 to 630 m", xlabel="Depth (m)", ylabel="Zn (%)")
+b.set(title="DD0216, 710 to 745 m", xlabel="Depth (m)", ylabel="Zn (%)")
 b.legend(loc="upper right")
 save(fig, "duplicates")
 

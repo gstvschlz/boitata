@@ -5,7 +5,7 @@ another grade simulated first. It draws each node from the collocated simple cok
 neighbors and the secondary score at the node itself. The cross-covariance is the correlation of the scores times
 the primary covariance, so you need no cross-variogram. `SGS.fit` takes the secondary at the data and fits that
 correlation; `simulate` takes the secondary at the nodes, one row per realization for simulated secondaries. Here
-Jura Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
+Topsoil Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
 
 <details><summary>Python</summary>
 
@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
-samples = bt.datasets.jura()["prediction"]
+samples = bt.datasets.topsoil_metals()["prediction"]
 xy = samples.coords
 lag, max_lag = 0.1, 1.5
 
@@ -32,7 +32,7 @@ print(f"{len(xy)} samples, correlation of Co and Ni {np.corrcoef(samples['Co'], 
 </details>
 
 ```text
-259 samples, correlation of Co and Ni 0.75
+259 samples, correlation of Co and Ni 0.81
 ```
 
 SGS simulates Ni first, 20 realizations on 50 m nodes, then Co twice with the same seeds: alone, and with row ``k``
@@ -56,7 +56,7 @@ print(f"correlation of Co and Ni scores at the samples: {cosgs.correlation:.2f}"
 </details>
 
 ```text
-correlation of Co and Ni scores at the samples: 0.71
+correlation of Co and Ni scores at the samples: 0.81
 ```
 
 Simulated alone, Co keeps its histogram and variogram but forgets Ni: away from the samples the two vary
@@ -82,8 +82,8 @@ for name, check in checks.items():
 </details>
 
 ```text
-Co alone    correlation with Ni -0.14 to 0.20 (samples 0.75)
-Co with Ni  correlation with Ni 0.69 to 0.84 (samples 0.75)
+Co alone    correlation with Ni -0.17 to 0.11 (samples 0.81)
+Co with Ni  correlation with Ni 0.80 to 0.88 (samples 0.81)
 ```
 
 <details><summary>Python</summary>
@@ -108,7 +108,7 @@ save(fig, "maps")
 ![maps](maps.png)
 
 The cosimulated Co still reproduces its own histogram and variogram (the [realization checks](../../10-checking-models/04-realization-checks/README.md)), and its correlation
-with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75. Simulated alone, Co keeps little of it.
+with Ni, 0.80 to 0.88 across realizations, brackets the samples' 0.81. Simulated alone, Co keeps little of it.
 
 <details><summary>Python</summary>
 
@@ -159,8 +159,8 @@ print(f"co-DSS: correlation of Co and Ni over the nodes {min(r):.2f} to {max(r):
 </details>
 
 ```text
-correlation of Co and Ni grades at the samples: 0.75
-co-DSS: correlation of Co and Ni over the nodes 0.70 to 0.85
+correlation of Co and Ni grades at the samples: 0.81
+co-DSS: correlation of Co and Ni over the nodes 0.83 to 0.89
 ```
 
 The co-DSS realizations follow their Ni realizations as closely as the cosimulated SGS ones: their correlation with

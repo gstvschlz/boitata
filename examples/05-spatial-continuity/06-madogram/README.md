@@ -37,7 +37,7 @@ print(
 </details>
 
 ```text
-3659 composites, mean 9.43 g/t, CV 2.72, max 521 g/t
+4966 composites, mean 11.29 g/t, CV 3.49, max 1192 g/t
 ```
 
 ## Three estimators
@@ -46,7 +46,7 @@ The plot draws the classical variogram, the madogram and the robust `"cressie-ha
 with 5 m lags. Their units differ, so each is divided by its mean beyond 40 m, its plateau. All three level off near
 25 m. Beyond, the classical variogram zigzags with the few pairs that hold the highest grades, while the madogram
 stays flat. The madogram starts higher because it scales like the square root of γ: for Gaussian increments, a
-madogram at 0.73 of its plateau matches a variogram at 0.73² = 0.53 of its sill.
+madogram at 0.95 of its plateau matches a variogram at 0.95² = 0.90 of its sill.
 
 <details><summary>Python</summary>
 
@@ -69,8 +69,8 @@ save(fig, "estimators")
 
 ## Outliers
 
-Drop the five highest composites, 0.14 % of the data, and recompute. The variogram loses 40 % at every lag, the
-madogram 10 %:
+Drop the five highest composites, 0.10 % of the data, and recompute. The variogram loses 74 % at every lag, the
+madogram 12 %:
 
 <details><summary>Python</summary>
 
@@ -90,8 +90,8 @@ for e in ("matheron", "madogram"):
 </details>
 
 ```text
- matheron: change without the top five, median -40 %, range -43 to -37 %
- madogram: change without the top five, median -10 %, range -11 to -9 %
+ matheron: change without the top five, median -74 %, range -86 to -69 %
+ madogram: change without the top five, median -12 %, range -22 to -10 %
 ```
 
 ## Dissemination

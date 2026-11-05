@@ -1,7 +1,7 @@
 """
 # Compositing
 
-The stacked sulfide lenses: 16 995 assays, mostly 1 m or 2 m, taken only in and around the mineralized zones, and 1726
+The stacked sulfide lenses: 19 247 assays, mostly 1 m or 2 m, taken only in and around the mineralized zones, and 2239
 lithology intervals. Compositing brings the assays to one support. It must not average across a contact, read
 unsampled core as zero, or create or lose metal.
 """

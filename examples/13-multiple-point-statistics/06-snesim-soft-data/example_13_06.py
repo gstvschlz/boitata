@@ -20,7 +20,7 @@ import numpy as np
 from common import INK, save
 from matplotlib.colors import ListedColormap
 
-ti = bt.datasets.strebelle()
+ti = bt.datasets.channel_training_image()
 nx, ny = ti.count[:2]
 image = ti.grid("facies")[0]
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))

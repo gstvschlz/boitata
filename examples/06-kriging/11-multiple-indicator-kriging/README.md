@@ -1,6 +1,6 @@
 # Multiple indicator kriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Multiple indicator kriging (MIK) estimates the whole conditional distribution of Cd at each target.
 
 <details><summary>Python</summary>
@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-train = bt.datasets.jura()["prediction"]
-test = bt.datasets.jura()["validation"]
+train = bt.datasets.topsoil_metals()["prediction"]
+test = bt.datasets.topsoil_metals()["validation"]
 xy, cd = train.coords, train["Cd"]
 truth = test["Cd"]
 limit = 0.8
@@ -64,10 +64,10 @@ print(f"validation points inside their 10-90% interval: {inside:.0%}")
 </details>
 
 ```text
-ordinary kriging: RMSE 0.777 mg/kg
-per-threshold variograms: E-type RMSE 0.717 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.61 elsewhere, mean correction 0.060
-median indicator: E-type RMSE 0.755 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.62 elsewhere, mean correction 0.005
-validation points inside their 10-90% interval: 77%
+ordinary kriging: RMSE 0.763 mg/kg
+per-threshold variograms: E-type RMSE 0.748 mg/kg, mean P(Cd > 0.8) 0.75 where true exceedance, 0.61 elsewhere, mean correction 0.062
+median indicator: E-type RMSE 0.757 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.60 elsewhere, mean correction 0.001
+validation points inside their 10-90% interval: 80%
 ```
 
 The E-type estimate, the mean of each distribution, has a lower error than ordinary kriging, and the median-indicator
@@ -132,9 +132,9 @@ save(fig, "accuracy")
 </details>
 
 ```text
-per-threshold: E-type RMSE 0.756 mg/kg, slope 1.06, goodness 0.939, Brier 0.131
-median indicator: E-type RMSE 0.784 mg/kg, slope 0.97, goodness 0.944, Brier 0.133
-validation targets with order-relation violations: 93%
+per-threshold: E-type RMSE 0.967 mg/kg, slope 1.04, goodness 0.920, Brier 0.159
+median indicator: E-type RMSE 0.972 mg/kg, slope 1.15, goodness 0.935, Brier 0.161
+validation targets with order-relation violations: 92%
 ```
 
 ![accuracy](accuracy.png)
@@ -163,9 +163,9 @@ print(f"mean |panel - centroid| probability {shift:.3f}")
 </details>
 
 ```text
-centroids: std of P(Cd > 0.8) across panels 0.188, mean correction 0.0218
-1 km panels: std of P(Cd > 0.8) across panels 0.184, mean correction 0.0147
-mean |panel - centroid| probability 0.016
+centroids: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0126
+1 km panels: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0107
+mean |panel - centroid| probability 0.000
 ```
 
 Full script: [`example_06_11.py`](example_06_11.py)

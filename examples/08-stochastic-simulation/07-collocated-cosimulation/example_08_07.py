@@ -6,7 +6,7 @@ another grade simulated first. It draws each node from the collocated simple cok
 neighbors and the secondary score at the node itself. The cross-covariance is the correlation of the scores times
 the primary covariance, so you need no cross-variogram. `SGS.fit` takes the secondary at the data and fits that
 correlation; `simulate` takes the secondary at the nodes, one row per realization for simulated secondaries. Here
-Jura Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
+Topsoil Co, cosimulated realization by realization with simulated Ni, against Co simulated alone.
 """
 
 # %% [hidden]
@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, save
 
-samples = bt.datasets.jura()["prediction"]
+samples = bt.datasets.topsoil_metals()["prediction"]
 xy = samples.coords
 lag, max_lag = 0.1, 1.5
 
@@ -85,7 +85,7 @@ save(fig, "maps")
 
 # %% [markdown]
 # The cosimulated Co still reproduces its own histogram and variogram (the [realization checks](../../10-checking-models/04-realization-checks/README.md)), and its correlation
-# with Ni, 0.69 to 0.84 across realizations, brackets the samples' 0.75. Simulated alone, Co keeps little of it.
+# with Ni, 0.80 to 0.88 across realizations, brackets the samples' 0.81. Simulated alone, Co keeps little of it.
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(13, 3.8), layout="constrained")

@@ -57,8 +57,8 @@ for lo, hi, n, rel in zip(bias["from"], bias["to"], bias["n"], bias["bias"], str
     print(f"{lo:4.0f}-{hi:2.0f} m: {n:3.0f} pairs, bias of CH over DD {100 * rel:+5.0f} %")
 
 # %% [markdown]
-# One channel at 1192 g/t, paired with a DD intercept of 3.5 g/t, triples the CH mean on its own. Without it the paired
-# means differ by less than 2 g/t, and the medians by less than 0.4 g/t. The bias swings from bin to bin with the few
+# One channel at 1192 g/t, paired with a DD intercept of 5.7 g/t, triples the CH mean on its own. Without it the paired
+# means differ by less than 2 g/t, and the medians by less than 2 g/t. The bias swings from bin to bin with the few
 # pairs in each, so the two sampling methods show no systematic difference. The pairs carry a warning instead: the Q-Q
 # plot follows the 1:1 line except for its last few quantiles, and a mean of gold grades that rests on a few extreme
 # values needs a top cut ([top cuts](../../03-exploratory-analysis/05-top-cuts/README.md)).

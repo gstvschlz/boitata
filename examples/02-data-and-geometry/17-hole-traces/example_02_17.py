@@ -22,7 +22,7 @@ from common import save
 # %% [markdown]
 # ## The flagged stations
 #
-# `check_drillholes` ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)) flags two survey stations of `DD0197`, where the azimuth flips and flips back. Their
+# `check_drillholes` ([checking drill holes](../../02-data-and-geometry/01-check-drillholes/README.md)) flags two survey stations of `DD0017`, where the azimuth flips and flips back. Their
 # positions come from `Drillholes.at`, at the measured depths of the flagged stations. `bt.plot.holes` knows nothing
 # about deviation; it takes the points to mark.
 
@@ -43,13 +43,13 @@ marked = drillholes.at(list(flagged_holes), flagged_depths)
 # %% [markdown]
 # ## Plan and section
 #
-# The holes within 40 m of `DD0197`'s collar, in plan view and on a section across strike (113°, as in [contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md),
+# The holes within 60 m of `DD0017`'s collar, in plan view and on a section across strike (113°, as in [contact surfaces](../../11-geological-modeling/02-contact-surfaces/README.md),
 # [domain cleanup](../../02-data-and-geometry/14-domain-cleanup/README.md) and [domain change tables](../../07-categories-and-domains/02-domain-change-tables/README.md)) through it. Each view takes one call instead of one `ax.plot` per hole.
 
 # %%
-at_dd0197 = collar["HOLE_ID"] == "DD0197"
-x0, y0, z0 = (float(collar[c][at_dd0197][0]) for c in ("X", "Y", "Z"))
-near = np.hypot(collar["X"] - x0, collar["Y"] - y0) < 40.0
+at_dd0017 = collar["HOLE_ID"] == "DD0017"
+x0, y0, z0 = (float(collar[c][at_dd0017][0]) for c in ("X", "Y", "Z"))
+near = np.hypot(collar["X"] - x0, collar["Y"] - y0) < 60.0
 nearby = set(collar["HOLE_ID"][near])
 
 paths = drillholes.paths()

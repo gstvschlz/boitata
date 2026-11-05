@@ -19,13 +19,13 @@ import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-strebelle = bt.datasets.strebelle()
-n = strebelle.count[0]
+channel_image = bt.datasets.channel_training_image()
+n = channel_image.count[0]
 grid = bt.BlockModel((0, 0), (1, 1), (n, n))
 
 
 # %% [markdown]
-# Three object-based candidates on a grid the size of Strebelle, each about 30 % sand. Sizes and angles given as a
+# Three object-based candidates on a grid the size of the channel image, each about 30 % sand. Sizes and angles given as a
 # `(min, max)` range get a fresh draw for each object: sinuous channels 8 cells wide trending north, and lenses 36 by
 # 10 cells lying north-south or east-west.
 
@@ -46,7 +46,7 @@ for name, image in candidates.items():
 
 
 # %% [markdown]
-# The data are four holes through Strebelle, drilled north along its channels. On a 2D grid the test follows Y by
+# The data are four holes through the channel image, drilled north along its channels. On a 2D grid the test follows Y by
 # default. It counts the patterns of 4 consecutive cells down the holes and compares their frequencies with those of
 # the image by their Jensen-Shannon divergence. It repeats the comparison for 200 sets of holes of the same lengths
 # drilled at random through the image itself; the p-value is the share of those at least as divergent as the data.
@@ -56,8 +56,8 @@ columns = [30, 90, 150, 210]
 drilled = np.zeros((n, n), bool)
 drilled[:, columns] = True
 holes = grid.coords[drilled.ravel()]
-facies = strebelle.grid("facies")[0][drilled]
-checks = {"Strebelle": bt.training_image_consistency(strebelle, "facies", holes, facies, seed=0)}
+facies = channel_image.grid("facies")[0][drilled]
+checks = {"Channel image": bt.training_image_consistency(channel_image, "facies", holes, facies, seed=0)}
 for name, image in candidates.items():
     checks[name] = bt.training_image_consistency(image, "facies", holes, facies, seed=0)
 for name, check in checks.items():
@@ -68,7 +68,7 @@ for name, check in checks.items():
 
 
 # %% [markdown]
-# Strebelle, the image the holes came from, passes, and so do the channels. East-west lenses fail: down a hole they
+# The channel image, the image the holes came from, passes, and so do the channels. East-west lenses fail: down a hole they
 # are 10 cells thick, where the channels run on for dozens of cells. North-south lenses pass though they are no
 # channels, since along the holes they look like them. One axis tests thickness, order and proportions; the shape and
 # orientation of bodies need the geologist.
@@ -76,7 +76,7 @@ for name, check in checks.items():
 # %%
 codes = ListedColormap(["white", "black"])
 fig, axes = plt.subplots(1, 4, figsize=(15, 4), layout="constrained")
-panels = [("Strebelle", strebelle)] + list(candidates.items())
+panels = [("Channel image", channel_image)] + list(candidates.items())
 for ax, (name, image) in zip(axes, panels):
     ax.imshow(image.grid("facies")[0], origin="lower", cmap=codes, vmin=0, vmax=1, interpolation="nearest")
     ax.set(title=f"{name}\np = {checks[name]['p_value']:.3f}", xticks=[], yticks=[])

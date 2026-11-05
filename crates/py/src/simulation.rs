@@ -3476,6 +3476,27 @@ fn _realization_seed(seed: u64, k: u64) -> u64 {
     boitata_core::rng::realization_seed(seed, k)
 }
 
+/// Standard-Gaussian field at `coords`, fixed by the box `lo..hi` and `seed`.
+#[pyfunction]
+#[pyo3(signature = (coords, variogram, lo, hi, *, seed, bands=300))]
+fn _gaussian_field<'py>(
+    py: Python<'py>,
+    coords: &Bound<'py, PyAny>,
+    variogram: Variogram,
+    lo: [f64; 3],
+    hi: [f64; 3],
+    seed: u64,
+    bands: usize,
+) -> PyResult<Bound<'py, PyArray1<f64>>> {
+    let locs = points(coords)?;
+    let field = py
+        .detach(|| {
+            simulation::turning_bands::gaussian_field(&locs, lo, hi, &variogram.0, bands, seed)
+        })
+        .map_err(err)?;
+    Ok(array1(py, field))
+}
+
 /// `realizations` at `targets`, one per row, averaged to the summary rows of
 /// `blocks`, `window` or `groups` as `simulate` does, and the `groups` labels.
 #[pyfunction]
@@ -4493,6 +4514,7 @@ pub fn register(m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(correct_distribution, m)?)?;
     m.add_function(wrap_pyfunction!(select_realizations, m)?)?;
     m.add_function(wrap_pyfunction!(_realization_seed, m)?)?;
+    m.add_function(wrap_pyfunction!(_gaussian_field, m)?)?;
     m.add_function(wrap_pyfunction!(_summary_rows, m)?)?;
     m.add_class::<SimulationSummary>()?;
     m.add_class::<CategoricalSummary>()?;

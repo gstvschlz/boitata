@@ -17,13 +17,13 @@ from common import save
 
 </details>
 
-Walker Lake V, simulated as in [sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
+Metal survey V, simulated as in [sequential Gaussian simulation](../../08-stochastic-simulation/01-sgs/README.md): declustered normal scores, their variogram along N170° and across it,
 and 50 SGS realizations on a 5 m grid.
 
 <details><summary>Python</summary>
 
 ```python
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 y = bt.NormalScore(tails=(0.0, v.max())).fit_transform(v, weights=weights)
@@ -64,10 +64,10 @@ for name in ["mean", "std", "P50", "P90"]:
 </details>
 
 ```text
-mean  data    291   realizations    274 to    334
-std   data    255   realizations    254 to    278
-P50   data    235   realizations    192 to    284
-P90   data    636   realizations    616 to    702
+mean  data    285   realizations    260 to    298
+std   data    253   realizations    239 to    261
+P50   data    234   realizations    192 to    255
+P90   data    676   realizations    605 to    701
 ```
 
 The realizations' distributions straddle the declustered data's in grades and in normal scores, except for the step
@@ -85,12 +85,12 @@ bt.plot.variogram_reproduction(check, ax=axes[2])
 axes[0].set(xlim=(0, 1600), xlabel="V (ppm)", title="Histogram")
 axes[1].set(xlim=(-3, 3), title="Normal scores")
 axes[2].set(xlabel="Lag distance (m)", title="Variogram of normal scores")
-save(fig, "walker_lake")
+save(fig, "metal_survey")
 ```
 
 </details>
 
-![walker_lake](walker_lake.png)
+![metal_survey](metal_survey.png)
 
 ## Several variables
 
@@ -130,7 +130,7 @@ print(
 </details>
 
 ```text
-32,130 nodes; correlation data 0.25, realizations 0.22 to 0.30
+28,900 nodes; correlation data 0.11, realizations 0.09 to 0.16
 ```
 
 The realizations reproduce both declustered histograms and the correlation, and miss the variograms. The factors

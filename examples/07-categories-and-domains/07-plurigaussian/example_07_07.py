@@ -22,7 +22,7 @@ from common import ACCENT, GRAY, save
 # %% [markdown]
 # ## Rules
 #
-# Jura's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
+# The topsoil survey's rock types are known at each node of the prediction grid, so you can compare simulated maps with the real
 # geology. A `Categories` scheme names the rock types and gives each a color: `encode` turns labels into the codes 0
 # to 4 that the simulations take, and `shares` gives their proportions.
 #
@@ -32,8 +32,8 @@ from common import ACCENT, GRAY, save
 # stage touches only the next. Both use a guessed latent variogram of 0.8 km.
 
 # %%
-jura = bt.datasets.jura()
-train, grid = jura["prediction"], jura["grid"]
+data = bt.datasets.topsoil_metals()
+train, grid = data["prediction"], data["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
 rock_types = bt.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
 rock = rock_types.encode(train["Rock"]).astype(int)
@@ -70,7 +70,7 @@ save(fig, "categories")
 # %% [markdown]
 # The single field keeps close to the sample proportions but allows contacts only between neighbors in the order, so
 # Portlandian appears as specks along each Sequanian-Quaternary contact. The hierarchical rule puts Portlandian next
-# to Kimmeridgian and under the cover, as in the true map, and matches 51 % of the nodes against 37 %. Neither
+# to Kimmeridgian and under the cover, as in the true map, and matches 52 % of the nodes against 42 %. Neither
 # recovers Portlandian's 5 % of the area from 3 of 259 samples.
 
 # %% [markdown]
@@ -109,7 +109,7 @@ save(fig, "local-proportions")
 
 # %% [markdown]
 # With local proportions, Argovian keeps to the north-west and the south, near its samples, and the realization
-# matches the true rock type at 57 % of the nodes, against 51 % with global proportions.
+# matches the true rock type at 55 % of the nodes, against 52 % with global proportions.
 
 # %% [markdown]
 # ## Latent variograms
@@ -148,6 +148,6 @@ axes[0].legend(loc="lower right")
 save(fig, "latent-variograms")
 
 # %% [markdown]
-# The fitted cover field is short (0.49 km) and the stages field long (1.87 km), so the stages form broad bands that
+# The fitted cover field is short (0.44 km) and the stages field long (1.25 km), so the stages form broad bands that
 # the cover patches over; with 0.8 km on both, the stages varied too fast. The fitted variograms follow the
 # experimental points of each rock type and bring the match to 59 %.

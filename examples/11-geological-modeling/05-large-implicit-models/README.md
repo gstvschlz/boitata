@@ -32,8 +32,8 @@ for length, c in composites.items():
 </details>
 
 ```text
-  12 m:  3,437 composites,   658 at or above 60 % Fe
-   2 m: 20,191 composites, 4,664 at or above 60 % Fe
+  12 m:  3,332 composites,   530 at or above 60 % Fe
+   2 m: 19,542 composites, 4,436 at or above 60 % Fe
 ```
 
 `patch` picks the solver. `patch=0` solves one dense system; the default does so up to 2000 samples, and above
@@ -78,15 +78,15 @@ print(f"dense and patches put {same.mean():.2%} of the blocks on the same side")
 </details>
 
 ```text
-  Dense, 12 m:         dense,  6.14 s, 100.0% of composites on their side, 67.4 Mm3, covers 65% of the solid, 29% outside it
-Patches, 12 m:   204 patches,  0.03 s, 100.0% of composites on their side, 67.4 Mm3, covers 65% of the solid, 29% outside it
- Patches, 2 m: 1,198 patches,  0.20 s, 100.0% of composites on their side, 80.3 Mm3, covers 72% of the solid, 34% outside it
-dense and patches put 99.90% of the blocks on the same side
+  Dense, 12 m:         dense, 11.53 s, 100.0% of composites on their side, 50.8 Mm3, covers 56% of the solid, 33% outside it
+Patches, 12 m:   169 patches,  0.02 s, 100.0% of composites on their side, 50.8 Mm3, covers 56% of the solid, 33% outside it
+ Patches, 2 m: 1,219 patches,  0.13 s, 100.0% of composites on their side, 71.3 Mm3, covers 63% of the solid, 46% outside it
+dense and patches put 99.93% of the blocks on the same side
 ```
 
 On the 12 m composites the two solvers give the same volume and put all but one block in a thousand on the same
 side, the dense one in seconds and the patches in hundredths of a second. Both honor every code. Six times as many
-composites cost the patches a fraction of a second more, and the shell grows by a fifth. On the section of grade
+composites cost the patches a fraction of a second more, and the shell grows by two fifths. On the section of grade
 shells, at true scale, with the trace of the solid in black and topography as a thin line:
 
 <details><summary>Python</summary>
@@ -147,12 +147,12 @@ for patch in (1600, 400, 100):
 </details>
 
 ```text
-patch=1600:   232 patches,  6.76 s, 100.00% of the blocks on the side patch=1600 puts them
-patch=400 : 1,198 patches,  0.20 s, 99.51% of the blocks on the side patch=1600 puts them
-patch=100 : 4,173 patches,  0.06 s, 99.00% of the blocks on the side patch=1600 puts them
+patch=1600:   232 patches,  4.45 s, 100.00% of the blocks on the side patch=1600 puts them
+patch=400 : 1,219 patches,  0.11 s, 99.05% of the blocks on the side patch=1600 puts them
+patch=100 : 3,746 patches,  0.06 s, 98.59% of the blocks on the side patch=1600 puts them
 ```
 
-The default of 400 stays within half a percent of the blocks of `patch=1600` at a small fraction of its time.
+The default of 400 stays within 1 % of the blocks of `patch=1600` at a small fraction of its time.
 `report` says which solver ran and with how many patches. The 2000-sample switch counts constraint rows: each
 sample and boundary pick is one, each plane two and each lineation one, so structural readings
 ([structural data](../../11-geological-modeling/03-structural-data/README.md)) go through patches too.

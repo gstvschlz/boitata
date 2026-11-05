@@ -105,7 +105,7 @@ save(fig, "slices")
 # ## From the volume to a model
 #
 # With the rotation and ratios held at the volume's values, experimental variograms along the three axes leave
-# `Variogram.fit_directional` only the nugget, sill and range to find. Across the lenses γ reaches the sill near 90 m
+# `Variogram.fit_directional` only the nugget, sill and range to find. Across the lenses γ reaches the sill near 25 m
 # and then falls back, as pairs 130 m apart land in the next lens: a hole effect the single structure ignores.
 
 # %%

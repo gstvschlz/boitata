@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-jura = bt.datasets.jura()
-train, test = jura["prediction"], jura["validation"]
+soil = bt.datasets.topsoil_metals()
+train, test = soil["prediction"], soil["validation"]
 xy = train.coords
 cd, zn = train["Cd"], train["Zn"]
 lag, max_lag = 0.1, 1.5
@@ -26,12 +26,12 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 </details>
 
 ```text
-259 samples, corr(Cd, Zn) 0.67
+259 samples, corr(Cd, Zn) 0.74
 ```
 
 ## Cd and Zn
 
-The data are the Jura soil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md)
+The data are the topsoil samples of [coregionalization](../../05-spatial-continuity/07-coregionalization/README.md)
 (mg/kg, coordinates in km). `experimental_variograms` computes both variograms and the cross-variogram as a
 `VariogramSet`, which the fit takes as it is. The intrinsic model has one shape (a nugget and two spherical
 structures) and one 2 × 2 sill matrix.
@@ -63,10 +63,10 @@ for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
 </details>
 
 ```text
-intrinsic: sills Cd 0.863, Zn 899, correlation 0.64
-  share of the Cd / Zn sill: nugget 0 / 0 %, spherical 0.16 km 68 / 68 %, spherical 1.54 km 32 / 32 %
-full LMC: sills Cd 0.828, Zn 923, correlation 0.64
-  share of the Cd / Zn sill: nugget 0 / 0 %, spherical 0.15 km 83 / 53 %, spherical 1.47 km 17 / 47 %
+intrinsic: sills Cd 1.403, Zn 767, correlation 0.73
+  share of the Cd / Zn sill: nugget 0 / 0 %, spherical 0.30 km 50 / 50 %, spherical 0.99 km 50 / 50 %
+full LMC: sills Cd 1.399, Zn 769, correlation 0.75
+  share of the Cd / Zn sill: nugget 5 / 9 %, spherical 0.32 km 48 / 37 %, spherical 0.99 km 47 / 53 %
 ```
 
 The full linear model of coregionalization of
@@ -119,8 +119,8 @@ for name, model in [("intrinsic", icm), ("full LMC", lmc)]:
 </details>
 
 ```text
- intrinsic: validation RMSE 0.681 mg/kg
-  full LMC: validation RMSE 0.689 mg/kg
+ intrinsic: validation RMSE 0.696 mg/kg
+  full LMC: validation RMSE 0.652 mg/kg
 ```
 
 ## Seven metals
@@ -146,15 +146,15 @@ for m, row in zip(metals, corr):
 </details>
 
 ```text
-smallest eigenvalue of the sill matrix 0.375
+smallest eigenvalue of the sill matrix 0.523
           Cd    Co    Cr    Cu    Ni    Pb    Zn
-Cd      1.00  0.26  0.62  0.11  0.50  0.25  0.64
-Co      0.26  1.00  0.52  0.30  0.74  0.24  0.53
-Cr      0.62  0.52  1.00  0.23  0.73  0.31  0.69
-Cu      0.11  0.30  0.23  1.00  0.28  0.79  0.60
-Ni      0.50  0.74  0.73  0.28  1.00  0.36  0.67
-Pb      0.25  0.24  0.31  0.79  0.36  1.00  0.63
-Zn      0.64  0.53  0.69  0.60  0.67  0.63  1.00
+Cd      1.00  0.61  0.72  0.22  0.62  0.31  0.73
+Co      0.61  1.00  0.70  0.19  0.80  0.23  0.66
+Cr      0.72  0.70  1.00  0.22  0.71  0.29  0.76
+Cu      0.22  0.19  0.22  1.00  0.22  0.60  0.52
+Ni      0.62  0.80  0.71  0.22  1.00  0.26  0.75
+Pb      0.31  0.23  0.29  0.60  0.26  1.00  0.52
+Zn      0.73  0.66  0.76  0.52  0.75  0.52  1.00
 ```
 
 Full script: [`example_05_08.py`](example_05_08.py)

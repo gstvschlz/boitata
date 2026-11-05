@@ -14,7 +14,7 @@ import numpy as np
 from common import INK, save
 from matplotlib.colors import ListedColormap
 
-ti = bt.datasets.strebelle()
+ti = bt.datasets.channel_training_image()
 nx, ny = ti.count[:2]
 image = ti.grid("facies")[0]
 print(f"{nx} x {ny} cells, sand (code 1) in {image.mean():.1%} of them")
@@ -23,7 +23,7 @@ print(f"{nx} x {ny} cells, sand (code 1) in {image.mean():.1%} of them")
 </details>
 
 ```text
-250 x 250 cells, sand (code 1) in 27.7% of them
+250 x 250 cells, sand (code 1) in 29.4% of them
 ```
 
 The channels run along Y. The mean length of the runs of sand along Y measures how far a channel carries; across,
@@ -45,7 +45,7 @@ print(f"training image: sand runs {runs(image, 0):.1f} cells along Y, {runs(imag
 </details>
 
 ```text
-training image: sand runs 20.4 cells along Y, 8.5 across
+training image: sand runs 22.3 cells along Y, 12.4 across
 ```
 
 Twenty realizations for each number of coarse levels, from none to three, on a grid the size of the image. Each
@@ -69,10 +69,10 @@ for levels in (0, 1, 2, 3):
 </details>
 
 ```text
-n_levels=0: sand 22.6%, runs 7.0 along Y, 5.2 across
-n_levels=1: sand 22.6%, runs 10.3 along Y, 7.1 across
-n_levels=2: sand 28.2%, runs 15.5 along Y, 8.0 across
-n_levels=3: sand 29.8%, runs 18.0 along Y, 8.2 across
+n_levels=0: sand 24.8%, runs 7.3 along Y, 5.3 across
+n_levels=1: sand 23.2%, runs 10.6 along Y, 7.3 across
+n_levels=2: sand 27.5%, runs 17.1 along Y, 9.9 across
+n_levels=3: sand 31.1%, runs 21.4 along Y, 11.4 across
 ```
 
 Without levels the channels break into short pieces. Each level lengthens them, and three reach most of the

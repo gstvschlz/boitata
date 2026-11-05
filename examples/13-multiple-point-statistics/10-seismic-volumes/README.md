@@ -13,7 +13,9 @@ import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-cube = bt.read_segy(bt.datasets.fetch("oil-gas/3d/f3-seismic/seismic.sgy"))
+path = Path(tempfile.mkdtemp()) / "seismic.sgy"
+bt.write_segy(path, bt.datasets.seismic_cube(), "amplitude")
+cube = bt.read_segy(path)
 nx, ny, nz = cube.count
 print(f"{nx} inlines x {ny} crosslines x {nz} samples")
 print(
@@ -32,7 +34,7 @@ first sample at 1600 ms, CRS None
 
 Inline and crossline numbers come from trace-header bytes 189 and 193 and the CDP coordinates from bytes 181 and
 185, the SEG-Y revision 1 places; `inline_byte`, `crossline_byte`, `x_byte` and `y_byte` move them for files that
-put them elsewhere. The file states no CRS, so the cube has none; `bt.datasets.f3_seismic()` sets it. Z is minus the
+put them elsewhere. The file states no CRS, so the cube has none; `bt.datasets.seismic_cube()` sets it. Z is minus the
 two-way time, so a time slice is a z layer, and the first sample is the top cell.
 
 <details><summary>Python</summary>

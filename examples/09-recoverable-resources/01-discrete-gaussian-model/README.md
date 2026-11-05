@@ -2,7 +2,7 @@
 
 Mining selects blocks. Block grades vary less than point grades, so a point histogram misstates the tonnage above
 cutoffs. The discrete Gaussian model shrinks a Hermite anamorphosis of the points to block support, and the exhaustive
-Walker Lake grid gives the true point and block curves to check it against.
+metal survey grid gives the true point and block curves to check it against.
 
 <details><summary>Python</summary>
 
@@ -12,8 +12,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(samples, "V", sizes=np.arange(2.5, 102.5, 2.5)).weights
 ```
@@ -38,7 +38,7 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.3880895785084983, structures=[Structure("spherical", sill=0.6541303654567798, range=95.35466468171232)], rotation=(170.0, 0.0, 0.0), ratios=(0.3490856295281619, 1.0))
+Variogram(nugget=0.13142396427109918, structures=[Structure("spherical", sill=0.7667951113063376, range=103.06084513552106)], rotation=(170.0, 0.0, 0.0), ratios=(0.4626805674523921, 1.0))
 ```
 
 `change_of_support` averages the Gaussian correlogram over a 10 × 10 m block and returns the change-of-support
@@ -58,7 +58,7 @@ print(
 </details>
 
 ```text
-r = 0.725; point variance 64974, block 32652, true block 46694
+r = 0.866; point variance 64054, block 46822, true block 50729
 ```
 
 Grade-tonnage curves, model against truth:
@@ -111,15 +111,15 @@ save(fig, "grade-tonnage")
 </details>
 
 ```text
-above 300 ppm: points 41.7% (true 39.3%), blocks 42.7% (true 40.1%)
-above 500 ppm: points 21.1% (true 18.8%), blocks 13.3% (true 16.2%)
-above 800 ppm: points 4.3% (true 3.9%), blocks 1.0% (true 2.1%)
+above 300 ppm: points 42.1% (true 39.3%), blocks 40.9% (true 38.3%)
+above 500 ppm: points 18.2% (true 18.9%), blocks 16.5% (true 17.1%)
+above 800 ppm: points 4.8% (true 4.1%), blocks 2.4% (true 2.8%)
 ```
 
 ![grade-tonnage](grade-tonnage.png)
 
-The model shrinks the point variance of 64 974 to 32 652 for 10 m blocks, below the true 46 694, so it pulls the rich
-tail in too far: above 500 ppm it keeps 13.3% of the blocks against a true 16.2%, above 800 ppm 1.0% against 2.1%. The
+The model shrinks the point variance of 64 054 to 46 822 for 10 m blocks, below the true 50 729, so it pulls the rich
+tail in too far: above 500 ppm it keeps 16.5% of the blocks against a true 17.1%, above 800 ppm 2.4% against 2.8%. The
 point curves run a few percent high, since the declustered samples still overstate the rich grades.
 [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) and
 [MIK localization](../../09-recoverable-resources/03-mik-localization/README.md) carry block support down to panels;

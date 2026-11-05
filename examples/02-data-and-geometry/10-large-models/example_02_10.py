@@ -152,7 +152,7 @@ low, high = np.quantile(panel["realization_above"][:, 0], [0.1, 0.9])
 print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {low:.1%}, P90 {high:.1%}")
 
 # %% [markdown]
-# Averaging smooths the highs: about 15 % of the 25 m blocks pass 60 % Fe, against 22 % of the 5 m blocks.
+# Averaging smooths the highs: about 14 % of the 25 m blocks pass 60 % Fe, against 23 % of the 5 m blocks.
 #
 # The output is too big for memory, so you collect the east-west section with the most composites from the chunks,
 # reading only the columns it needs, into a small model of its own.

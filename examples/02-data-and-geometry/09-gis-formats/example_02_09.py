@@ -115,7 +115,7 @@ for name, n in zip(scheme.names, np.bincount(raster["LITHOLOGY"][present].astype
     print(f"{name:>16}: {n} cells")
 
 # %% [markdown]
-# The raster comes back as a regular grid: the 2407 cells outside the survey area are null in every band.
+# The raster comes back as a regular grid: the 2527 cells outside the survey area are null in every band.
 
 # %%
 (x0, y0, _), (x1, y1, _) = raster.bounds

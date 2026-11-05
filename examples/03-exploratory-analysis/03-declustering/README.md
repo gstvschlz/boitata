@@ -30,7 +30,7 @@ save(fig, "holes")
 </details>
 
 ```text
-295 holes, mean thickness 2.23 m
+295 holes, mean thickness 2.01 m
 ```
 
 ![holes](holes.png)
@@ -60,8 +60,8 @@ save(fig, "cell_sizes")
 </details>
 
 ```text
-cell size 700 m, declustered mean 1.91 m
-scanned mean at that size 1.91 m
+cell size 800 m, declustered mean 1.75 m
+scanned mean at that size 1.75 m
 ```
 
 ![cell_sizes](cell_sizes.png)
@@ -97,7 +97,7 @@ save(fig, "weights")
 </details>
 
 ```text
-polygonal declustered mean 1.95 m
+polygonal declustered mean 1.71 m
 ```
 
 ![weights](weights.png)

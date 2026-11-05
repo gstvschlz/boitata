@@ -23,11 +23,11 @@ import polars as pl
 from common import ACCENT, HIGHLIGHT, LIGHT, map_axes, save
 
 # %% [markdown]
-# Walker Lake `V` is kriged on a 1 m grid with a variogram fitted in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit), and
+# The metal survey `V` is kriged on a 1 m grid with a variogram fitted in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit), and
 # a masked model keeps the cells above 500 ppm.
 
 # %%
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
 model = bt.Variogram.fit_directional(
@@ -42,7 +42,7 @@ print(grid)
 print(rich)
 
 # %% [markdown]
-# The masked model keeps 10273 of the 78000 cells and stores its cell index with the attributes.
+# The masked model keeps 11361 of the 78000 cells and stores its cell index with the attributes.
 
 # %%
 folder = Path(tempfile.mkdtemp())
@@ -57,7 +57,7 @@ print(back)
 print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
 
 # %% [markdown]
-# The full grid takes 1.47 MB in parquet against 4.04 MB as CSV. Polars reads the same file and handles grouping and
+# The full grid takes 1.04 MB in parquet against 4.04 MB as CSV. Polars reads the same file and handles grouping and
 # summaries. A regular model stores no coordinates: its geometry is implicit and the row number is the cell index,
 # x fastest, so a 1 m row of 260 cells is one northing.
 
@@ -86,7 +86,7 @@ again = bt.OrdinaryKriging.from_parquet(folder / "kriging.parquet")
 print("same estimates:", np.array_equal(again.predict(grid), estimate, equal_nan=True))
 
 # %% [markdown]
-# A categorical estimate keeps its `Categories` scheme, the names and colors of the codes. Walker Lake's type `T`
+# A categorical estimate keeps its `Categories` scheme, the names and colors of the codes. The metal survey's type `T`
 # (1 and 2) is kriged as indicators on a 5 m grid ([categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md)). The file stores the probabilities as columns and
 # the scheme as JSON in the metadata.
 

@@ -71,5 +71,5 @@ save(fig, "factors")
 
 # %% [markdown]
 # Every transform returns the data exactly and leaves uncorrelated factors. PCA and MAF keep some dependence (r(f1², f2)
-# of 0.07 and −0.08), and MAF leaves a skewed second factor (0.88). SCT and PPMT bring both to about 0, so you can
+# of 0.07 and −0.08), and MAF leaves a skewed second factor (1.90). SCT and PPMT bring both to about 0, so you can
 # simulate their factors one at a time and keep the shape of the cloud.

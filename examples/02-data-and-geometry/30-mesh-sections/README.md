@@ -41,13 +41,13 @@ for name, lines in plans.items():
 </details>
 
 ```text
-lens 1: Polylines(8 features, 8 parts, crs: none)
+lens 1: Polylines(6 features, 6 parts, crs: none)
   lens: Utf8
   offset: Float64
-lens 2: Polylines(9 features, 9 parts, crs: none)
+lens 2: Polylines(7 features, 7 parts, crs: none)
   lens: Utf8
   offset: Float64
-lens 3: Polylines(6 features, 6 parts, crs: none)
+lens 3: Polylines(5 features, 5 parts, crs: none)
   lens: Utf8
   offset: Float64
 ```
@@ -94,9 +94,9 @@ for name, lens in lenses.items():
 </details>
 
 ```text
-lens 1: sections 2,787,983 m3, mesh 2,788,266 m3
-lens 2: sections 1,900,857 m3, mesh 1,901,081 m3
-lens 3: sections 1,652,911 m3, mesh 1,652,929 m3
+lens 1: sections 2,878,297 m3, mesh 2,878,257 m3
+lens 2: sections 1,907,888 m3, mesh 1,907,872 m3
+lens 3: sections 1,665,311 m3, mesh 1,665,272 m3
 ```
 
 The sections are ordinary `Polylines`, so they go to GIS files as they are, with their elevation in z and the
@@ -115,7 +115,7 @@ with tempfile.TemporaryDirectory() as folder:
 </details>
 
 ```text
-lens_1_levels.geojson: 8 outlines, columns ['lens', 'offset']
+lens_1_levels.geojson: 6 outlines, columns ['lens', 'offset']
 ```
 
 ## Sections across strike

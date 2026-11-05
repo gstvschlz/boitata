@@ -52,7 +52,7 @@ show(scene, "holes", "Drill holes, Zn composites and the three lenses")
 </details>
 
 ```text
-289 holes, 13,312 composites of 2 m, 1,135 inside a lens
+289 holes, 16,070 composites of 2 m, 1,489 inside a lens
 ```
 
 ![holes](holes.png)
@@ -93,7 +93,7 @@ show(scene, "subblocks", "Sub-blocks of the lenses, colored by Zn")
 </details>
 
 ```text
-9,021 sub-blocks, 6.35 Mm3 for 6.34 Mm3 of lens
+6,927 sub-blocks, 6.46 Mm3 for 6.45 Mm3 of lens
 ```
 
 ![subblocks](subblocks.png)
@@ -126,7 +126,7 @@ show(scene, "section", "Dip section through a grid rotated with the lenses")
 </details>
 
 ```text
-rotated grid [38, 47, 14]: 94% of 25,004 blocks estimated
+rotated grid [38, 47, 14]: 87% of 25,004 blocks estimated
 ```
 
 ![section](section.png)

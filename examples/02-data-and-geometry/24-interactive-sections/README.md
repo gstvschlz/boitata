@@ -49,7 +49,7 @@ show(scene, "cut", "One section cuts the grid, the lenses and the holes near it"
 </details>
 
 ```text
-section through [12231.0, 29911.0, 48.0]: 80 degrees, 30 m wide
+section through [12248.0, 29916.0, 51.0]: 80 degrees, 30 m wide
 ```
 
 ![cut](cut.png)

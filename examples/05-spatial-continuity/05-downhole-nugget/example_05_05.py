@@ -48,8 +48,8 @@ for length in lengths:
 
 
 # %% [markdown]
-# At 1 m the limonite carries a fifth of its Ni variance in the nugget, the saprolite about a seventh; 1.5 m composites
-# give nearly the same. At 2 m the first three lags span 6 m, most of the limonite's 7.4 m. The line then reaches zero
+# At 1 m the limonite carries a seventh of its Ni variance in the nugget, the saprolite about a tenth; 1.5 m composites
+# give nearly the same. At 2 m the first three lags span 6 m, most of the limonite's 6.8 m. The line then reaches zero
 # across the bend of the variogram, and the nugget comes out larger in both horizons. Carry the nugget of the shortest
 # composites into the fits between holes, whose closest spacing is 25 m.
 

@@ -77,7 +77,7 @@ print(f"{len(section)} cells; {np.sum(section['rock'] != section['clean'])} chan
 </details>
 
 ```text
-5205 cells; 37 change rock
+5071 cells; 55 change rock
 ```
 
 ## The table
@@ -112,14 +112,16 @@ for a, b, t, g in zip(moved["from"], moved["to"], moved["tonnage"], moved["mean_
 ```text
 rows are the rocks before: True
 columns are the rocks after: True
-unchanged: 99.3% of 16.7 Mt
-zinc in the table 68.04 kt, in the model 68.04 kt
- HWS to VCL   20.3 kt at 0.06 % Zn
- VCL to HWS   26.4 kt at 0.19 % Zn
- VCL to SUL   10.3 kt at 1.79 % Zn
- SUL to VCL    6.2 kt at 1.25 % Zn
- SUL to FWV   12.8 kt at 0.31 % Zn
- FWV to VCL   43.2 kt at 0.09 % Zn
+unchanged: 98.9% of 16.4 Mt
+zinc in the table 77.34 kt, in the model 77.34 kt
+  OB to HWS   10.1 kt at 0.05 % Zn
+  OB to VCL    6.9 kt at 0.04 % Zn
+ HWS to VCL   26.1 kt at 0.19 % Zn
+ VCL to HWS   76.1 kt at 0.90 % Zn
+ VCL to SUL    6.1 kt at 0.24 % Zn
+ VCL to FWV    3.3 kt at 0.13 % Zn
+ SUL to HWS   14.1 kt at 1.28 % Zn
+ SUL to VCL   40.2 kt at 1.33 % Zn
 ```
 
 Under 1 % of the tonnage changes rock, at grades far from random: the volcanic cells taken into the sulfides run

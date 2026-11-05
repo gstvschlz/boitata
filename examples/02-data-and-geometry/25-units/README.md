@@ -76,8 +76,8 @@ print(f"mean density {np.nanmean(table['DENSITY']):.2f} t/m3 = {np.nanmean(densi
 </details>
 
 ```text
-[1.  1.5 0.8] g/t is [0.02916667 0.04375    0.02333333] oz/t
-mean density 3.26 t/m3 = 3264 kg/m3
+[1.4 1.4 1.8] g/t is [0.04083333 0.04083333 0.0525    ] oz/t
+mean density 3.25 t/m3 = 3245 kg/m3
 ```
 
 A conversion across kinds raises `InvalidInput`: a zinc grade in percent is not a ratio in percent.
@@ -182,7 +182,7 @@ except bt.InvalidInput as error:
 </details>
 
 ```text
-largest difference from the estimate in meters: 1.6e-11 %
+largest difference from the estimate in meters: 1.9e-11 %
 samples are in m and targets in ft; convert one with to_length_unit('m')
 ```
 
@@ -208,7 +208,7 @@ for crs in (wkt, "EPSG:32722"):
 </details>
 
 ```text
-112293 blocks estimated in PROJCRS["SIRGAS 2000 / UTM zone 22S"]
+109105 blocks estimated in PROJCRS["SIRGAS 2000 / UTM zone 22S"]
 samples are in CRS EPSG:31982 and targets in EPSG:32722; give them one CRS
 ```
 
@@ -236,9 +236,9 @@ shape: (3, 4)
 │ ---    ┆ ---      ┆ ---        ┆ ---        │
 │ f64    ┆ f64      ┆ f64        ┆ f64        │
 ╞════════╪══════════╪════════════╪════════════╡
-│ 0.0    ┆ 77.4876  ┆ 1.107841   ┆ 858.439493 │
-│ 2.0    ┆ 15.33725 ┆ 4.341728   ┆ 665.90172  │
-│ 4.0    ┆ 6.83705  ┆ 6.166689   ┆ 421.619582 │
+│ 0.0    ┆ 67.95045 ┆ 1.012902   ┆ 688.271718 │
+│ 2.0    ┆ 12.7658  ┆ 3.913964   ┆ 499.648824 │
+│ 4.0    ┆ 4.32295  ┆ 6.000428   ┆ 259.395509 │
 └────────┴──────────┴────────────┴────────────┘
 ```
 
@@ -260,7 +260,7 @@ print(search.radius, search.length_unit)
 </details>
 
 ```text
-[15.33725] [15.33725]
+[12.7658] [12.7658]
 200.0 ft
 ```
 
@@ -310,8 +310,8 @@ shape: (2, 4)
 │ ---    ┆ ---   ┆ ---      ┆ ---       │
 │ str    ┆ u64   ┆ f64      ┆ f64       │
 ╞════════╪═══════╪══════════╪═══════════╡
-│ naive  ┆ 13312 ┆ 0.591816 ┆ 0.0       │
-│ model  ┆ 50040 ┆ 1.106608 ┆ 0.869851  │
+│ naive  ┆ 16070 ┆ 0.617235 ┆ 0.0       │
+│ model  ┆ 43862 ┆ 1.012274 ┆ 0.640014  │
 └────────┴───────┴──────────┴───────────┘
 ```
 

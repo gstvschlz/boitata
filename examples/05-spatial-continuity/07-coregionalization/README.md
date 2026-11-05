@@ -1,6 +1,6 @@
 # Coregionalization
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km). Cd correlates with Zn, and a linear model of
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km). Cd correlates with Zn, and a linear model of
 coregionalization (LMC) describes both variograms and their cross-variogram with one set of structures.
 
 <details><summary>Python</summary>
@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, INK, save
 
-samples = bt.datasets.jura()["prediction"]
+samples = bt.datasets.topsoil_metals()["prediction"]
 xy = samples.coords
 cd, zn = samples["Cd"], samples["Zn"]
 lag, max_lag = 0.1, 1.5
@@ -21,7 +21,7 @@ print(f"{len(cd)} samples, corr(Cd, Zn) {np.corrcoef(cd, zn)[0, 1]:.2f}")
 </details>
 
 ```text
-259 samples, corr(Cd, Zn) 0.67
+259 samples, corr(Cd, Zn) 0.74
 ```
 
 The cross-variogram is half the mean product of the Cd and Zn increments between co-located samples. The LMC fits the
@@ -47,9 +47,9 @@ for name, matrix in [("nugget", lmc.nugget)] + [(f"{m} {a:.2f} km", s) for m, a,
 </details>
 
 ```text
-nugget: [[0.0, 0.0], [0.0, 0.0]], smallest eigenvalue 0
-spherical 0.15 km: [[0.69, 11.146], [11.146, 485.455]], smallest eigenvalue 0.434
-spherical 1.47 km: [[0.138, 6.658], [6.658, 437.931]], smallest eigenvalue 0.0368
+nugget: [[0.076, -2.336], [-2.336, 72.012]], smallest eigenvalue -1.39e-17
+spherical 0.32 km: [[0.668, 10.759], [10.759, 287.019]], smallest eigenvalue 0.264
+spherical 0.99 km: [[0.655, 16.011], [16.011, 409.632]], smallest eigenvalue 0.0291
 ```
 
 Each curve is the fitted LMC's C(0) − C(h). The three experimental variograms follow the shared short and long
@@ -106,7 +106,7 @@ print(
 </details>
 
 ```text
-major axis azimuth 132°, semi-major/major ratio 0.31, major ranges 0.67, 1.45 km
+major axis azimuth 120°, semi-major/major ratio 0.52, major ranges 0.46, 1.45 km
 ```
 
 Full script: [`example_05_07.py`](example_05_07.py)

@@ -51,8 +51,8 @@ save(fig, "correlation")
 
 # %% [markdown]
 # In itabirite, a banded rock of hematite and quartz, Fe and SiO₂ are opposed at -1.00: one oxide replaces the other, so
-# SiO₂ adds nothing to Fe. In the hematite ore most of the silica is gone, and Fe falls instead with Al₂O₃ (-0.81) and
-# LOI (-0.52), the clay and goethite that dilute it. The same six oxides relate differently in each rock, one more
+# SiO₂ adds nothing to Fe. In the hematite ore most of the silica is gone, and Fe falls instead with Al₂O₃ (-0.44) and
+# LOI (-0.24), the clay and goethite that dilute it. The same six oxides relate differently in each rock, one more
 # reason to estimate the two apart.
 #
 # ## Scatter-plot matrix
@@ -104,7 +104,7 @@ axes[0].set_ylabel("Fe at x + h (%)")
 save(fig, "h_scatter")
 
 # %% [markdown]
-# Fe in itabirite correlates at 0.80 between neighboring composites, 0.32 at 8 m and 0.08 at 32 m. The bands that make
+# Fe in itabirite correlates at 0.72 between neighboring composites, 0.30 at 8 m and 0.05 at 32 m. The bands that make
 # the grade are thin, and beyond a few tens of meters a composite says little about the Fe of its neighbor. The
 # variogram ([experimental variograms](../../05-spatial-continuity/01-experimental-variograms/README.md)) measures the
 # same loss of correlation lag by lag.

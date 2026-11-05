@@ -14,14 +14,14 @@ One short run touches every layer:
 ```python
 import boitata as bt
 
-samples = bt.datasets.walker_lake()                                  # 1. get data: a PointSet
+samples = bt.datasets.clustered_metal_survey()  # 1. get data: a PointSet
 experimental = bt.experimental_variogram(samples, "V", 10.0, 120.0)  # 3. a function
-variogram = experimental.fit("spherical")                            # 3. a value object
-search = bt.Search(radius=60, max_samples=24, min_samples=4)         # 3. a value object
+variogram = experimental.fit("spherical")  # 3. a value object
+search = bt.Search(radius=60, max_samples=24, min_samples=4)  # 3. a value object
 grid = bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))  # 2. a container
-kriging = bt.OrdinaryKriging(variogram, search).fit(samples, "V")    # 3. an estimator
-grid = grid.with_column("V", kriging.predict(grid))                  # results back on the container
-fig, ax = bt.plot.histogram("V", data=grid)                          # 4. a plot
+kriging = bt.OrdinaryKriging(variogram, search).fit(samples, "V")  # 3. an estimator
+grid = grid.with_column("V", kriging.predict(grid))  # results back on the container
+fig, ax = bt.plot.histogram("V", data=grid)  # 4. a plot
 ```
 
 ```text

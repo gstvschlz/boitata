@@ -42,7 +42,7 @@ print(
 
 # %% [markdown]
 # Each collar's residual is its elevation minus the surface through the other collars. The default threshold, 3 robust
-# standard deviations of the residuals, adapts to the data: on these clean collars it sits a quarter of a meter out and
+# standard deviations of the residuals, adapts to the data: on these clean collars it sits a fifth of a meter out and
 # catches only the bends of the terrain between holes. A collar is flagged only where its residual also beats those of
 # its neighbors, since one bad collar pulls its neighbors' residuals up too.
 

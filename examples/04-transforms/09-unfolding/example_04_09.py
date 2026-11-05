@@ -57,7 +57,7 @@ print(
 # `reference="footwall"` makes `u` and `v` arc lengths along it, which matters where the layer is steep. Here the
 # bedrock is gentle and the arc lengths add a few percent over a kilometer. Points outside the layer get NaN, unless
 # `extrapolate=True`. The logged horizons check the surfaces: the midpoints of the saprolite intervals fall in the
-# layer, and all but 1% of the others fall outside.
+# layer, and all but 0.4% of the others fall outside.
 
 # %%
 unfold = bt.Unfold(bedrock, limonite)
@@ -82,7 +82,7 @@ print(
 
 # %% [markdown]
 # Nickel is richer in the lower half of the saprolite. The bedrock moves up and down by tens of meters, so the profile
-# blurs against elevation. Against `w` the decile means explain five times as much of the variance, though most of it
+# blurs against elevation. Against `w` the decile means explain twice as much of the variance, though most of it
 # stays local.
 
 
@@ -111,7 +111,7 @@ save(fig, "profile")
 # are vertical.
 #
 # Across the layer the two agree at the first lag, and the unfolded variogram rises faster: the holes are vertical, so
-# only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.52 against 0.67 at
+# only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.50 against 0.55 at
 # 12 m: in this deposit nearby samples at one elevation are more alike than nearby samples at one position in the
 # profile.
 
@@ -141,7 +141,7 @@ save(fig, "variograms")
 # The same ordinary kriging runs on both coordinate sets, cross-validated by leaving out one of ten groups of whole
 # holes at a time.
 #
-# The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.816 % against 0.865 %. Unfolding
+# The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.729 % against 0.757 %. Unfolding
 # pays off where grade follows the layer, as in a folded bed or a profile whose base moves more than the grade changes
 # across it. Cross-validation on both coordinate sets tells you which case your deposit is.
 

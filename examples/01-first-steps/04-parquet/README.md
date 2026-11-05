@@ -18,13 +18,13 @@ from common import ACCENT, HIGHLIGHT, LIGHT, map_axes, save
 
 </details>
 
-Walker Lake `V` is kriged on a 1 m grid with a variogram fitted in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit), and
+The metal survey `V` is kriged on a 1 m grid with a variogram fitted in eight directions ([variogram fitting](../../05-spatial-continuity/02-variogram-fitting/README.md) explains the fit), and
 a masked model keeps the cells above 500 ppm.
 
 <details><summary>Python</summary>
 
 ```python
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
 model = bt.Variogram.fit_directional(
@@ -45,12 +45,12 @@ print(rich)
 BlockModel(regular, 78000 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
-BlockModel(masked, 10273 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
+BlockModel(masked, 11361 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
 ```
 
-The masked model keeps 10273 of the 78000 cells and stores its cell index with the attributes.
+The masked model keeps 11361 of the 78000 cells and stores its cell index with the attributes.
 
 <details><summary>Python</summary>
 
@@ -70,16 +70,16 @@ print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
 </details>
 
 ```text
- grid.parquet: 1.05 MB
- rich.parquet: 0.14 MB
+ grid.parquet: 1.04 MB
+ rich.parquet: 0.16 MB
      grid.csv: 4.04 MB
-BlockModel(masked, 10273 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
+BlockModel(masked, 11361 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
 same cells: True | crs: local grid
 ```
 
-The full grid takes 1.47 MB in parquet against 4.04 MB as CSV. Polars reads the same file and handles grouping and
+The full grid takes 1.04 MB in parquet against 4.04 MB as CSV. Polars reads the same file and handles grouping and
 summaries. A regular model stores no coordinates: its geometry is implicit and the row number is the cell index,
 x fastest, so a 1 m row of 260 cells is one northing.
 
@@ -108,12 +108,12 @@ shape: (6, 3)
 │ ---           ┆ ---    ┆ ---         │
 │ i64           ┆ f64    ┆ f64         │
 ╞═══════════════╪════════╪═════════════╡
-│ 0             ┆ 315.0  ┆ 0.103       │
-│ 50            ┆ 366.0  ┆ 0.175       │
-│ 100           ┆ 338.0  ┆ 0.182       │
-│ 150           ┆ 304.0  ┆ 0.17        │
-│ 200           ┆ 261.0  ┆ 0.111       │
-│ 250           ┆ 166.0  ┆ 0.049       │
+│ 0             ┆ 371.0  ┆ 0.225       │
+│ 50            ┆ 402.0  ┆ 0.302       │
+│ 100           ┆ 304.0  ┆ 0.134       │
+│ 150           ┆ 266.0  ┆ 0.172       │
+│ 200           ┆ 175.0  ┆ 0.024       │
+│ 250           ┆ 181.0  ┆ 0.017       │
 └───────────────┴────────┴─────────────┘
 ```
 
@@ -139,14 +139,14 @@ shape: (3, 7)
 │ ---  ┆ ---  ┆ --- ┆ ---   ┆ ---  ┆ ---            ┆ ---    │
 │ f64  ┆ f64  ┆ f64 ┆ f64   ┆ f64  ┆ f64            ┆ f64    │
 ╞══════╪══════╪═════╪═══════╪══════╪════════════════╪════════╡
-│ 11.0 ┆ 8.0  ┆ 0.0 ┆ 0.0   ┆ null ┆ 0.0            ┆ null   │
-│ 8.0  ┆ 30.0 ┆ 0.0 ┆ 0.0   ┆ null ┆ 0.0            ┆ null   │
-│ 9.0  ┆ 48.0 ┆ 0.0 ┆ 224.4 ┆ null ┆ 0.0            ┆ null   │
+│ 12.0 ┆ 9.0  ┆ 0.0 ┆ 323.8 ┆ null ┆ 0.0            ┆ null   │
+│ 28.0 ┆ 8.0  ┆ 0.0 ┆ 534.5 ┆ null ┆ 0.0            ┆ null   │
+│ 49.0 ┆ 11.0 ┆ 0.0 ┆ 760.8 ┆ null ┆ 0.0            ┆ null   │
 └──────┴──────┴─────┴───────┴──────┴────────────────┴────────┘
 same estimates: True
 ```
 
-A categorical estimate keeps its `Categories` scheme, the names and colors of the codes. Walker Lake's type `T`
+A categorical estimate keeps its `Categories` scheme, the names and colors of the codes. The metal survey's type `T`
 (1 and 2) is kriged as indicators on a 5 m grid ([categorical indicator kriging](../../07-categories-and-domains/05-categorical-indicator-kriging/README.md)). The file stores the probabilities as columns and
 the scheme as JSON in the metadata.
 
@@ -173,15 +173,15 @@ print(
 
 ```text
 shape: (3, 3)
-┌────────────┬─────┬─────┐
-│ correction ┆ p_0 ┆ p_1 │
-│ ---        ┆ --- ┆ --- │
-│ f64        ┆ f64 ┆ f64 │
-╞════════════╪═════╪═════╡
-│ 0.0        ┆ 0.0 ┆ 1.0 │
-│ 0.0        ┆ 0.0 ┆ 1.0 │
-│ 0.0        ┆ 0.0 ┆ 1.0 │
-└────────────┴─────┴─────┘
+┌────────────┬──────────┬──────────┐
+│ correction ┆ p_0      ┆ p_1      │
+│ ---        ┆ ---      ┆ ---      │
+│ f64        ┆ f64      ┆ f64      │
+╞════════════╪══════════╪══════════╡
+│ 1.2490e-16 ┆ 0.063047 ┆ 0.936953 │
+│ 2.3592e-16 ┆ 0.087127 ┆ 0.912873 │
+│ 0.0        ┆ 0.114355 ┆ 0.885645 │
+└────────────┴──────────┴──────────┘
 same scheme: True | same probabilities: True
 ```
 

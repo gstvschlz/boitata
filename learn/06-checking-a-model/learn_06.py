@@ -24,7 +24,7 @@ follow it slice by slice against the data, and test its tonnage above a cutoff.
 #
 # Each check compares the model with something independent of it: the declustered samples, samples the estimate
 # never saw, or averages over slices of the deposit. In a real project you never know the truth, so these comparisons
-# are all you have. Walker Lake also has the exhaustive truth, so you can see how well each check predicts the real
+# are all you have. The metal survey also has the exhaustive truth, so you can see how well each check predicts the real
 # error.
 #
 # The model under test is block kriging of `V` on 780 blocks of 10 × 10 m, with the variogram and an anisotropic
@@ -45,8 +45,8 @@ import numpy as np
 from common import ACCENT, GRAY, INK, map_axes, save
 from matplotlib.colors import PowerNorm
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 weights = bt.cell_declustering(xy, v, sizes=np.arange(2.5, 102.5, 2.5)).weights
 
@@ -84,8 +84,8 @@ print(f"blocks {bias['estimate_mean']:.1f} ppm, relative bias {bias['relative']:
 print(f"true blocks {true_blocks.mean():.1f} ppm")
 
 # %% [markdown]
-# The blocks average 291.7 ppm against a declustered 290.7 ppm, a bias of +0.3 %. The naive mean, 435.3 ppm, would
-# have flagged a false 33 % underestimate. Both the blocks and the declustered samples sit above the true 278.0 ppm.
+# The blocks average 284.0 ppm against a declustered 284.9 ppm, a bias of −0.3 %. The naive mean, 427.7 ppm, would
+# have flagged a false 34 % underestimate. Both the blocks and the declustered samples sit above the true 279.5 ppm.
 # This check measures agreement with the data, so it cannot see an error that the declustering weights share. A
 # difference of a few percent is common. A larger one points at a search that reaches into another domain, a
 # variogram with the wrong anisotropy or declustering that needs another look.
@@ -124,17 +124,17 @@ for folds in (None, 10, 5):
 #
 # | Statistic | Question | Ideal | Leave-one-out |
 # |---|---|---|---|
-# | Mean error | Are estimates too high or too low on average? | 0 | 11.6 ppm |
-# | RMSE | How large is a typical error? | small | 185.4 ppm |
-# | Correlation | Do estimates rank samples in the right order? | 1 | 0.79 |
-# | Slope | Are high estimates too high and low ones too low? | 1 | 1.03 |
-# | Error² / variance | Does the kriging variance match the real errors? | 1 | 0.71 |
+# | Mean error | Are estimates too high or too low on average? | 0 | 6.6 ppm |
+# | RMSE | How large is a typical error? | small | 153.5 ppm |
+# | Correlation | Do estimates rank samples in the right order? | 1 | 0.84 |
+# | Slope | Are high estimates too high and low ones too low? | 1 | 1.04 |
+# | Error² / variance | Does the kriging variance match the real errors? | 1 | 0.72 |
 #
 # </div>
 #
-# A slope of 1.03 means the leave-one-out estimates are free of conditional bias. The last statistic, 0.71, means the
+# A slope of 1.04 means the leave-one-out estimates are free of conditional bias. The last statistic, 0.72, means the
 # kriging variance is about 40 % larger than the squared errors it should predict, so intervals built from it are too
-# wide. Errors grow as the folds get fewer: the RMSE rises from 185.4 ppm with leave-one-out to 193.2 ppm with five
+# wide. Errors grow as the folds get fewer: the RMSE rises from 153.5 ppm with leave-one-out to 158.2 ppm with five
 # folds, because each estimate loses more of its neighbors. Leave-one-out judges the model at the sample spacing,
 # which in the clusters is finer than most blocks see.
 #
@@ -201,9 +201,9 @@ for n in (4, 24):
     )
 
 # %% [markdown]
-# With 4 samples the true slope is 0.93, and the top tenth of the blocks is estimated at 723 ppm where the truth
-# holds 687 ppm, a 5 % overstatement in the blocks a mine would take. With 24 samples the slope is 1.02 and the top
-# tenth is estimated at 695 ppm for a true 692 ppm. The predicted mean slope moves the same way, from 0.84 to 0.96,
+# With 4 samples the true slope is 0.93, and the top tenth of the blocks is estimated at 746 ppm where the truth
+# holds 727 ppm, a 3 % overstatement in the blocks a mine would take. With 24 samples the slope is 1.02 and the top
+# tenth is estimated at 694 ppm for a true 738 ppm. The predicted mean slope moves the same way, from 0.86 to 0.98,
 # and sits below the truth in both cases. In the maps, slope and efficiency are high among the samples and drop in
 # the gaps.
 
@@ -260,8 +260,8 @@ print(
 
 # %% [markdown]
 # The blocks follow the samples slice by slice, smoother than the sample means, which jump where few samples fall.
-# Against the truth, the widest gap in a 20 m slice is 70 ppm along easting and 52 ppm along northing. The easting gap
-# sits at the eastern edge, where the declustered samples overstate the truth as much as the blocks do. The model
+# Against the truth, the widest gap in a 20 m slice is 24 ppm along easting and 46 ppm along northing. The easting gap
+# sits at 50 m east, where the declustered samples overstate the truth as much as the blocks do. The model
 # followed its data, and no check against the data can see that error. Look for runs: several slices in a row on the
 # same side of the samples point at a trend the model misses, often near the edge of the data.
 #
@@ -320,8 +320,8 @@ for c in (300.0, 500.0):
     )
 
 # %% [markdown]
-# At 300 ppm, near the mean, the kriged blocks put 41.9 % of the area above cutoff against a true 40.1 %, at 462 ppm
-# instead of 494 ppm. At 500 ppm they put 12.8 % against 16.2 %. The samples sit farther out than either, because a
+# At 300 ppm, near the mean, the kriged blocks put 42.1 % of the area above cutoff against a true 38.3 %, at 479 ppm
+# instead of 514 ppm. At 500 ppm they put 14.0 % against 17.1 %. The samples sit farther out than either, because a
 # 10 × 10 m block averages out part of the point-scale variability. Compare blocks with blocks, and samples only after
 # a change of support. With real data you have no true blocks, so the reference is a model with the right variability
 # at block support: simulation averaged to blocks ([chapter 5](../05-simulation/learn_05.md)) or a change-of-support
@@ -355,8 +355,8 @@ for name in ("measured", "indicated", "inferred"):
     )
 
 # %% [markdown]
-# Measured blocks, 29.9 % of the area, are estimated within 1 % of their true mean and have the smallest errors,
-# an RMSE of 83.6 ppm, although they hold the highest grades. Inferred blocks lie in the gaps and at the edges, in
+# Measured blocks, 32.2 % of the area, are estimated within 1 % of their true mean and have the smallest errors,
+# an RMSE of 79.7 ppm, although they hold the highest grades. Inferred blocks lie in the gaps and at the edges, in
 # lower grades. Their RMSE of 95.7 ppm looks modest, yet their mean is overstated by a fifth, 190 ppm against
 # 157 ppm. Errors in ppm follow grade as well as confidence, so rank confidence by the diagnostics and the drill
 # spacing. The [classification example](../../examples/10-checking-models/05-classification/example_10_05.md) adds

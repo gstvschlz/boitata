@@ -1,6 +1,6 @@
 # Cokriging
 
-Jura: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
+Topsoil metals: 259 soil samples of heavy metals (mg/kg, coordinates in km) and 100 validation samples withheld from estimation.
 Cd correlates with Zn, and Zn is also known at the validation points, which suits collocated cokriging.
 
 <details><summary>Python</summary>
@@ -11,8 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, save
 
-train = bt.datasets.jura()["prediction"]
-test = bt.datasets.jura()["validation"]
+train = bt.datasets.topsoil_metals()["prediction"]
+test = bt.datasets.topsoil_metals()["validation"]
 xy = train.coords
 cd, zn = train["Cd"], train["Zn"]
 lag, max_lag = 0.1, 1.5
@@ -67,8 +67,8 @@ print(
 </details>
 
 ```text
-validation RMSE: ordinary kriging 0.777, collocated cokriging 0.689 mg/kg
-variance of estimates: ordinary kriging 0.211, cokriging 0.531, true 0.477
+validation RMSE: ordinary kriging 0.763, collocated cokriging 0.652 mg/kg
+variance of estimates: ordinary kriging 0.447, cokriging 0.710, true 0.690
 ```
 
 Using Zn at the target lowers the error and removes the smoothing that flattens ordinary kriging:
@@ -116,7 +116,7 @@ print(
 </details>
 
 ```text
-validation RMSE: collocated cokriging 0.689, with local anisotropy 0.671 mg/kg
+validation RMSE: collocated cokriging 0.652, with local anisotropy 0.661 mg/kg
 ```
 
 Full script: [`example_06_09.py`](example_06_09.py)

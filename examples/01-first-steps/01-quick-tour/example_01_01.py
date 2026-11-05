@@ -1,7 +1,7 @@
 """
 # Quick tour
 
-One pass from samples to a checked estimate. Walker Lake has 470 samples of `V` (ppm) over a 260 × 300 m area, and
+One pass from samples to a checked estimate. The metal survey has 470 samples of `V` (ppm) over a 260 × 300 m area, and
 an exhaustive grid of 78 000 values over the same area to check the estimate against. Each step fits in one cell and
 links to the page that covers it in full.
 """
@@ -19,12 +19,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, INK, map_axes, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 print(samples)
 
 # %% [markdown]
-# `bt.datasets` downloads a dataset once and caches it. The samples load as a `PointSet`: coordinates, plus one column
+# `bt.datasets` generates a dataset on the call. The samples load as a `PointSet`: coordinates, plus one column
 # per variable. The exhaustive values wait for the checks at the end.
 #
 # ## Statistics
@@ -58,9 +58,9 @@ b.set(title="Declustered histogram", xlabel="V (ppm)")
 save(fig, "samples")
 
 # %% [markdown]
-# Declustering takes the mean from 435 to 291 ppm, 13 ppm above the exhaustive mean, and brings the median and P90
+# Declustering takes the mean from 428 to 285 ppm, 5 ppm above the exhaustive mean, and brings the median and P90
 # close to the true ones. The histogram is skewed to the right, with a peak of near-zero values and a thin tail up to
-# 1528 ppm.
+# 1547 ppm.
 #
 # ## Top cut
 #
@@ -109,8 +109,8 @@ ax.legend(loc="lower right")
 save(fig, "variogram")
 
 # %% [markdown]
-# V is most continuous along N159°, with a range of 115 m. Across it the range drops to about 40 m (a ratio of
-# 0.34). The nugget holds a tenth of the sill.
+# V is most continuous along N2°, with a range of 115 m. Across it the range drops to about 44 m (a ratio of
+# 0.38). The nugget holds 7 % of the sill.
 #
 # ## Kriging
 #
@@ -174,7 +174,7 @@ b.set(title="Swath along northing, 20 m slices", xlabel="Northing (m)", ylabel="
 save(fig, "checks")
 
 # %% [markdown]
-# The slope of 1.04 shows no conditional bias. Cross-validation (RMSE 179 ppm) and the truth (RMSE 154 ppm) give
+# The slope of 1.04 shows no conditional bias. Cross-validation (RMSE 150 ppm) and the truth (RMSE 136 ppm) give
 # errors of the same size. The estimate follows the swath of the truth and flattens its peaks. Its mean matches the
-# declustered samples and sits 4 % above the truth, a bias that no check against the samples can detect.
+# declustered samples and sits 1 % above the truth, a bias that no check against the samples can detect.
 # [Storing containers in parquet](../../01-first-steps/04-parquet/README.md) saves a grid like this one to a file.

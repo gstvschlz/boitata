@@ -1,6 +1,6 @@
 # Swaths
 
-Phosphate concentrated by weathering, drilled by 217 RC and 34 diamond holes through soil (SOIL), an aluminous horizon
+Phosphate concentrated by weathering, drilled by 221 RC and 30 diamond holes through soil (SOIL), an aluminous horizon
 (ALU), the oxidized ore (OXI), saprolite (SAP) and fresh rock (ROCK). A swath is the mean grade in slices along one
 direction. A trend in the data shows up as a slope, and the same call on a block model checks the estimate for local
 bias ([model checks](../../10-checking-models/01-model-checks/README.md)).
@@ -25,17 +25,17 @@ print(f"sample length {length.min():.1f} to {length.max():.1f} m")
 </details>
 
 ```text
-ALU    1042 samples, mean P2O5  4.92 %
-OXI    1432 samples, mean P2O5 12.92 %
-ROCK   1316 samples, mean P2O5  5.09 %
-SAP     998 samples, mean P2O5  9.07 %
-SOIL    251 samples, mean P2O5  1.94 %
-all    5039 samples, mean P2O5  7.91 %
-sample length 0.5 to 6.6 m
+ALU    1152 samples, mean P2O5  4.74 %
+OXI    1533 samples, mean P2O5 12.52 %
+ROCK   1407 samples, mean P2O5  5.03 %
+SAP    1241 samples, mean P2O5  8.48 %
+SOIL    259 samples, mean P2O5  1.95 %
+all    5592 samples, mean P2O5  7.65 %
+sample length 2.2 to 5.0 m
 ```
 
 The ore is the OXI horizon, with SAP below it half as rich. `swath` bins the samples in slices of a given width along
-`axis` ("x", "y", "z") or any `azimuth`, weighted here by sample length since the samples run from 0.5 to 6.6 m.
+`axis` ("x", "y", "z") or any `azimuth`, weighted here by sample length since the samples run from 2.2 to 5.0 m.
 `plot.swath` draws several swaths on one axis, with the counts of the first as bars. The slices are 200 m along
 easting and northing and 10 m in elevation, one line per horizon.
 
@@ -67,18 +67,18 @@ save(fig, "swaths")
 </details>
 
 ```text
-OXI along easting: 11.9 to 13.9 %, slices of 30 samples or more
-SAP along easting: 8.7 to 9.6 %, slices of 30 samples or more
-OXI along northing: 12.1 to 14.1 %, slices of 30 samples or more
-SAP along northing: 8.6 to 9.6 %, slices of 30 samples or more
-OXI along elevation: 11.3 to 14.1 %, slices of 30 samples or more
-SAP along elevation: 7.4 to 10.0 %, slices of 30 samples or more
+OXI along easting: 11.0 to 13.8 %, slices of 30 samples or more
+SAP along easting: 8.0 to 9.4 %, slices of 30 samples or more
+OXI along northing: 12.0 to 13.0 %, slices of 30 samples or more
+SAP along northing: 8.0 to 9.1 %, slices of 30 samples or more
+OXI along elevation: 11.8 to 13.3 %, slices of 30 samples or more
+SAP along elevation: 7.1 to 8.8 %, slices of 30 samples or more
 ```
 
 ![swaths](swaths.png)
 
-Within each horizon the swaths are flat. OXI stays between 11.9 and 14.1 % along easting and northing and SAP between
-8.6 and 9.6 %, about the noise that a hundred-odd samples per slice leave. The step between the two lines is much
+Within each horizon the swaths are flat. OXI stays between 11.0 and 13.8 % along easting and northing and SAP between
+8.0 and 9.4 %, about the noise that a hundred-odd samples per slice leave. The step between the two lines is much
 larger than any slope along them, so the horizon sets the grade: estimate each horizon on its own samples, with no
 trend. In elevation the lines are noisier because the horizons follow the rolling topography, and one slice of
 elevation cuts OXI on a hill and SAP in a valley. The slices at the ends hold few samples, and the bars tell you how

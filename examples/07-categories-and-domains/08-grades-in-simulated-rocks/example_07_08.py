@@ -22,12 +22,12 @@ from common import save
 # %% [markdown]
 # ## Rock types
 #
-# Jura's rock types are known at each node of the prediction grid. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) draws 10 rock-type realizations from
+# The topsoil survey's rock types are known at each node of the prediction grid. SIS ([sequential indicator simulation](../../07-categories-and-domains/06-sis/README.md)) draws 10 rock-type realizations from
 # indicator variograms fitted to the samples; Portlandian, with 3 samples, gets a guessed one.
 
 # %%
-jura = bt.datasets.jura()
-train, grid = jura["prediction"], jura["grid"]
+data = bt.datasets.topsoil_metals()
+train, grid = data["prediction"], data["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
 rock_types = bt.Categories(names)
 rock = rock_types.encode(train["Rock"]).astype(int)
@@ -94,7 +94,7 @@ for ax, (image, title, label, top) in zip(axes, panels):
 save(fig, "grades-in-rock-types")
 
 # %% [markdown]
-# Within the true rock types, Co drops at each Argovian contact and averages 5.45 ppm on Argovian. Within the SIS rock
+# Within the true rock types, Co drops at each Argovian contact and averages 5.50 ppm on Argovian. Within the SIS rock
 # types the contacts move from one realization to the next, so the lean Argovian Co spreads over its uncertain margin:
-# the true Argovian averages 7.20 ppm. Where SIS is unsure of Argovian (a third of the nodes), the spread of Co across
-# realizations is 2.87 ppm against 2.07 ppm with the domains fixed.
+# the true Argovian averages 7.04 ppm. Where SIS is unsure of Argovian (over half of the nodes), the spread of Co across
+# realizations is 3.38 ppm against 2.57 ppm with the domains fixed.

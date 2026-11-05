@@ -21,9 +21,9 @@ matplotlib.use("Agg")
 
 ROOT = Path(__file__).resolve().parent
 DATASETS = {
-    "walker_lake": "Walker Lake",
-    "walker_lake_exhaustive": "Walker Lake",
-    "jura": "Jura",
+    "clustered_metal_survey": "Clustered metal survey",
+    "clustered_metal_survey_exhaustive": "Clustered metal survey",
+    "topsoil_metals": "Topsoil metals",
 }
 STOPLIST = {"datasets", "plot", "plot3d", "read_csv"}
 LINK = re.compile(r"\]\((?!https?:|#)([^)\s]+)\)")
@@ -129,7 +129,7 @@ def index() -> str:
     lines = [
         "# Examples",
         "",
-        "Worked examples with the Python API on open datasets from [gstvschlz/datasets](https://github.com/gstvschlz/datasets).",
+        "Worked examples with the Python API on the synthetic datasets that `bt.datasets` generates on the call.",
     ]
     for category in categories():
         heading = (category / "README.txt").read_text(encoding="utf-8").splitlines()[0].removeprefix("# ")

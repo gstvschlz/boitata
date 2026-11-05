@@ -12,7 +12,7 @@ import numpy as np
 from common import GRAY, HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-ti = bt.datasets.strebelle()
+ti = bt.datasets.channel_training_image()
 nx, ny = ti.count[:2]
 image = ti.grid("facies")[0]
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
@@ -34,7 +34,7 @@ print(f"{facies.sum()} sand and {(facies == 0).sum()} shale data")
 </details>
 
 ```text
-25 sand and 75 shale data
+28 sand and 72 shale data
 ```
 
 Fifty realizations, once without targets and once with the image's proportions as targets. `servo` sets how hard
@@ -62,8 +62,8 @@ print(f"hard data reproduced in every realization: {reproduced}")
 </details>
 
 ```text
-Plain: sand 29.9% (28.1% to 32.7%), image 27.7%
-Servo: sand 27.5% (27.2% to 27.9%), image 27.7%
+Plain: sand 31.2% (26.0% to 35.4%), image 29.4%
+Servo: sand 28.9% (28.5% to 29.3%), image 29.4%
 hard data reproduced in every realization: True
 ```
 
@@ -88,8 +88,8 @@ for code, label in ((1, "sand"), (0, "shale")):
 </details>
 
 ```text
-within 3 cells of sand data: P(sand) 0.56, image 0.84
-within 3 cells of shale data: P(sand) 0.13, image 0.05
+within 3 cells of sand data: P(sand) 0.55, image 0.88
+within 3 cells of shale data: P(sand) 0.14, image 0.06
 ```
 
 <details><summary>Python</summary>

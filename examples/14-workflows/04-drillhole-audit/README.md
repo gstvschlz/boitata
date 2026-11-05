@@ -48,9 +48,9 @@ for name, table in raw.items():
 
 ```text
    collar:    290 rows, columns HOLE_ID, X, Y, Z, LENGTH, TYPE
-   survey:   4326 rows, columns HOLE_ID, DEPTH, DIP, AZIMUTH
-   assays:  16907 rows, columns HOLE_ID, FROM, TO, ZN_PCT, PB_PCT, CU_PCT, AG_GPT, AU_GPT, DENSITY
-lithology:   1726 rows, columns HOLE_ID, FROM, TO, LITH
+   survey:   4469 rows, columns HOLE_ID, DEPTH, DIP, AZIMUTH
+   assays:  19151 rows, columns HOLE_ID, FROM, TO, ZN_PCT, PB_PCT, CU_PCT, AG_GPT, AU_GPT, DENSITY
+lithology:   2239 rows, columns HOLE_ID, FROM, TO, LITH
 ```
 
 Interval tables (assays, lithology) describe a hole as a stack of `FROM`-`TO` pieces measured along the hole from
@@ -97,30 +97,30 @@ for table, name, rows in zip(summary["table"], summary["check"], summary["rows"]
 
 ```text
     table check         rows holes  examples
-   collar duplicate        2     2  'DD0058', 'DD0067'
-   collar no_survey        1     1  'DD0151'
-   collar no_assays      112   112  'DD0001', 'DD0002', 'DD0003', 'DD0004' ...
-   survey deviation        2     1  'DD0197'
-   survey dip_sign        28     1  'DD0116'
-   survey past_depth       5     1  'DD0055'
-   survey id_mismatch     13     1  'DD0104'
-   survey no_collar        8     1  'DD0111'
-   assays inverted         1     1  'DD0100'
-   assays gap             10     8  'DD0062', 'DD0080', 'DD0100', 'DD0200' ...
-   assays overlap          5     2  'DD0162', 'DD0200'
-   assays past_depth       4     1  'DD0055'
-   assays sentinel         5     1  'DD0110'
-   assays text_values      3     1  'DD0083'
-   assays id_mismatch    109     2  'DD0104', 'dd0062'
-   assays no_collar      127     1  'DD0111'
-lithology gap              1     1  'DD0132'
-lithology past_depth       2     1  'DD0055'
-lithology id_mismatch     10     2  'DD0104', 'DD0132 '
-lithology no_collar        7     1  'DD0111'
+   collar duplicate        2     2  'DD0032', 'DD0224'
+   collar no_survey        1     1  'DD0207'
+   collar no_assays       85    85  'DD0001', 'DD0002', 'DD0003', 'DD0004' ...
+   survey deviation        2     1  'DD0017'
+   survey dip_sign        10     1  'DD0058'
+   survey past_depth       2     1  'DD0102'
+   survey id_mismatch     14     1  'DD0053'
+   survey no_collar       17     1  'DD0104'
+   assays inverted         1     1  'DD0123'
+   assays gap             13    11  'DD0054', 'DD0109', 'DD0123', 'DD0145' ...
+   assays overlap          5     2  'DD0109', 'DD0216'
+   assays past_depth       4     1  'DD0102'
+   assays sentinel         5     1  'DD0018'
+   assays text_values      3     1  'DD0231'
+   assays id_mismatch     83     2  'DD0053', 'dd0145'
+   assays no_collar       95     1  'DD0104'
+lithology gap              1     1  'DD0196'
+lithology past_depth       1     1  'DD0102'
+lithology id_mismatch     10     2  'DD0053', 'DD0196 '
+lithology no_collar        9     1  'DD0104'
 ```
 
-Twenty checks fire. The raw count means little: 104 of the 109 `id_mismatch` assay rows come from one trailing
-space, while the two `deviation` rows are one flipped azimuth that bends `DD0197` between its stations at 150 and
+Twenty checks fire. The raw count means little: 78 of the 83 `id_mismatch` assay rows come from one trailing
+space, while the two `deviation` rows are one flipped azimuth that bends `DD0017` between its stations at 150 and
 210 m. Each flag needs a decision.
 
 <figure class="bt-figure">
@@ -132,8 +132,8 @@ the geologist.</figcaption>
 </figure>
 
 !!! step "Step 2: Look at the evidence behind the ambiguous flags"
-    Four flags have no obvious answer. `DD0067` has two collars with different coordinates; `DD0055` has
-    samples below its recorded length; one `DD0100` assay is inverted; `DD0197` has a survey station whose
+    Four flags have no obvious answer. `DD0032` has two collars with different coordinates; `DD0102` has
+    samples below its recorded length; one `DD0123` assay is inverted; `DD0017` has a survey station whose
     azimuth jumps. The other tables of each hole say which entry to trust.
 
 <details><summary>Python</summary>
@@ -154,17 +154,17 @@ def deepest(hole):
     }
 
 
-for hole in ("DD0067", "DD0055"):
+for hole in ("DD0032", "DD0102"):
     lengths = c["LENGTH"][rows_of(c, hole)]
     ends = ", ".join(f"{k} {v:.2f}" for k, v in deepest(hole).items())
     print(f"{hole}: collar LENGTH {', '.join(f'{v:.2f}' for v in lengths)} m; deepest {ends} m")
-xy = np.c_[c["X"], c["Y"]][rows_of(c, "DD0067")]
-print(f"DD0067 collar entries are {np.hypot(*(xy[1] - xy[0])):.0f} m apart")
+xy = np.c_[c["X"], c["Y"]][rows_of(c, "DD0032")]
+print(f"DD0032 collar entries are {np.hypot(*(xy[1] - xy[0])):.0f} m apart")
 
 inverted = a["FROM"] > a["TO"]
-print(f"DD0100 inverted assay: FROM {a['FROM'][inverted][0]} TO {a['TO'][inverted][0]}")
-dd0197 = rows_of(s, "DD0197")
-print("DD0197 azimuths at 150, 180, 210 m:", s["AZIMUTH"][dd0197][5:8])
+print(f"DD0123 inverted assay: FROM {a['FROM'][inverted][0]} TO {a['TO'][inverted][0]}")
+dd0017 = rows_of(s, "DD0017")
+print("DD0017 azimuths at 150, 180, 210 m:", s["AZIMUTH"][dd0017][5:8])
 top = np.abs(s["DIP"][s["DEPTH"] == 0])
 print(f"dip at the collar, all surveyed holes: {top.min():.0f} to {top.max():.0f} degrees")
 ```
@@ -172,37 +172,37 @@ print(f"dip at the collar, all surveyed holes: {top.min():.0f} to {top.max():.0f
 </details>
 
 ```text
-DD0067: collar LENGTH 273.51, 174.68 m; deepest survey 273.51, assays 273.51, lithology 273.51 m
-DD0055: collar LENGTH 707.50 m; deepest survey 812.56, assays 714.00, lithology 812.56 m
-DD0067 collar entries are 290 m apart
-DD0100 inverted assay: FROM 368.14 TO 366.14
-DD0197 azimuths at 150, 180, 210 m: [292.14 111.81 291.9 ]
-dip at the collar, all surveyed holes: 55 to 75 degrees
+DD0032: collar LENGTH 398.05, 284.05 m; deepest survey 398.05, assays 330.00, lithology 398.05 m
+DD0102: collar LENGTH 324.18 m; deepest survey 330.51, assays 330.51, lithology 330.51 m
+DD0032 collar entries are 225 m apart
+DD0123 inverted assay: FROM 436.81 TO 435.25
+DD0017 azimuths at 150, 180, 210 m: [299.69 119.66 299.92]
+dip at the collar, all surveyed holes: 44 to 87 degrees
 ```
 
 The evidence settles each one:
 
-- `DD0067`: its survey, assays and lithology all end at 273.51 m, the length of the first collar entry. The second
-  entry (174.68 m, 290 m away) is wrong; the `duplicate` rule drops the later entry, which is the right one to
+- `DD0032`: its survey, assays and lithology all end at 398.05 m, the length of the first collar entry. The second
+  entry (284.05 m, 225 m away) is wrong; the `duplicate` rule drops the later entry, which is the right one to
   drop here.
-- `DD0055`: three tables agree the hole reaches 812.56 m, past the 707.50 m on the collar. The collar length is
+- `DD0102`: three tables agree the hole reaches 330.51 m, past the 324.18 m on the collar. The collar length is
   the typo; set it to the deepest survey station.
-- `DD0100`: FROM 368.14, TO 366.14 is a 2 m sample with its ends swapped; swap them back.
-- `DD0197`: 292.14° → 111.81° → 291.90° is a flip of 180° and back, a transcription error. The `deviation` rule
+- `DD0123`: FROM 436.81, TO 435.25 is a 1.6 m sample with its ends swapped; swap them back.
+- `DD0017`: 299.69° → 119.66° → 299.92° is a flip of 180° and back, a transcription error. The `deviation` rule
   drops the two stations the flip touches, and the stations on either side carry the hole.
 
 !!! pitfall "Pitfall: sentinels read as grades"
-    `-999` and `-99` mean "no value", but in a numeric column they average like any grade. `DD0110` has a
+    `-999` and `-99` mean "no value", but in a numeric column they average like any grade. `DD0018` has a
     `-999` for zinc in the middle of its ore intercept:
 
 <details><summary>Python</summary>
 
 ```python
-dd0110 = rows_of(a, "DD0110") & (a["FROM"] >= 40.2) & (a["TO"] <= 47.07)
-zn = np.asarray(a["ZN_PCT"][dd0110], dtype=float)
-length = (a["TO"] - a["FROM"])[dd0110]
+dd0018 = rows_of(a, "DD0018") & (a["FROM"] >= 254.92) & (a["TO"] <= 259.42)
+zn = np.asarray(a["ZN_PCT"][dd0018], dtype=float)
+length = (a["TO"] - a["FROM"])[dd0018]
 valid = zn > -99
-print(f"DD0110, 40.20-47.07 m, {dd0110.sum()} assays: Zn values {zn}")
+print(f"DD0018, 254.92-259.42 m, {dd0018.sum()} assays: Zn values {zn}")
 print(f"  length-weighted Zn with -999 as a number: {np.average(zn, weights=length):.1f} %")
 print(f"  length-weighted Zn without it:            {np.average(zn[valid], weights=length[valid]):.2f} %")
 ```
@@ -210,21 +210,21 @@ print(f"  length-weighted Zn without it:            {np.average(zn[valid], weigh
 </details>
 
 ```text
-DD0110, 40.20-47.07 m, 7 assays: Zn values [   2.979 -999.       4.227    1.945    2.758    3.834    2.692]
-  length-weighted Zn with -999 as a number: -139.9 %
-  length-weighted Zn without it:            3.07 %
+DD0018, 254.92-259.42 m, 4 assays: Zn values [   4.347    6.979 -999.       3.037]
+  length-weighted Zn with -999 as a number: -273.9 %
+  length-weighted Zn without it:            4.96 %
 ```
 
-One sentinel turns a 3.07 % zinc intercept into −139.9 %. A negative grade is easy to spot; a `-99` in a column of
+One sentinel turns a 4.96 % zinc intercept into −273.9 %. A negative grade is easy to spot; a `-99` in a column of
 values near 100 is not. The readers in boitatá map sentinels to null by default (`nodata=`); this page reads the raw
 tables with `nodata=[]` to keep the problem visible.
 
 !!! step "Step 3: Fix by hand what needs evidence"
     The manual fixes come first, so the rules in step 4 see corrected tables. Each hand fix is one line of code,
     so the next person can rerun and review the audit. Trailing spaces are stripped from all
-    ids here: the collar `'DD0104 '` is the odd one, and a rename rule would copy its space into three tables.
-    `DD0151` is dropped: without a survey it would be desurveyed as vertical, while every surveyed hole on the
-    project starts at a dip of 55 to 75°.
+    ids here: the collar `'DD0053 '` is the odd one, and a rename rule would copy its space into three tables.
+    `DD0207` is dropped: without a survey it would be desurveyed as vertical, while every surveyed hole on the
+    project starts at a dip of 44 to 87°.
 
 <details><summary>Python</summary>
 
@@ -242,9 +242,9 @@ a = tables["assays"]
 swap = a["FROM"] > a["TO"]
 tables["assays"] = replace(a, FROM=np.where(swap, a["TO"], a["FROM"]), TO=np.where(swap, a["FROM"], a["TO"]))
 c, s = tables["collar"], tables["survey"]
-dd0055 = rows_of(c, "DD0055")
-tables["collar"] = replace(c, LENGTH=np.where(dd0055, s["DEPTH"][rows_of(s, "DD0055")].max(), c["LENGTH"]))
-tables = {name: t.filter(~rows_of(t, "DD0151")) for name, t in tables.items()}
+dd0102 = rows_of(c, "DD0102")
+tables["collar"] = replace(c, LENGTH=np.where(dd0102, s["DEPTH"][rows_of(s, "DD0102")].max(), c["LENGTH"]))
+tables = {name: t.filter(~rows_of(t, "DD0207")) for name, t in tables.items()}
 ```
 
 </details>
@@ -252,8 +252,8 @@ tables = {name: t.filter(~rows_of(t, "DD0151")) for name, t in tables.items()}
 !!! step "Step 4: Apply the rules"
     `fix_drillholes` takes the flags of the corrected tables and applies one named rule per check. The defaults
     drop duplicates, flipped survey stations and rows of holes without a collar, rename ids to their collar
-    (`'dd0062'` → `'DD0062'`), keep the first of two overlapping intervals and set sentinels to null. Two rules are
-    chosen here: `dip_sign="negate"` turns `DD0116`'s negative dips down like every other hole, and
+    (`'dd0145'` → `'DD0145'`), keep the first of two overlapping intervals and set sentinels to null. Two rules are
+    chosen here: `dip_sign="negate"` turns `DD0058`'s negative dips down like every other hole, and
     `text_values="half"` reads `<0.01` as half the detection limit (`NS`, not sampled, becomes null). The log
     says what each rule did.
 
@@ -272,14 +272,14 @@ for table, name, action, rows in zip(log["table"], log["check"], log["action"], 
 ```text
       drop    2 collar rows flagged duplicate
       drop    2 survey rows flagged deviation
-      drop    8 survey rows flagged no_collar
-    negate   28 survey rows flagged dip_sign
+      drop   17 survey rows flagged no_collar
+    negate   10 survey rows flagged dip_sign
 keep_first    5 assays rows flagged overlap
       half    3 assays rows flagged text_values
       null    5 assays rows flagged sentinel
-      drop  127 assays rows flagged no_collar
+      drop   95 assays rows flagged no_collar
     rename    5 assays rows flagged id_mismatch
-      drop    7 lithology rows flagged no_collar
+      drop    9 lithology rows flagged no_collar
 ```
 
 !!! check "Check before you move on"
@@ -291,9 +291,9 @@ keep_first    5 assays rows flagged overlap
 ```python
 flags, summary, _ = check(fixed)
 after = {(t, n): int(r) for t, n, r in zip(summary["table"], summary["check"], summary["rows"]) if r}
-rc_core = {"RC0008", "RC0014", "RC0016", "RC0031"}
+rc_core = {"RC0009", "RC0011", "RC0012", "RC0028", "RC0034", "RC0038", "RC0045"}
 accepted = {
-    ("assays", "gap"): rc_core | {"DD0080", "DD0200"},
+    ("assays", "gap"): rc_core | {"DD0109", "DD0054"},
     ("collar", "no_assays"): None,
 }
 for key, rows in after.items():
@@ -312,14 +312,14 @@ print("no assays but logged mineralized:", sorted(unassayed))
 </details>
 
 ```text
-   collar no_assays   112 rows: 112 holes
-   assays gap           8 rows: DD0080, DD0200, RC0008, RC0014, RC0016, RC0031
-no assays but logged mineralized: ['DD0043']
+   collar no_assays    85 rows: 85 holes
+   assays gap          11 rows: 9 holes
+no assays but logged mineralized: ['DD0076']
 ```
 
 Two checks still fire, and every hole they name is explained. The RC gaps are core that was never
-sampled. The `DD0080` gaps are two lost samples, and the `DD0200` gaps are the two intervals the overlap rule dropped. Of the 112 holes without assays, 111
-never log a mineralized unit (`MS`, `SMS`, `STR`) and were not sent to the lab; `DD0043` logs ore and has no
+sampled. The `DD0054` gaps are two lost samples, and the `DD0109` gaps are the two intervals the overlap rule dropped. Of the 85 holes without assays, 84
+never log a mineralized unit (`MS`, `SMS`, `STR`) and were not sent to the lab; `DD0076` logs ore and has no
 assays.
 
 The audit changed the tables as follows:
@@ -352,10 +352,10 @@ save(fig, "flags")
 
 ```text
     table  rows before  rows after  flagged before  flagged after
-   collar          290         287             115            112
-   survey         4326        4316              56              0
-   assays        16907       16689             264              8
-lithology         1726        1705              20              0
+   collar          290         287              88             85
+   survey         4469        4450              45              0
+   assays        19151       18973             209             11
+lithology         2239        2221              21              0
 ```
 
 ![flags](flags.png)
@@ -367,11 +367,11 @@ answered, the affected data stay as the table says:
 
 | Hole | Question | Meanwhile |
 |---|---|---|
-| `DD0111` | Where is its collar? 127 assays cannot be placed without one. | Dropped |
-| `DD0151` | Where is its downhole survey? | Dropped |
-| `DD0043` | Its lithology logs ore; where are its assays? | Kept, no grades |
-| `DD0200` | Of the two overlapping sample pairs, which is right? | First of each pair kept |
-| `DD0080` | Were the two missing samples lost, or never taken? | Left as gaps |
+| `DD0104` | Where is its collar? 95 assays cannot be placed without one. | Dropped |
+| `DD0207` | Where is its downhole survey? | Dropped |
+| `DD0076` | Its lithology logs ore; where are its assays? | Kept, no grades |
+| `DD0109` | Of the two overlapping sample pairs, which is right? | First of each pair kept |
+| `DD0054` | Were the two missing samples lost, or never taken? | Left as gaps |
 
 Keep the audit script with the project: rerunning it on the next database export repeats every decision and
 shows only what is new. [Hole traces](../../02-data-and-geometry/17-hole-traces/README.md) plots the flagged

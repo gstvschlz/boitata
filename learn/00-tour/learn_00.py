@@ -68,7 +68,7 @@ print(f"{len(composites):,} composites of 2 m, {len(ore):,} inside a lens")
 # %% [markdown]
 # ## A sub-blocked model
 #
-# The lenses dip 60° to the east-southeast, so the model's parent blocks of 10 m are rotated with them. `from_meshes`
+# The lenses dip 55° to the east-southeast, so the model's parent blocks of 10 m are rotated with them. `from_meshes`
 # splits each parent that a wireframe cuts into 2.5 m sub-blocks and keeps only blocks inside a lens. The model's
 # volume matches the wireframes'
 # ([sub-blocks](../../examples/02-data-and-geometry/06-sub-blocks/example_02_06.md)).
@@ -120,7 +120,7 @@ b.set(xlabel="Zn (%)", title="Probability plot, three lenses")
 save(fig, "statistics")
 
 # %% [markdown]
-# Declustering lowers each lens mean by 0.8 to 1.0 % Zn, to about 5.2 %. The three lenses share one distribution,
+# Declustering lowers each lens mean by 0.2 to 0.5 % Zn, to about 6 %. The three lenses share one distribution,
 # and the probability plot shows no break in the upper tail that would call for capping.
 #
 # ## Variography
@@ -158,7 +158,7 @@ b.set(xlabel="Lag distance (m)", ylabel="γ(h), normal scores", title="Normal sc
 save(fig, "variogram")
 
 # %% [markdown]
-# Half the variance is nugget, and zinc loses its correlation beyond about 40 m. The normal scores of lenses 2 and
+# Half the variance is nugget, and zinc loses its correlation beyond about 46 m. The normal scores of lenses 2 and
 # 3 scatter around the same model.
 #
 # ## Domaining
@@ -188,7 +188,7 @@ host = composites["ZN_PCT"][names == "host"]
 print(f"host rock: {np.nanmean(host):.2f} % Zn over {np.isfinite(host).sum():,} composites")
 
 # %% [markdown]
-# Zinc reaches 8 to 10 % inside each lens and drops toward the contact; across it, the host averages 0.07 %. The
+# Zinc reaches 7 to 10 % inside each lens and drops toward the contact; across it, the host averages 0.08 %. The
 # contacts are hard, so host composites must not inform the lenses, and each lens gets its own estimate.
 #
 # ## A sparse grid of mining blocks
@@ -379,8 +379,8 @@ ax.set(xlabel="Distance along strike, N021° (m)", ylabel="Zn (%)", title="Swath
 save(fig, "swath")
 
 # %% [markdown]
-# Kriging and the E-type sit within 0.25 % Zn of the declustered composites in every lens. Nearest neighbor runs
-# 0.4 to 0.7 % lower in lenses 2 and 3, the two with the fewest composites.
+# Kriging and the E-type sit within 0.5 % Zn of the declustered composites in every lens. Nearest neighbor runs
+# 0.2 to 0.7 % lower in lenses 2 and 3, the two with the fewest composites.
 #
 # Simulated values must also reproduce the histogram and the variogram of the data. `check_realizations` compares
 # 20 more realizations, drawn at the centers of the SMUs wholly inside a lens so that their support matches the

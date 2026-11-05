@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 lag, max_lag = 10.0, 120.0
 ```
@@ -36,7 +36,7 @@ print(
 </details>
 
 ```text
-major axis N170°, range 80 m; shortest 24 m
+major axis N175°, range 108 m; shortest 40 m
 ```
 
 Directional variograms keep pairs within `tolerance` (22.5° by default) of an azimuth. Each lag reports its mean
@@ -61,17 +61,17 @@ print(f"sample variance {variance:.0f}")
 
 ```text
  lag   major   minor    omni  pairs(major)
-   5   29411   44505   40404     119
-  25   62401   95745   78353     751
-  45   77753   98673   88300    1218
-  65   88812   79293   92469    1693
-  85   87105   83801   88662    1851
- 105   91948   88107   92228    1871
-sample variance 89738
+   5   19752   37595   30571     213
+  25   37884   55658   55194     747
+  45   56836   77468   70461    1127
+  65   66473   90693   78711    1316
+  85   72405   76650   76477    1493
+ 105   78323   77118   76227    1640
+sample variance 77905
 ```
 
-Across the major axis γ passes the sample variance by 25 m. Along it γ is seven tenths of the variance at 25 m and
-reaches the variance at 65 m. The omnidirectional variogram averages the two and hides the anisotropy. The first lag
+Across the major axis γ passes the sample variance by 65 m. Along it γ is five tenths of the variance at 25 m and
+reaches the variance at 105 m. The omnidirectional variogram averages the two and hides the anisotropy. The first lag
 holds few pairs, and any fit near the origin leans on it.
 
 <details><summary>Python</summary>

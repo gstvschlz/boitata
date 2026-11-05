@@ -41,7 +41,7 @@ for name, a, b in zip(lithology.names, by_count, by_length, strict=True):
 
 # %% [markdown]
 # SLIME appears as often as SAND in thinner intervals, and the few CLAY intervals are long. By length, SLIME falls
-# from 47.7 % to 38.6 % and CLAY rises from 2.9 % to 11.0 %. `plot.proportions` draws the weighted shares as bars and
+# from 48.3 % to 37.1 % and CLAY rises from 3.1 % to 11.6 %. `plot.proportions` draws the weighted shares as bars and
 # the unweighted ones as ticks; `plot.category_swath` stacks the shares per slice, as `swath` does for a grade.
 
 # %%

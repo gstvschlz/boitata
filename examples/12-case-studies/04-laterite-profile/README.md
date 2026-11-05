@@ -59,16 +59,16 @@ save(fig, "contacts")
 </details>
 
 ```text
-FERR:  2.2 m on average, 0.0 to 5.3 m
-LIM :  7.4 m on average, 3.5 to 16.2 m
-SAP : 10.9 m on average, 2.6 to 49.6 m
-bedrock: 20.5 m deep on average, 9.4 to 59.6 m
-301 holes on the 50 m mesh, 147 infill
+FERR:  2.3 m on average, 0.0 to 4.9 m
+LIM :  6.8 m on average, 1.0 to 13.4 m
+SAP : 11.2 m on average, 2.9 to 49.4 m
+bedrock: 20.3 m deep on average, 6.6 to 56.3 m
+315 holes on the 50 m mesh, 133 infill
 ```
 
 ![contacts](contacts.png)
 
-The saprolite varies most: 2.6 to 49.6 m. Bedrock lies 20.5 m deep on average, but 59.6 m in the deepest hole.
+The saprolite varies most: 2.9 to 49.4 m. Bedrock lies 20.3 m deep on average, but 56.3 m in the deepest hole.
 
 ## Is the 50 m mesh enough?
 
@@ -105,16 +105,16 @@ save(fig, "bedrock")
 </details>
 
 ```text
-Variogram(nugget=0, structures=[Structure("spherical", sill=344.4516832057495, range=905.6018592151071)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-kriged at the infill: mean error -0.77 m, RMSE 5.25 m
-topography less the mean depth: RMSE 5.55 m
+Variogram(nugget=0, structures=[Structure("spherical", sill=365.53369434127086, range=700.3291439038595)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+kriged at the infill: mean error -0.29 m, RMSE 5.60 m
+topography less the mean depth: RMSE 5.86 m
 ```
 
 ![bedrock](bedrock.png)
 
 The elevation variogram keeps climbing over the whole area: the bedrock follows the topography. Kriged from the
-mesh, it misses the infill contacts by 5.25 m RMSE, little better than the topography less the mean depth,
-5.55 m. The depth to bedrock shows why: on the 50 m mesh its variogram is flat from the first lag, pure nugget,
+mesh, it misses the infill contacts by 5.60 m RMSE, little better than the topography less the mean depth,
+5.86 m. The depth to bedrock shows why: on the 50 m mesh its variogram is flat from the first lag, pure nugget,
 while the infill resolves a structure shorter than 50 m. The pockets and ridges of fresh rock are narrower than
 the mesh; only the infill sees them.
 
@@ -161,16 +161,16 @@ print(f"{len(blocks)} blocks and sub-blocks")
 </details>
 
 ```text
-saprolite at least 1.9 m thick
-FERR: 1.49 Mm³
-LIM: 5.47 Mm³
-SAP: 7.64 Mm³
-27213 blocks and sub-blocks
+saprolite at least 1.0 m thick
+FERR: 1.58 Mm³
+LIM: 4.99 Mm³
+SAP: 7.95 Mm³
+27004 blocks and sub-blocks
 ```
 
-The kriged saprolite never thins below 1.9 m, so the bedrock, kriged on its own, never cuts into the limonite. The
-volumes match the logged thicknesses over the 0.7 km² of the model: 1.49 Mm³ of ferricrete, 5.47 of limonite and
-7.64 of saprolite.
+The kriged saprolite never thins below 1.0 m, so the bedrock, kriged on its own, never cuts into the limonite. The
+volumes match the logged thicknesses over the 0.7 km² of the model: 1.58 Mm³ of ferricrete, 4.99 of limonite and
+7.95 of saprolite.
 
 ## Ni and Co by horizon
 
@@ -211,16 +211,16 @@ save(fig, "grades")
 
 ```text
           n   Ni %    CV   Co %    CV
-FERR   1019   0.36  0.44  0.026  0.69
-LIM    3358   1.08  0.44  0.117  0.82
-SAP    4921   1.81  0.48  0.042  0.79
-BRK    1609   0.29  0.48  0.016  0.82
+FERR   1028   0.35  0.41  0.027  0.74
+LIM    3050   1.08  0.41  0.116  0.75
+SAP    5035   1.69  0.45  0.042  0.77
+BRK    1798   0.31  0.41  0.017  0.77
 ```
 
 ![grades](grades.png)
 
-Each horizon has its own grades. Ni rises down the profile, from 0.36 % in the ferricrete to 1.08 % in the
-limonite and 1.81 % in the saprolite, then falls to 0.29 % in fresh rock. Co peaks in the limonite, at 0.117 %,
+Each horizon has its own grades. Ni rises down the profile, from 0.35 % in the ferricrete to 1.08 % in the
+limonite and 1.69 % in the saprolite, then falls to 0.31 % in fresh rock. Co peaks in the limonite, at 0.116 %,
 three times the saprolite's. Against the height above bedrock, Ni is richest in the first meters above fresh rock
 and fades upward: the grades follow position in the profile more than elevation.
 
@@ -268,16 +268,16 @@ print(f"{sum(np.isnan(g).sum() for g in grades.values())} values left unestimate
 </details>
 
 ```text
-FERR NI: nugget 28%, 70 m across, 4.9 m down
-FERR CO: nugget 43%, 167 m across, 83.3 m down
-LIM  NI: nugget 28%, 25 m across, 5.7 m down
-LIM  CO: nugget 55%, 213 m across, 10.4 m down
-SAP  NI: nugget 25%, 25 m across, 7.7 m down
-SAP  CO: nugget 46%, 25 m across, 7.5 m down
+FERR NI: nugget 30%, 94 m across, 7.2 m down
+FERR CO: nugget 43%, 79 m across, 8.6 m down
+LIM  NI: nugget 18%, 25 m across, 6.6 m down
+LIM  CO: nugget 41%, 25 m across, 7.2 m down
+SAP  NI: nugget 42%, 80 m across, 8.8 m down
+SAP  CO: nugget 71%, 269 m across, 24.7 m down
 0 values left unestimated
 ```
 
-A quarter to a half of each variance is nugget. Down the profile Ni stays continuous for 5 to 8 m; across it,
+A fifth to seven tenths of each variance is nugget. Down the profile Ni stays continuous for 7 to 9 m; across it,
 the Ni of the limonite and saprolite loses its continuity within 25 m, the shortest range allowed and the infill
 spacing. Between holes the blocks lean on the mean of their horizon at their height. The ferricrete, 2 m thick,
 has too few pairs down the holes to fit its Co anisotropy, which ends on its bound. A section across the infill,
@@ -337,17 +337,17 @@ for name in names[:3]:
 
 ```text
                     Mt   Ni %   Co %   kt Ni  kt Co
-FERR all          3.28   0.37  0.027    12.0   0.88
-LIM  all          8.21   1.09  0.120    89.4   9.84
-LIM  ≥ 1.5 % Ni   0.43   1.63  0.157     7.0   0.67
-SAP  all         12.22   1.81  0.041   220.8   5.06
-SAP  ≥ 1.5 % Ni   9.42   1.94  0.044   182.9   4.11
+FERR all          3.47   0.36  0.027    12.5   0.95
+LIM  all          7.49   1.07  0.114    80.2   8.51
+LIM  ≥ 1.5 % Ni   0.20   1.58  0.198     3.1   0.39
+SAP  all         12.72   1.65  0.040   209.3   5.14
+SAP  ≥ 1.5 % Ni   7.37   1.93  0.047   142.4   3.43
 ```
 
-The block grades of each horizon reproduce its composites: 0.37 against 0.36 % Ni in the ferricrete, 1.09 against
-1.08 in the limonite, 1.81 in the saprolite. The saprolite holds 12.2 Mt at 1.81 % Ni, 221 kt of nickel, and 9.42
-Mt of it lie above 1.5 % Ni. The limonite, 8.21 Mt at 1.09 % Ni, is poorer in nickel, but at 0.120 % Co it holds
-9.84 of the 15.8 kt of cobalt. The ferricrete, 3.28 Mt at 0.37 % Ni, is overburden. Every tonne scales with the
+The block grades of each horizon reproduce its composites: 0.36 against 0.35 % Ni in the ferricrete, 1.07 against
+1.08 in the limonite, 1.65 against 1.69 in the saprolite. The saprolite holds 12.7 Mt at 1.65 % Ni, 209 kt of
+nickel, and 7.37 Mt of it lie above 1.5 % Ni. The limonite, 7.49 Mt at 1.07 % Ni, is poorer in nickel, but at 0.114 % Co it holds
+8.51 of the 14.6 kt of cobalt. The ferricrete, 3.47 Mt at 0.36 % Ni, is overburden. Every tonne scales with the
 assumed densities: a saprolite at 1.4 instead of 1.6 t/m³ would lose an eighth of its tonnes and metal.
 
 Full script: [`example_12_04.py`](example_12_04.py)

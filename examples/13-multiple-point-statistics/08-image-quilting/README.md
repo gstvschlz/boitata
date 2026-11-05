@@ -14,7 +14,7 @@ import numpy as np
 from common import HIGHLIGHT, INK, save
 from matplotlib.colors import ListedColormap
 
-ti = bt.datasets.strebelle()
+ti = bt.datasets.channel_training_image()
 nx, ny = ti.count[:2]
 image = ti.grid("facies")[0]
 grid = bt.BlockModel((0, 0), (1, 1), (nx, ny))
@@ -35,7 +35,7 @@ print(
 </details>
 
 ```text
-training image: sand 27.7%, runs 20.4 cells along Y, 8.5 across
+training image: sand 29.4%, runs 22.3 cells along Y, 12.4 across
 ```
 
 `patch_size` sets how much of the image travels in one piece, and the overlap is a sixth of it by default. Twenty
@@ -58,9 +58,9 @@ for size in (10, 30, 60):
 </details>
 
 ```text
-patch_size=10: sand 26.9%, runs 19.3 along Y, 8.1 across
-patch_size=30: sand 28.7%, runs 20.2 along Y, 8.3 across
-patch_size=60: sand 29.7%, runs 20.6 along Y, 8.2 across
+patch_size=10: sand 31.9%, runs 20.8 along Y, 11.3 across
+patch_size=30: sand 28.9%, runs 22.5 along Y, 12.3 across
+patch_size=60: sand 24.6%, runs 24.0 along Y, 12.9 across
 ```
 
 Small patches cut the channels at their seams. At 30 cells the runs along Y match the image's; at 60 the
@@ -123,8 +123,8 @@ for name, summary in (("hard data", with_data), ("soft data", with_soft)):
 
 ```text
 hard data reproduced: True
-hard data: realization 1 matches the truth in 62% of cells
-soft data: realization 1 matches the truth in 92% of cells
+hard data: realization 1 matches the truth in 61% of cells
+soft data: realization 1 matches the truth in 93% of cells
 ```
 
 A hundred scattered cells barely move a patch cut to fit its overlap, so they change little beyond their own cells.

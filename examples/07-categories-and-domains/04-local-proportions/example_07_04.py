@@ -171,7 +171,7 @@ save(fig, "sections")
 # ## Checks
 #
 # `check_realizations` ([realization checks](../../10-checking-models/04-realization-checks/README.md)) compares the category proportions of each realization with the declustered
-# data's. Both runs come within five points of them, the local one with more cap, which the curve spreads over each
+# data's. Both runs come within seven points of them, the local one with more cap, which the curve spreads over each
 # height the facility's top reaches. The global shares hide where each category went. The share of clay in each meter
 # of height shows it, and only the run with local proportions follows the curve.
 

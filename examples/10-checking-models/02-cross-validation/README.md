@@ -1,6 +1,6 @@
 # Cross-validation
 
-Ordinary kriging of Walker Lake `V` re-estimates each sample from the others, with the same variogram and search:
+Ordinary kriging of the metal survey `V` re-estimates each sample from the others, with the same variogram and search:
 leave-one-out, then k-fold with fewer and fewer folds.
 
 <details><summary>Python</summary>
@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import save
 
-samples = bt.datasets.walker_lake()
+samples = bt.datasets.clustered_metal_survey()
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -45,10 +45,10 @@ for folds in (None, 10, 5, 2):
 </details>
 
 ```text
-leave-one-out: RMSE 185.4 ppm, correlation 0.79, slope 1.03, standardized squared error 0.71
-      10-fold: RMSE 189.4 ppm, correlation 0.78, slope 1.03, standardized squared error 0.73
-       5-fold: RMSE 193.2 ppm, correlation 0.77, slope 1.03, standardized squared error 0.74
-       2-fold: RMSE 204.1 ppm, correlation 0.73, slope 1.06, standardized squared error 0.73
+leave-one-out: RMSE 153.5 ppm, correlation 0.84, slope 1.04, standardized squared error 0.72
+      10-fold: RMSE 156.5 ppm, correlation 0.83, slope 1.03, standardized squared error 0.73
+       5-fold: RMSE 158.2 ppm, correlation 0.82, slope 1.04, standardized squared error 0.72
+       2-fold: RMSE 164.3 ppm, correlation 0.81, slope 1.06, standardized squared error 0.72
 ```
 
 Errors grow as folds get fewer. Leave-one-out judges the model at the sample spacing, which in the clustered areas

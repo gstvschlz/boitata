@@ -51,7 +51,7 @@ print(
 
 ```text
 Mesh(8056 vertices, 15750 triangles, open, 360 boundary edges)
-bedrock 293 to 365 m, saprolite 2.7 to 49.5 m thick
+bedrock 295 to 378 m, saprolite 3.0 to 45.5 m thick
 ```
 
 ## Unfolded coordinates
@@ -61,7 +61,7 @@ bedrock 293 to 365 m, saprolite 2.7 to 49.5 m thick
 `reference="footwall"` makes `u` and `v` arc lengths along it, which matters where the layer is steep. Here the
 bedrock is gentle and the arc lengths add a few percent over a kilometer. Points outside the layer get NaN, unless
 `extrapolate=True`. The logged horizons check the surfaces: the midpoints of the saprolite intervals fall in the
-layer, and all but 1% of the others fall outside.
+layer, and all but 0.4% of the others fall outside.
 
 <details><summary>Python</summary>
 
@@ -90,13 +90,13 @@ print(
 </details>
 
 ```text
-in the layer: 100.0% of saprolite intervals, 1.0% of others
-4894 assays in the saprolite, Ni 1.77 % mean
-arc length along the bedrock minus plan distance: up to 45.6 m in u, 34.0 m in v
+in the layer: 100.0% of saprolite intervals, 0.4% of others
+5260 assays in the saprolite, Ni 1.65 % mean
+arc length along the bedrock minus plan distance: up to 38.2 m in u, 35.3 m in v
 ```
 
 Nickel is richer in the lower half of the saprolite. The bedrock moves up and down by tens of meters, so the profile
-blurs against elevation. Against `w` the decile means explain five times as much of the variance, though most of it
+blurs against elevation. Against `w` the decile means explain twice as much of the variance, though most of it
 stays local.
 
 <details><summary>Python</summary>
@@ -122,8 +122,8 @@ save(fig, "profile")
 </details>
 
 ```text
-Elevation: decile means explain 1.5% of the Ni variance
-        w: decile means explain 7.9% of the Ni variance
+Elevation: decile means explain 5.2% of the Ni variance
+        w: decile means explain 9.2% of the Ni variance
 ```
 
 ![profile](profile.png)
@@ -135,7 +135,7 @@ the layer the pairs are horizontal in the real space and parallel to the surface
 are vertical.
 
 Across the layer the two agree at the first lag, and the unfolded variogram rises faster: the holes are vertical, so
-only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.52 against 0.67 at
+only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.50 against 0.55 at
 12 m: in this deposit nearby samples at one elevation are more alike than nearby samples at one position in the
 profile.
 
@@ -165,8 +165,8 @@ save(fig, "variograms")
 </details>
 
 ```text
-    real: gamma along 0.52 at 12 m, across 0.37 at 0.5 m
-unfolded: gamma along 0.67 at 12 m, across 0.37 at 0.5 m
+    real: gamma along 0.50 at 12 m, across 0.28 at 0.5 m
+unfolded: gamma along 0.55 at 12 m, across 0.28 at 0.5 m
 ```
 
 ![variograms](variograms.png)
@@ -176,7 +176,7 @@ unfolded: gamma along 0.67 at 12 m, across 0.37 at 0.5 m
 The same ordinary kriging runs on both coordinate sets, cross-validated by leaving out one of ten groups of whole
 holes at a time.
 
-The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.816 % against 0.865 %. Unfolding
+The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.729 % against 0.757 %. Unfolding
 pays off where grade follows the layer, as in a folded bed or a profile whose base moves more than the grade changes
 across it. Cross-validation on both coordinate sets tells you which case your deposit is.
 
@@ -194,8 +194,8 @@ for name, k in kriging.items():
 </details>
 
 ```text
-    real: RMSE 0.816 %, correlation 0.470
-unfolded: RMSE 0.865 %, correlation 0.367
+    real: RMSE 0.729 %, correlation 0.460
+unfolded: RMSE 0.757 %, correlation 0.393
 ```
 
 ## Back to the blocks
@@ -229,7 +229,7 @@ save(fig, "section")
 
 ```text
 inverse of the unfolded centers: 0.0e+00 m from the centroids
-BlockModel(masked, 87068 of 644480 cells, count [106, 76, 80], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
+BlockModel(masked, 90652 of 644480 cells, count [106, 76, 80], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
   NI: Float64
 ```
 

@@ -1,7 +1,7 @@
 """
 # Search calibration
 
-`calibrate_search` scores candidate searches for block kriging of Walker Lake `V` on 10 × 10 m blocks, keeping the
+`calibrate_search` scores candidate searches for block kriging of the metal survey `V` on 10 × 10 m blocks, keeping the
 variogram and samples. It picks no winner unless asked, and the exhaustive grid checks every score.
 """
 
@@ -18,8 +18,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from common import ACCENT, GRAY, save
 
-samples = bt.datasets.walker_lake()
-truth = bt.datasets.walker_lake_exhaustive()["V"].reshape(300, 260)
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
 xy, v = samples.coords, samples["V"]
 azimuths = np.arange(0, 180, 22.5)
 directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
@@ -75,7 +75,7 @@ for i, n in enumerate(counts):
 # Every score moves with the truth. More samples raise the slope, and the cross-validation slope follows the true one;
 # the mean predicted slope sits lower. Estimates grow smoother, so the variance ratio falls and fewer blocks clear 500
 # ppm. The true variance ratio sits higher because the blocks of this 260 × 300 m area vary less than the sill implies,
-# and the discrete Gaussian reference puts about 7 % fewer blocks above 500 ppm than the truth. Past 16 to 24 samples
+# and the discrete Gaussian reference puts about 11 % fewer blocks above 500 ppm than the truth. Past 16 to 24 samples
 # the slope rises little while the negative weights keep growing; you settle that trade-off.
 
 # %%
@@ -106,7 +106,7 @@ save(fig, "calibration")
 # `suggest` turns the scores into a choice. It varies one search over a grid of `max_samples`, `factors` of its radius
 # and `min_holes`, and returns the cheapest cell whose mean slope of regression reaches `target_slope` (0.9 by
 # default), with the table of every cell: the fewest samples first, then the smallest radius, then the fewest holes. A
-# cell that leaves blocks unestimated does not count, since its scores cover only the blocks it reaches. Walker Lake has
+# cell that leaves blocks unestimated does not count, since its scores cover only the blocks it reaches. The metal survey has
 # no drill holes, so the grid leaves `min_holes` out.
 
 # %%
@@ -128,8 +128,8 @@ for i in range(table.num_rows):
     )
 
 # %% [markdown]
-# A quarter of the radius reaches a third of the blocks and half reaches 95 %, so their slopes do not count. At the
-# full radius 8 samples reach a mean slope of 0.9 and 16 reach 0.95. The true slopes sit near 1, as in the first table,
+# A quarter of the radius reaches a third of the blocks and half reaches 98 %, so their slopes do not count. At the
+# full radius 8 samples reach a mean slope of 0.9 and 12 reach 0.95. The true slopes sit near 1, as in the first table,
 # where the predicted slope runs low.
 #
 # `calibrate_search` picks one search for every block. A search with `target_slope` (or `target_efficiency`) calibrates

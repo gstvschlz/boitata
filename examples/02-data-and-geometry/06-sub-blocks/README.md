@@ -31,7 +31,7 @@ print(parents)
 </details>
 
 ```text
-BlockModel(regular, 10230 of 10230 cells, count [15, 22, 31], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
+BlockModel(regular, 10846 of 10846 cells, count [17, 22, 29], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
 ```
 
 `subblock` takes `(mesh, rule, label)` domains in priority order and a sub-grid of `n` cells per parent edge.
@@ -71,11 +71,11 @@ print(f"whole parents: {(subblocked.extents == [0, 0, 0, 1, 1, 1]).all(axis=1).s
 </details>
 
 ```text
-lenses: 6,342,276 m3
-sub-grid 1:   201 sub-blocks, 6,432,000 m3, 7,566,276 m3 misplaced
-sub-grid 2:  1189 sub-blocks, 6,324,000 m3, 4,298,276 m3 misplaced
-sub-grid 4:  5731 sub-blocks, 6,325,000 m3, 1,691,901 m3 misplaced
-BlockModel(sub-blocked, 5731 sub-blocks in 10230 cells, count [15, 22, 31], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
+lenses: 6,451,401 m3
+sub-grid 1:   208 sub-blocks, 6,656,000 m3, 6,667,401 m3 misplaced
+sub-grid 2:  1149 sub-blocks, 6,408,000 m3, 3,562,401 m3 misplaced
+sub-grid 4:  5429 sub-blocks, 6,406,000 m3, 1,290,026 m3 misplaced
+BlockModel(sub-blocked, 5429 sub-blocks in 10846 cells, count [17, 22, 29], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
   domain: Utf8
 whole parents: 0
 ```
@@ -148,14 +148,14 @@ print(f"    total: {domain_model.volumes.sum():>13,.0f} m3 = grid {np.prod(size)
 </details>
 
 ```text
-BlockModel(sub-blocked, 26600 sub-blocks in 11220 cells, count [15, 22, 34], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
+BlockModel(sub-blocked, 26337 sub-blocks in 12342 cells, count [17, 22, 33], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
   domain: Utf8
-   lens 1:     2,788,500 m3
-   lens 2:     1,884,000 m3
-   lens 3:     1,652,500 m3
-host rock:   322,929,000 m3
-      air:    29,786,000 m3
-    total:   359,040,000 m3 = grid 359,040,000 m3
+   lens 1:     2,862,500 m3
+   lens 2:     1,905,000 m3
+   lens 3:     1,638,500 m3
+host rock:   367,214,000 m3
+      air:    21,324,000 m3
+    total:   394,944,000 m3 = grid 394,944,000 m3
 ```
 
 A vertical section across strike (the lenses strike N22.5°E) through the domain model, with the lens outlines:
@@ -190,7 +190,7 @@ metal. `min_fraction` drops the thin edges and the metal in them.
 ```python
 holes = bt.Drillholes.from_tables(data)
 composites = holes.composite(2.0, ["ZN_PCT"])
-search = bt.Search(100, max_samples=12)
+search = bt.Search(120, max_samples=12)
 labels = subblocked["domain"]
 grade = np.full(len(subblocked), np.nan)
 for lens, name in zip(lenses, names):
@@ -213,9 +213,9 @@ for minimum in (0.0, 0.5):
 </details>
 
 ```text
-sub-blocks: 6,325,000 m3 at 6.44% Zn
-min_fraction 0.0: 945 parents, 6,325,000 m3 at 6.44% Zn, 100.0% of the metal
-min_fraction 0.5: 67 parents, 1,323,500 m3 at 7.02% Zn, 22.8% of the metal
+sub-blocks: 6,406,000 m3 at 6.03% Zn
+min_fraction 0.0: 845 parents, 6,406,000 m3 at 6.03% Zn, 100.0% of the metal
+min_fraction 0.5: 113 parents, 2,237,000 m3 at 5.51% Zn, 31.9% of the metal
 ```
 
 A label keeps only the value that fills most of a block. The lenses fill few 40 m blocks by more than half,
@@ -237,8 +237,8 @@ print(f"40 m blocks: labeled as a lens {labeled:,.0f} m3, lens proportion {propo
 </details>
 
 ```text
-lens sub-blocks 6,325,000 m3
-40 m blocks: labeled as a lens 1,856,000 m3, lens proportion 6,325,000 m3
+lens sub-blocks 6,406,000 m3
+40 m blocks: labeled as a lens 2,944,000 m3, lens proportion 6,406,000 m3
 ```
 
 Full script: [`example_02_06.py`](example_02_06.py)
