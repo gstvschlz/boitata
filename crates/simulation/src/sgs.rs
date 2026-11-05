@@ -21,6 +21,8 @@
 //! domain its own, one of another domain (through a soft boundary) its grade
 //! transformed as the node's domain transforms grades.
 
+use std::collections::HashMap;
+
 use crate::TrendConditioning;
 use crate::error::{Result, SimError};
 use estimation::Sample;
@@ -554,6 +556,7 @@ pub(crate) fn sequential(
         trends: trend.map_or_else(|| vec![0.0; data_locs.len()], |t| t.data.to_vec()),
         trees,
     };
+    let on_datum = datum_index(data_locs);
     let last = known.trees.len() - 1;
     let passes: Vec<usize> = match last {
         0 => vec![0; grid.len()],
@@ -595,11 +598,18 @@ pub(crate) fn sequential(
                 return None;
             }
         }
-        if let Some(&k) = found
-            .iter()
-            .flatten()
-            .find(|&&k| known.samples[k].loc == target)
-        {
+        // A search that finds too few samples still leaves a datum on the node.
+        let datum = match &found {
+            Ok(idx) => idx
+                .iter()
+                .copied()
+                .find(|&k| known.samples[k].loc == target),
+            Err(_) => on_datum
+                .get(&location_key(&target))
+                .copied()
+                .filter(|&k| known.samples[k].domain == domain),
+        };
+        if let Some(k) = datum {
             return Some(Ok(Step::Datum(known.samples[k].value)));
         }
         let idx = match found {
@@ -805,6 +815,20 @@ pub fn sgs_passes(
         .map(|s| tree(&data, s, vg_nscore, local))
         .collect();
     Ok(first_pass(&trees, grid, domains.map(|d| d.1), local))
+}
+
+/// A key of the location `p`, equal for `0.0` and `-0.0`.
+pub(crate) fn location_key(p: &(f64, f64, f64)) -> [u64; 3] {
+    [p.0, p.1, p.2].map(|v| (v + 0.0).to_bits())
+}
+
+/// The first datum at each location, by [`location_key`].
+pub(crate) fn datum_index(locs: &[(f64, f64, f64)]) -> HashMap<[u64; 3], usize> {
+    let mut index = HashMap::with_capacity(locs.len());
+    for (k, p) in locs.iter().enumerate() {
+        index.entry(location_key(p)).or_insert(k);
+    }
+    index
 }
 
 pub(crate) fn tree(
