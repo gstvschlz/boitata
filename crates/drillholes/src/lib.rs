@@ -111,7 +111,23 @@ pub fn desurvey_wellbore(
         }
     }
 
+    if let ([collar_point], Some(s)) = (points.as_slice(), sorted.first()) {
+        let t = tangent(s.azimuth.to_radians(), s.inclination.to_radians());
+        points.push(WellborePoint {
+            measured_depth: 1.0,
+            east: collar_point.east + t[0],
+            north: collar_point.north + t[1],
+            elev: collar_point.elev + t[2],
+        });
+    }
+
     Ok(points)
+}
+
+/// Unit direction (east, north, elevation) of a hole at azimuth `a` and
+/// inclination `i`, in radians.
+fn tangent(a: f64, i: f64) -> [f64; 3] {
+    [i.sin() * a.sin(), i.sin() * a.cos(), -i.cos()]
 }
 
 fn desurvey_segment(
