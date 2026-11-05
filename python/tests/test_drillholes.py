@@ -611,3 +611,15 @@ def test_a_hole_surveyed_at_its_collar_extends_down_its_direction():
     np.testing.assert_allclose(
         bt.Drillholes(VERTICAL_COLLAR, inclined).at(["A"], [50.0]), [[50.0, 0.0, 100.0]], atol=1e-9
     )
+
+
+def test_minimum_curvature_follows_the_arc_between_stations():
+    length = 100 * np.pi / 2
+    survey = {"HOLE_ID": ["A", "A"], "DEPTH": [0.0, length], "AZIMUTH": [90.0, 90.0], "DIP": [90.0, 0.0]}
+    holes = bt.Drillholes(VERTICAL_COLLAR, survey)
+    for theta in np.radians([10.0, 45.0, 80.0]):
+        x, y, z = holes.at(["A"], [100 * theta])[0]
+        assert x == pytest.approx(100 * (1 - np.cos(theta)), abs=0.05)
+        assert y == pytest.approx(0.0, abs=1e-9)
+        assert z == pytest.approx(100 - 100 * np.sin(theta), abs=0.05)
+    np.testing.assert_allclose(holes.at(["A"], [length]), [[100.0, 0.0, 0.0]], atol=1e-9)
