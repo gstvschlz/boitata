@@ -13,7 +13,7 @@ mise install
 mise run test
 ```
 
-## Before you open a merge request
+## Before you open a pull request
 
 - `mise run verify` runs `lint` (rustfmt, clippy with warnings as errors, ruff) and `test`
   (the Rust tests, then builds the Python module and runs pytest). It must pass.
@@ -27,9 +27,9 @@ docstring and an example. A new algorithm also needs a theory check we can rerun
 example ordinary kriging weights summing to 1, kriging being exact at the data, or SGS
 reproducing the histogram and variogram within a tolerance.
 
-## Merge requests
+## Pull requests
 
-- Link one issue per merge request, and keep each merge request to one change.
+- Link one issue per pull request, and keep each pull request to one change.
 - Write commit messages as [Conventional Commits](https://www.conventionalcommits.org)
   (`feat:`, `fix:`, `docs:` ...). The changelog comes from them.
 - Use public datasets in tests and examples (`bt.datasets`) or seeded synthetic data.

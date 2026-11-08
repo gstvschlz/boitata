@@ -17,7 +17,7 @@ mise install        # one-time setup
 mise run build       # cargo build --workspace
 mise run test        # rust tests, then builds the python module, then pytest
 mise run lint        # rustfmt --check, clippy -D warnings, ruff check + format --check
-mise run verify       # lint + test — must pass before a merge request
+mise run verify       # lint + test — must pass before a PR
 mise run examples     # reruns examples/*, rewrites their figures
 mise run docs         # mkdocs serve
 mise run docs-build   # mkdocs build --strict
@@ -43,7 +43,7 @@ binding goes in `crates/py`; the Python-facing wrapper/stub goes in
 ## Conventions
 
 See `CONTRIBUTING.md` for the full list (Conventional Commits, one change per
-merge request, public/seeded datasets only, no proprietary vendor formats, results must
+PR, public/seeded datasets only, no proprietary vendor formats, results must
 not depend on thread count). In addition:
 
 - Every feature ships together: Rust implementation, Python binding, `.pyi`
@@ -64,7 +64,7 @@ module docs — read there rather than assuming a definition.
 
 ## Never do
 
-- Never add AI attribution/co-author trailers to commits or merge request descriptions
+- Never add AI attribution/co-author trailers to commits or PR descriptions
   in this repo (no `Co-Authored-By: Claude...`, no "Generated with Claude
   Code" footers).
 - Never commit proprietary/vendor data formats, client data, or files over
