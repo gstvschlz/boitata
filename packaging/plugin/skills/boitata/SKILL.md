@@ -24,8 +24,8 @@ python -c "import boitata, pathlib; print(boitata.__version__, pathlib.Path(boit
 - `python -c "import boitata as bt; help(bt.OrdinaryKriging.fit)"` prints the NumPy-style docstring, with every
   argument, its unit and its default.
 - `bt.__all__` lists every public name; `dir(bt.datasets)` and `dir(bt.plot)` list the datasets and the plots.
-- The docs at https://scholzegustavo.gitlab.io/boitata/ hold a worked example for most tasks. The page
-  https://scholzegustavo.gitlab.io/boitata/guide/finder/ maps a question to the example that answers it.
+- The docs at https://gstvschlz.github.io/boitata/ hold a worked example for most tasks. The page
+  https://gstvschlz.github.io/boitata/guide/finder/ maps a question to the example that answers it.
 
 If a name is not in `bt.__all__`, it does not exist. Say so and offer the closest one that does; do not invent it.
 
