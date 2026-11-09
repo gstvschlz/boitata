@@ -10,9 +10,11 @@ use rayon::prelude::*;
 use crate::error::{Result, SimError};
 
 /// Runs realizations `0..n` in parallel batches and hands them to `add` in
-/// order; at most one batch (one realization per thread) is held at a time.
+/// order; at most one batch (`in_flight` realizations, at most one per
+/// thread) is held at a time.
 fn run<R: Send>(
     n: usize,
+    in_flight: usize,
     simulate: impl Fn(usize) -> Result<R> + Sync,
     mut add: impl FnMut(R) -> Result<()>,
 ) -> Result<()> {
@@ -21,7 +23,7 @@ fn run<R: Send>(
             "need at least one realization".into(),
         ));
     }
-    let batch = rayon::current_num_threads().max(1);
+    let batch = in_flight.clamp(1, rayon::current_num_threads().max(1));
     for start in (0..n).step_by(batch) {
         let done: Vec<R> = (start..(start + batch).min(n))
             .into_par_iter()
@@ -30,6 +32,30 @@ fn run<R: Send>(
         done.into_iter().try_for_each(&mut add)?;
     }
     Ok(())
+}
+
+/// Realizations to simulate at once within `budget` bytes, beside the
+/// `fixed` bytes the run holds throughout, when each takes `each` bytes
+/// while it is simulated: as many as fit, at most `most`; an error when not
+/// even one fits.
+pub fn in_flight(fixed: u64, each: u64, budget: u64, most: usize) -> Result<usize> {
+    let need = fixed.saturating_add(each);
+    if need > budget {
+        return Err(SimError::InvalidParameters(format!(
+            "this run needs about {} with one realization in flight, above the memory budget of {}; give more memory, simulate fewer nodes, keep fewer realizations or drop quantiles and tolerances",
+            size(need),
+            size(budget),
+        )));
+    }
+    Ok(((budget - fixed) / each.max(1)).clamp(1, most.max(1) as u64) as usize)
+}
+
+/// `bytes` in GB, or MB below 1 GB.
+pub fn size(bytes: u64) -> String {
+    match bytes as f64 {
+        b if b >= 1e9 => format!("{:.1} GB", b / 1e9),
+        b => format!("{:.1} MB", b / 1e6),
+    }
 }
 
 /// Which realizations a summary returns beside its statistics.
@@ -98,6 +124,17 @@ impl ContinuousOptions {
     /// Whether every realization is held until the summary is finished.
     pub fn stores(&self) -> bool {
         !self.quantiles.is_empty() || !self.tolerances.is_empty()
+    }
+
+    /// Bytes the summary of `n` realizations of `nodes` values holds while
+    /// it accumulates and when it is finished.
+    pub fn bytes(&self, nodes: usize, n: usize) -> u64 {
+        let per_node = 16
+            + 12 * self.cutoffs.len() as u64
+            + if self.stores() { 8 * n as u64 } else { 0 }
+            + 8 * (self.quantiles.len() + self.tolerances.len()) as u64
+            + 8 * self.keep.kept(n).len() as u64;
+        nodes as u64 * per_node
     }
 }
 
@@ -366,8 +403,19 @@ pub fn continuous(
     options: &ContinuousOptions,
     simulate: impl Fn(usize) -> Result<Vec<f64>> + Sync,
 ) -> Result<ContinuousSummary> {
+    continuous_bounded(n, options, usize::MAX, simulate)
+}
+
+/// As [`continuous`] with at most `in_flight` realizations simulated at
+/// once (see [`in_flight`]). The summary does not depend on `in_flight`.
+pub fn continuous_bounded(
+    n: usize,
+    options: &ContinuousOptions,
+    in_flight: usize,
+    simulate: impl Fn(usize) -> Result<Vec<f64>> + Sync,
+) -> Result<ContinuousSummary> {
     let mut acc = Accumulator::new(n, options)?;
-    run(n, simulate, |values| acc.add(values))?;
+    run(n, in_flight, simulate, |values| acc.add(values))?;
     Ok(acc.finish())
 }
 
@@ -440,10 +488,22 @@ pub fn continuous_many(
     options: &ContinuousOptions,
     simulate: impl Fn(usize) -> Result<Vec<Vec<f64>>> + Sync,
 ) -> Result<Vec<ContinuousSummary>> {
+    continuous_many_bounded(n, variables, options, usize::MAX, simulate)
+}
+
+/// As [`continuous_many`] with at most `in_flight` realizations simulated
+/// at once (see [`in_flight`]). The summaries do not depend on `in_flight`.
+pub fn continuous_many_bounded(
+    n: usize,
+    variables: usize,
+    options: &ContinuousOptions,
+    in_flight: usize,
+    simulate: impl Fn(usize) -> Result<Vec<Vec<f64>>> + Sync,
+) -> Result<Vec<ContinuousSummary>> {
     let mut accs = (0..variables)
         .map(|_| Accumulator::new(n, options))
         .collect::<Result<Vec<_>>>()?;
-    run(n, simulate, |values: Vec<Vec<f64>>| {
+    run(n, in_flight, simulate, |values: Vec<Vec<f64>>| {
         if values.len() != variables {
             return Err(SimError::InvalidParameters(format!(
                 "one realization per variable ({variables}) needed"
@@ -773,6 +833,25 @@ pub fn categorical(
     keep: &Keep,
     simulate: impl Fn(usize) -> Result<Vec<usize>> + Sync,
 ) -> Result<CategoricalSummary> {
+    categorical_bounded(n, k, keep, usize::MAX, simulate)
+}
+
+/// Bytes the summary of `n` realizations of `k` categories at `nodes`
+/// holds, the realizations `keep` returns included.
+pub fn categorical_bytes(nodes: usize, n: usize, k: usize, keep: &Keep) -> u64 {
+    nodes as u64 * (4 * k as u64 + 8 * k as u64 + 16 + 8 * keep.kept(n).len() as u64)
+        + 8 * (n * k) as u64
+}
+
+/// As [`categorical`] with at most `in_flight` realizations simulated at
+/// once (see [`in_flight`]). The summary does not depend on `in_flight`.
+pub fn categorical_bounded(
+    n: usize,
+    k: usize,
+    keep: &Keep,
+    in_flight: usize,
+    simulate: impl Fn(usize) -> Result<Vec<usize>> + Sync,
+) -> Result<CategoricalSummary> {
     if k == 0 {
         return Err(SimError::InvalidParameters(
             "need at least one category".into(),
@@ -782,7 +861,7 @@ pub fn categorical(
     let mut counts: Vec<Vec<u32>> = vec![];
     let mut proportions = Vec::with_capacity(n);
     let mut realizations = vec![];
-    run(n, simulate, |cats: Vec<usize>| {
+    run(n, in_flight, simulate, |cats: Vec<usize>| {
         if counts.is_empty() {
             counts = vec![vec![0; cats.len()]; k];
         }
@@ -1384,6 +1463,39 @@ mod tests {
         assert_eq!(one.variance, many.variance);
         assert_eq!(one.realization_above, many.realization_above);
         assert!(one.realizations.is_empty());
+    }
+
+    #[test]
+    fn summaries_do_not_depend_on_realizations_in_flight() {
+        let options = ContinuousOptions {
+            cutoffs: vec![3.0],
+            quantiles: vec![0.5],
+            keep: Keep::All,
+            tonnage: None,
+            tolerances: vec![],
+        };
+        let all = with_threads(6, || continuous(19, &options, fake).unwrap());
+        let one = with_threads(6, || continuous_bounded(19, &options, 1, fake).unwrap());
+        assert_eq!(one.realizations, all.realizations);
+        assert_eq!(one.mean, all.mean);
+        assert_eq!(one.quantile_values, all.quantile_values);
+        let cats = |k: usize| Ok(vec![k % 3, (k / 2) % 3]);
+        let all = with_threads(6, || categorical(9, 3, &Keep::All, cats).unwrap());
+        let one = with_threads(6, || {
+            categorical_bounded(9, 3, &Keep::All, 1, cats).unwrap()
+        });
+        assert_eq!(one.probabilities, all.probabilities);
+        assert_eq!(one.realizations, all.realizations);
+    }
+
+    #[test]
+    fn realizations_in_flight_fit_the_budget() {
+        assert_eq!(in_flight(100, 10, 135, 8).unwrap(), 3);
+        assert_eq!(in_flight(100, 10, 10_000, 8).unwrap(), 8);
+        assert_eq!(in_flight(100, 10, 110, 8).unwrap(), 1);
+        let err = in_flight(100, 10, 109, 8).unwrap_err().to_string();
+        assert!(err.contains("memory budget"), "{err}");
+        assert!(in_flight(u64::MAX, 10, 1 << 40, 8).is_err());
     }
 
     #[test]

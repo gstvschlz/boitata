@@ -1234,6 +1234,7 @@ class SGS:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
+        memory: float | None = None,
     ) -> SimulationSummary: ...
 
 class DSS:
@@ -1284,6 +1285,7 @@ class DSS:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
+        memory: float | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:
@@ -1330,6 +1332,7 @@ class TurningBands:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
+        memory: float | None = None,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,
@@ -1346,6 +1349,7 @@ class TurningBands:
         domain_column: Column | None = None,
         trend: Column | None = None,
         discretization: tuple[int, int, int] | None = None,
+        memory: float | None = None,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class MultivariateSimulation:
@@ -1377,6 +1381,7 @@ class MultivariateSimulation:
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
+        memory: float | None = None,
     ) -> list[SimulationSummary]: ...
 
 class SIS:
@@ -1401,6 +1406,7 @@ class SIS:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary: ...
 
 class Plurigaussian:
@@ -1436,6 +1442,7 @@ class Plurigaussian:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary: ...
 
 class SimulationSummary:
@@ -2562,6 +2569,7 @@ class SNESIM:
         anisotropy: LocalAnisotropy | None = None,
         domains: Label | Labels | None = None,
         domain_column: str | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary | SimulationSummary: ...
 
 # Image quilting.
@@ -2596,4 +2604,5 @@ class ImageQuilting:
         keep: bool | Sequence[int] = False,
         soft: Sequence[Column] | ArrayLike | None = None,
         secondary: ArrayLike | Column | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary | SimulationSummary: ...

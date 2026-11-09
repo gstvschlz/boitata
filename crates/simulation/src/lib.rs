@@ -40,15 +40,18 @@ pub use dss::{Dss, DssRealization, DssSecondary, dss_in};
 pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use lattice::{Lattice, Template, default_levels, multigrid_path};
-pub use multivariate::{Decorrelation, factor_seed, multivariate, multivariate_batched};
+pub use multivariate::{
+    Decorrelation, factor_seed, multivariate, multivariate_batched, multivariate_bounded,
+};
 pub use objects::{ObjectSet, Param, Shape, object_training_image};
 pub use pgs::{
     Hierarchy, PgsParams, Region, TruncationRule, fit_latent, plurigaussian, plurigaussian_local,
 };
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, Window,
-    categorical, continuous, continuous_batched, continuous_in_batches, continuous_many,
-    continuous_many_batched, localize, quantile_sorted,
+    categorical, categorical_bounded, categorical_bytes, continuous, continuous_batched,
+    continuous_bounded, continuous_in_batches, continuous_many, continuous_many_batched,
+    continuous_many_bounded, in_flight, localize, quantile_sorted,
 };
 pub use select::select_realizations;
 pub use sgs::{
@@ -62,8 +65,8 @@ pub use sis::{CategoricalRealization, SisParams, sis};
 pub use training_image::{NO_CODE, TrainingImage, TrainingValues, unify};
 pub use trend::TrendConditioning;
 pub use turning_bands::{
-    Bands, GlobalSummary, TurningBandsEnsemble, TurningBandsParams, bounds,
-    conditional_gaussian_field, turning_bands, turning_bands_in, turning_bands_to_parquet,
+    Bands, DEFAULT_MEMORY, GlobalSummary, TurningBandsEnsemble, TurningBandsParams, band_bytes,
+    bounds, conditional_gaussian_field, turning_bands, turning_bands_in, turning_bands_to_parquet,
 };
 
 pub mod snesim;
