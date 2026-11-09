@@ -1,0 +1,12 @@
+{
+  "name": "boitata",
+  "description": "Teaches Claude the boitatá geostatistics library.",
+  "owner": { "name": "Gustavo Pretto Scholze" },
+  "plugins": [
+    {
+      "name": "boitata",
+      "source": "./packaging/claude",
+      "description": "How to write correct boitatá code: the kinds of object, the calls each one takes, and where to look up a signature in the installed package."
+    }
+  ]
+}
