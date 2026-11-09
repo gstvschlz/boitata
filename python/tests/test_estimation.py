@@ -791,6 +791,20 @@ def test_search_getters():
     assert bt.Search(radius=50, soft=pairs).soft == pairs
 
 
+def test_max_samples_beyond_the_data_takes_them_all():
+    rng = np.random.default_rng(3)
+    xyz = rng.uniform(0, 100, (40, 3))
+    model = bt.Variogram([("spherical", 1.0, 40.0)])
+    for octant in (False, True):
+        search = bt.Search(radius=500, max_samples=1 << 40, octant=octant)
+        d = (
+            bt.OrdinaryKriging(model, search)
+            .fit(xyz, rng.normal(size=40))
+            .predict(xyz[:5] + 1.0, diagnostics=True)
+        )
+        assert np.all(np.asarray(d["n_samples"]) == 40)
+
+
 def test_plane_sectors():
     s = bt.Search(radius=50, max_samples=24, sectors=6)
     assert (s.sectors, s.max_per_sector, bt.Search(radius=50).sectors) == (6, 4, None)
@@ -799,6 +813,7 @@ def test_plane_sectors():
         {"sectors": 4, "octant": True},
         {"max_per_sector": 2},
         {"sectors": 4, "max_per_sector": 0},
+        {"sectors": 1 << 40},
     ):
         with pytest.raises(bt.InvalidInput):
             bt.Search(radius=50, **bad)
