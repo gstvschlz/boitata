@@ -28,7 +28,9 @@
 
 use crate::conditioning::{Conditioning, Neighbor};
 use crate::error::{Result, SimError};
-use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous_batched};
+use crate::post::{
+    BlockSupport, ContinuousOptions, ContinuousSummary, continuous_batched, continuous_in_parts,
+};
 use crate::sgs::{Domains, Realization, Transform, Transforms, Trend, data};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
@@ -995,9 +997,79 @@ impl TurningBandsEnsemble {
         trend: Option<&[f64]>,
         options: &ContinuousOptions,
     ) -> Result<ContinuousSummary> {
-        let batch = self.batch(targets.len(), targets.len(), options)?;
-        continuous_batched(self.len(), options, batch, |ks| {
-            self.realizations(ks, targets, |_| domains, trend)
+        self.summary_of(targets, |_| domains, trend, options)
+    }
+
+    /// As [`Self::summary`], each realization `k` with the node domains
+    /// `domains(k)`. Every realization is drawn at once over a part of the
+    /// targets at a time, so a tile's neighbours and kriging weights are
+    /// found once for all realizations that give it the same domains.
+    pub fn summary_of<'d>(
+        &self,
+        targets: &[(f64, f64, f64)],
+        domains: impl Fn(usize) -> Option<&'d [u32]> + Sync,
+        trend: Option<&[f64]>,
+        options: &ContinuousOptions,
+    ) -> Result<ContinuousSummary> {
+        match self.part(targets.len(), options) {
+            Some(part) => self.summary_in_parts(targets, domains, trend, options, part),
+            None => {
+                let batch = self.batch(targets.len(), targets.len(), options)?;
+                continuous_batched(self.len(), options, batch, |ks| {
+                    self.realizations(ks, targets, &domains, trend)
+                })
+            }
+        }
+    }
+
+    /// Targets per part when every realization is drawn at once: as many
+    /// as fit [`TurningBandsParams::memory`] beside the bands, the summary
+    /// and the data residuals and tile fields of every realization, in
+    /// whole tiles; `None` when not even a tile fits.
+    fn part(&self, targets: usize, options: &ContinuousOptions) -> Option<usize> {
+        let n = self.len().max(1) as u64;
+        let threads = rayon::current_num_threads() as u64;
+        let held = 8 * n * (self.data.len() as u64 + threads * TILE as u64);
+        let free = self
+            .memory
+            .checked_sub(self.fixed)?
+            .checked_sub(options.bytes(targets, self.len()))?
+            .checked_sub(held)?;
+        let part = usize::try_from(free / (8 * n)).unwrap_or(usize::MAX);
+        match part {
+            p if p >= targets => Some(targets.max(1)),
+            p if p >= TILE => Some(p / TILE * TILE),
+            _ => None,
+        }
+    }
+
+    fn summary_in_parts<'d>(
+        &self,
+        targets: &[(f64, f64, f64)],
+        domains: impl Fn(usize) -> Option<&'d [u32]> + Sync,
+        trend: Option<&[f64]>,
+        options: &ContinuousOptions,
+        part: usize,
+    ) -> Result<ContinuousSummary> {
+        // Every part checks its realizations fully; only lengths here, so
+        // the parts can be sliced.
+        let m = targets.len();
+        if (0..self.len()).any(|k| domains(k).is_some_and(|d| d.len() != m)) {
+            return Err(SimError::InvalidParameters("one domain per node".into()));
+        }
+        if trend.is_some_and(|t| t.len() != m) {
+            return Err(SimError::InvalidParameters(
+                "one trend value per node".into(),
+            ));
+        }
+        continuous_in_parts(self.len(), targets.len(), options, part, |range| {
+            let r = range.clone();
+            self.realizations(
+                0..self.len(),
+                &targets[range],
+                |k| domains(k).map(|d| &d[r.clone()]),
+                trend.map(|t| &t[r.clone()]),
+            )
         })
     }
 }
@@ -2215,6 +2287,65 @@ mod tests {
                 want
             );
         }
+    }
+
+    /// The summary over parts of the targets, every realization at once, is
+    /// bit for bit the summary of realizations drawn a batch at a time.
+    #[test]
+    fn summary_in_parts_equals_the_batched_summary() {
+        use crate::post::TonnageOptions;
+        let z = zoned();
+        let (grid, nodes, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let params = zoned_params(Some(estimation::Soft::All(8.0)), 4);
+        let flipped: Vec<u32> = nodes.iter().map(|c| 1 - c).collect();
+        let of = |k: usize| Some(if k % 3 == 1 { &flipped[..] } else { &nodes[..] });
+        let options = ContinuousOptions {
+            cutoffs: vec![0.5, 2.0, 1e9],
+            quantiles: vec![0.1, 0.5, 0.9],
+            keep: Keep::Indices(vec![4, 0]),
+            tonnage: Some(TonnageOptions {
+                cutoffs: vec![0.5, 1.5],
+                tonnes: (0..grid.len()).map(|i| 1.0 + (i % 7) as f64).collect(),
+                categories: Some(
+                    (0..grid.len())
+                        .map(|i| (i % 4 != 0).then_some((i % 3) as u32))
+                        .collect(),
+                ),
+                names: vec!["a".into(), "b".into(), "c".into()],
+            }),
+            tolerances: vec![0.25],
+        };
+        let n = 6;
+        let e = ensemble(&z, &all, Some(&z.codes), true, &params, n);
+        let trend = Some(&node_trend[..]);
+        let want = format!(
+            "{:?}",
+            continuous_batched(n, &options, 1, |ks| e.realizations(ks, &grid, of, trend)).unwrap()
+        );
+        for part in [1, 100, grid.len(), 4 * TILE] {
+            let got = e
+                .summary_in_parts(&grid, of, trend, &options, part)
+                .unwrap();
+            assert_eq!(format!("{got:?}"), want, "part {part}");
+        }
+        let one = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .unwrap();
+        let got = one
+            .install(|| e.summary_of(&grid, of, trend, &options))
+            .unwrap();
+        assert_eq!(format!("{got:?}"), want);
+        let short = &nodes[..10];
+        assert!(
+            e.summary_of(&grid, |_| Some(short), trend, &options)
+                .is_err()
+        );
+        assert!(
+            e.summary_of(&grid, of, Some(&node_trend[..10]), &options)
+                .is_err()
+        );
     }
 
     #[test]

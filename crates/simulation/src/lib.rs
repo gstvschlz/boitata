@@ -50,8 +50,8 @@ pub use pgs::{
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, Window,
     categorical, categorical_bounded, categorical_bytes, continuous, continuous_batched,
-    continuous_bounded, continuous_in_batches, continuous_many, continuous_many_batched,
-    continuous_many_bounded, in_flight, localize, quantile_sorted,
+    continuous_bounded, continuous_in_batches, continuous_in_parts, continuous_many,
+    continuous_many_batched, continuous_many_bounded, in_flight, localize, quantile_sorted,
 };
 pub use select::select_realizations;
 pub use sgs::{

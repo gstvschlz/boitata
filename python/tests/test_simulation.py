@@ -315,6 +315,15 @@ def test_turning_bands_summary():
     s = tb.simulate(grid, n=2, seed=1, cutoffs=[1.0, 2.0])
     assert s.mean.shape == (400,) and s.probability_above.shape == (400, 2)
 
+    s = tb.simulate(grid, n=5, seed=1, cutoffs=[1.0], quantiles=[0.5], keep=True)
+    r = s.realizations
+    np.testing.assert_array_equal(r[3], tb.simulate(grid, n=5, seed=1, keep=[3]).realizations[0])
+    np.testing.assert_allclose(s.mean, r.mean(axis=0), rtol=1e-12)
+    np.testing.assert_allclose(s.variance, r.var(axis=0), rtol=1e-9, atol=1e-12)
+    np.testing.assert_array_equal(s.probability_above[:, 0], (r >= 1.0).mean(axis=0))
+    np.testing.assert_array_equal(s.quantile_values[:, 0], np.median(r, axis=0))
+    np.testing.assert_allclose(s.realization_mean, r.mean(axis=1), rtol=1e-12)
+
 
 def test_sis_probabilities():
     cats = (values > np.median(values)).astype(int)

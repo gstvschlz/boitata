@@ -669,6 +669,10 @@ impl Rows {
         }
     }
 
+    fn is_identity(&self) -> bool {
+        self.blocks.is_none() && self.window.is_none() && self.groups.is_none()
+    }
+
     fn of(&self, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
         let values = averaged(&self.blocks, values)?;
         match (&self.window, &self.groups) {
@@ -2424,6 +2428,10 @@ impl TurningBands {
                 &params,
                 n,
             )?;
+            if upscale.is_identity() {
+                let domains = |k| of_realization(&nodes, k);
+                return ensemble.summary_of(&grid, domains, at_nodes.as_deref(), &options);
+            }
             let batch = ensemble.batch(grid.len(), upscale.len(grid.len()), &options)?;
             simulation::continuous_batched(n, &options, batch, |ks| {
                 ensemble
