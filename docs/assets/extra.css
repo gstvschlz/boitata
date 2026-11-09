@@ -1,58 +1,67 @@
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&display=swap");
+
 :root {
-  --boitata-night: #17303F;
-  --boitata-deep: #10202B;
-  --boitata-ember: #C4411F;
-  --boitata-flame: #FFB322;
-  --boitata-mist: #F4F6F8;
+  --boitata-night: #1A1A1A;
+  --boitata-deep: #0B0B0B;
+  --boitata-ember: #1A1A1A;
+  --boitata-flame: #56B4E9;
+  --boitata-mist: #F4F4F4;
 }
 
 [data-md-color-scheme="default"] {
   --md-primary-fg-color: var(--boitata-night);
-  --md-primary-fg-color--light: #2A4254;
+  --md-primary-fg-color--light: #555555;
   --md-primary-fg-color--dark: var(--boitata-deep);
   --md-accent-fg-color: var(--boitata-ember);
   --md-typeset-a-color: var(--boitata-ember);
   --md-default-fg-color: var(--boitata-night);
   --md-code-bg-color: var(--boitata-mist);
+  --md-default-bg-color: #FAFAFA;
+  --bt-wash: #EFEFEF;
+  --bt-dot: rgba(0, 0, 0, .10);
 }
 
-/* Dark: a near-black page with a trace of the brand navy, raised surfaces in two steps instead of navy-on-navy,
-   soft white for text and rules, ember lifted for links and section numbers, flame kept for emphasis only. */
+/* Dark is the canonical look: a neutral near-black page, raised surfaces in two steps, soft white for text and
+   rules. The interface is grey throughout: links are underlined instead of colored, and color is left to diagrams and code. */
 [data-md-color-scheme="slate"] {
-  --d-bg: #0B151C;
-  --d-surface: #111E27;
-  --d-raised: #172631;
-  --d-hairline: #24353F;
-  --d-text: #E4EAEE;
-  --d-muted: #93A3AE;
-  --d-ember: #FF6A4D;
-  --d-flame: #FFCB47;
+  --d-bg: #0B0B0B;
+  --d-surface: #151515;
+  --d-raised: #1F1F1F;
+  --d-hairline: #2B2B2B;
+  --d-text: #E4E4E4;
+  --d-muted: #A0A0A0;
+  --d-ember: var(--d-text);
+  --d-flame: #E69F00;
 
-  --md-hue: 205;
+  --bt-wash: #1A1A1A;
+  --bt-dot: rgba(255, 255, 255, .09);
+
+  --md-hue: 0;
   --md-default-bg-color: var(--d-bg);
   --md-default-fg-color: var(--d-text);
   --md-default-fg-color--light: var(--d-muted);
-  --md-default-fg-color--lighter: #5E707C;
+  --md-default-fg-color--lighter: #707070;
   --md-default-fg-color--lightest: var(--d-hairline);
   --md-primary-fg-color: var(--d-bg);
   --md-primary-fg-color--light: var(--d-surface);
-  --md-primary-fg-color--dark: #070E13;
+  --md-primary-fg-color--dark: #050505;
   --md-primary-bg-color: var(--d-text);
-  --md-accent-fg-color: var(--d-flame);
+  --md-accent-fg-color: var(--d-text);
+  --md-accent-bg-color: var(--d-bg);
   --md-typeset-a-color: var(--d-ember);
   --md-code-bg-color: var(--d-surface);
-  --md-code-fg-color: #D3DCE2;
-  --md-code-hl-keyword-color: var(--d-ember);
-  --md-code-hl-string-color: #A6D1B4;
-  --md-code-hl-number-color: #9EC1D6;
-  --md-code-hl-function-color: #E4EAEE;
-  --md-code-hl-constant-color: #9EC1D6;
-  --md-code-hl-name-color: #D3DCE2;
+  --md-code-fg-color: #D6D6D6;
+  --md-code-hl-keyword-color: #56B4E9;
+  --md-code-hl-string-color: #E69F00;
+  --md-code-hl-number-color: #CC79A7;
+  --md-code-hl-function-color: #EDEDED;
+  --md-code-hl-constant-color: #CC79A7;
+  --md-code-hl-name-color: #D6D6D6;
   --md-code-hl-operator-color: var(--d-muted);
   --md-code-hl-punctuation-color: var(--d-muted);
-  --md-code-hl-comment-color: #6F818D;
+  --md-code-hl-comment-color: #808080;
   --md-code-hl-generic-color: var(--d-muted);
-  --md-code-hl-variable-color: #D3DCE2;
+  --md-code-hl-variable-color: #D6D6D6;
   --md-footer-bg-color: var(--d-surface);
   --md-footer-bg-color--dark: var(--d-bg);
   --md-admonition-bg-color: var(--d-surface);
@@ -62,12 +71,12 @@
   --bt-muted: var(--d-muted);
   --bt-grid: var(--d-hairline);
   --bt-paper: var(--d-bg);
-  --bt-night: #9EC1D6;
+  --bt-night: #C8C8C8;
   --bt-ember: var(--d-ember);
   --bt-flame: var(--d-flame);
-  --bt-ember-soft: rgba(255, 106, 77, .14);
-  --bt-flame-soft: rgba(255, 203, 71, .10);
-  --bt-night-soft: rgba(158, 193, 214, .08);
+  --bt-ember-soft: rgba(237, 237, 237, .10);
+  --bt-flame-soft: rgba(230, 159, 0, .14);
+  --bt-night-soft: rgba(200, 200, 200, .08);
 }
 
 .md-header__button.md-logo img { height: 1.8rem; }
@@ -80,7 +89,7 @@
   margin: 1.5rem 0 2.5rem;
 }
 .md-typeset .boitata-hero img { width: 9rem; flex-shrink: 0; }
-.md-typeset .boitata-hero h1 { font-size: 3rem; margin: 0 0 .4rem; color: inherit; }
+.md-typeset .boitata-hero h1 { font-size: 3.4rem; margin: 0 0 .4rem; color: inherit; }
 .md-typeset .boitata-hero p { font-size: 1.05rem; margin: 0 0 1.2rem; }
 .md-typeset .boitata-hero .md-button { margin: 0 .5rem .5rem 0; }
 
@@ -96,12 +105,34 @@
   border-color: var(--boitata-ember);
   color: #fff;
 }
-[data-md-color-scheme="slate"] .md-typeset .md-button { color: #FF9A5C; }
+[data-md-color-scheme="slate"] .md-typeset .md-button { color: var(--d-text); }
 [data-md-color-scheme="slate"] .md-typeset .md-button--primary {
-  background-color: var(--boitata-flame);
-  border-color: var(--boitata-flame);
+  background-color: var(--d-text);
+  border-color: var(--d-text);
   color: var(--boitata-deep);
 }
 
 [data-md-color-scheme="default"] .boitata-hero .logo-dark,
 [data-md-color-scheme="slate"] .boitata-hero .logo-light { display: none; }
+
+.md-typeset :is(p, li, td, dd, figcaption) > a:not(.md-button, .headerlink) {
+  text-decoration: underline;
+  text-decoration-color: var(--md-default-fg-color--light);
+  text-underline-offset: .2em;
+}
+.md-typeset :is(p, li, td, dd, figcaption) > a:not(.md-button, .headerlink):hover { text-decoration-color: currentColor; }
+
+/* Texture: the logo's node field as a faint dot grid over a short wash at the top of every page, faded out
+   before it reaches long text. */
+.md-main { position: relative; background: linear-gradient(180deg, var(--bt-wash) 0, var(--md-default-bg-color) 30rem); }
+.md-main::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 34rem;
+  pointer-events: none;
+  background: radial-gradient(circle, var(--bt-dot) 1.1px, transparent 1.6px) 0 0 / 22px 22px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0, transparent 100%);
+}
+.md-main__inner { position: relative; }

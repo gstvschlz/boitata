@@ -64,10 +64,10 @@ for vein in veins:
 
 ```text
 vein          P99  metal (%)  5 % metal  metal (%)     CV 1.5  metal (%)
-V1          100.7       9.10      202.3       5.00       63.2      14.89
-V2          215.8       3.09      190.8       5.00       59.4      27.80
-V3          521.0       0.00      466.1       5.00       36.3      64.84
-V4           52.7       8.25      109.1       5.00       39.2      13.81
+V1          100.7       9.10      202.4       5.00       63.0      14.94
+V2          215.8       3.09      190.8       5.00       59.6      27.72
+V3          521.0       0.00      466.1       5.00       36.3      64.85
+V4           52.7       8.25      109.1       5.00       39.2      13.82
 ```
 
 The rules disagree most where the tail is longest. V1 and V2 lose 9 and 3 % of their metal at the P99; holding the
@@ -102,7 +102,7 @@ for k, vein in enumerate(report["domain"][:-1]):
 ```text
 vein      P99  fitted cap  report (%)  fitted (%)
 V1     100.67      100.67        9.10        9.10
-V2     215.80      215.80        3.09        3.09
+V2     215.77      215.77        3.09        3.09
 V3     521.00      521.00        0.00        0.00
 V4      52.74       52.74        8.25        8.25
 ```
@@ -166,8 +166,8 @@ print(
 </details>
 
 ```text
-AU_GPT: 3744 blocks, mean 10.55 g/t
-AU_CAPPED: 3744 blocks, mean 9.64 g/t
+AU_GPT: 3744 blocks, mean 10.58 g/t
+AU_CAPPED: 3744 blocks, mean 9.66 g/t
 composites: 10.96 and 9.96 g/t
 ```
 

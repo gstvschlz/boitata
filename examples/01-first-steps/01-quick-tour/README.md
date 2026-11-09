@@ -139,7 +139,7 @@ save(fig, "variogram")
 </details>
 
 ```text
-Variogram(nugget=5178.543570576122, structures=[Structure("spherical", sill=17712.642951081165, range=12.736250302929488), Structure("spherical", sill=51337.374627784804, range=115)], rotation=(1.8023577284324404, 0.0, 0.0), ratios=(0.3797524218624345, 1.0))
+Variogram(nugget=5178.543570579452, structures=[Structure("spherical", sill=17712.642951077363, range=12.736250302929486), Structure("spherical", sill=51337.374627785335, range=115)], rotation=(1.8023577284324404, 0.0, 0.0), ratios=(0.3797524218624346, 1.0))
 ```
 
 ![variogram](variogram.png)

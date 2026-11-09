@@ -10,11 +10,12 @@ import matplotlib.pyplot as plt
 
 ROOT = Path(__file__).resolve().parent
 
-INK = "#222222"
+INK = "#1a1a1a"
 GRAY = "#8c8c8c"
 LIGHT = "#d9d9d9"
-ACCENT = "#1f4e79"
-HIGHLIGHT = "#c05a28"
+ACCENT = "#0072b2"
+HIGHLIGHT = "#d55e00"
+SERIES = [ACCENT, GRAY, HIGHLIGHT, "#009e73", "#e69f00", "#cc79a7", "#56b4e9"]
 
 mpl.rcParams.update(
     {
@@ -29,7 +30,7 @@ mpl.rcParams.update(
         "axes.edgecolor": GRAY,
         "axes.spines.top": False,
         "axes.spines.right": False,
-        "axes.prop_cycle": mpl.cycler(color=[ACCENT, GRAY, HIGHLIGHT]),
+        "axes.prop_cycle": mpl.cycler(color=SERIES),
         "xtick.color": INK,
         "ytick.color": INK,
         "legend.frameon": False,

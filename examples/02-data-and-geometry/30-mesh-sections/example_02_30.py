@@ -95,7 +95,7 @@ across = np.array([np.cos(strike), -np.sin(strike), 0.0])
 center = np.array([12350.0, 29900.0, 0.0])
 offsets = [-200.0, -100.0, 0.0, 100.0, 200.0]
 fig, axes = plt.subplots(1, len(offsets), figsize=(12, 4.2), layout="constrained", sharex=True, sharey=True)
-colors = dict(zip(lenses, ["#1f4e79", "#c05a28", "#8c8c8c"], strict=True))
+colors = dict(zip(lenses, ["#0072b2", "#d55e00", "#8c8c8c"], strict=True))
 for name, lens in lenses.items():
     lines = lens.section(center, normal, offsets=offsets)
     for f in range(len(lines)):

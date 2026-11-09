@@ -106,12 +106,12 @@ for name, (az, dip) in zip(("major", "semi-major", "minor"), volume.axes, strict
 </details>
 
 ```text
-pairs across the lenses in the first three lags: [2452  451  311]
-nugget 2.5 of a sill of 20.3 %²
-rotation (azimuth, dip, rake): [180.4  28.  131.5]
+pairs across the lenses in the first three lags: [2453  451  312]
+nugget 2.5 of a sill of 20.5 %²
+rotation (azimuth, dip, rake): [179.3  29.  132. ]
 ranges (major, semi-major, minor): [25. 25.  4.] m
-     major axis: azimuth 180.4°, dip 28.0°
-semi-major axis: azimuth 062.4°, dip 41.4°
+     major axis: azimuth 179.3°, dip 29.0°
+semi-major axis: azimuth 061.0°, dip 40.5°
      minor axis: azimuth 292.9°, dip 35.8°
 ```
 
@@ -271,9 +271,9 @@ for name, search in options.items():
           first pass  blocks  samples  holes  slope
               no cap      2%     10.5    4.2   0.81
           3 per hole      2%     10.6    4.6   0.81
- 3 per hole, octants      1%      9.5    4.4   0.83
-             3 holes      2%     10.9    4.5   0.80
- 3 per hole, 4 holes      1%     11.4    5.1   0.80
+ 3 per hole, octants      1%      9.5    4.4   0.84
+             3 holes      2%     10.8    4.5   0.80
+ 3 per hole, 4 holes      1%     11.3    5.1   0.80
 ```
 
 Without a cap the first pass fills 81 % of the blocks, from 2.3 holes on average. The cap brings it down to 39 %,
@@ -320,8 +320,8 @@ pass 1: ranges [25 25  4] m, min_samples 8
 pass 2: ranges [49 49  7] m, min_samples 4
 pass  blocks  share  samples  holes  distance  slope
    1     100     2%     10.6    4.6      14 m   0.81
-   2    5535    85%      8.7    3.2      31 m   0.19
-unestimated: 854 blocks
+   2    5524    85%      8.6    3.2      31 m   0.19
+unestimated: 865 blocks
 lens_1: 3% of 2885 blocks in pass 1
 lens_2: 0% of 1921 blocks in pass 1
 lens_3: 1% of 1683 blocks in pass 1

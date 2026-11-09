@@ -34,7 +34,7 @@ scheme = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
     mapping={"MS": "SUL", "SMS": "SUL", "STR": "SUL"},
     other="DYK",
-    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#c05a28", "#1f4e79", "#e0c080"],
+    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#d55e00", "#0072b2", "#e0c080"],
 )
 weights = bt.cell_declustering(composites, scheme.encode(composites["LITH"]), cell_size=50.0).weights
 layers = (23.0, 55.0, 0.0)
@@ -101,8 +101,8 @@ print(f"total volume kept: {volume[section['rock'] >= 0].sum() == volume[section
 OB           18000       11000
 HWS        3732000     3737000
 VCL         800000      797000
-SUL         186000      186000
-FWV        3256000     3261000
+SUL         185000      185000
+FWV        3257000     3262000
 DYK              0           0
 total volume kept: True
 ```
@@ -166,7 +166,7 @@ sulfides and their host.
 ```python
 sulphide = np.where(section["clean"] == scheme.names.index("SUL"), "SUL", "host")
 zone = bt.buffer_domains(section, sulphide, distance=15.0, target="SUL")
-zones = bt.Categories(["host", "contact", "SUL"], colors=["#d9d9d9", "#e0c080", "#c05a28"])
+zones = bt.Categories(["host", "contact", "SUL"], colors=["#d9d9d9", "#e0c080", "#d55e00"])
 section = section.with_columns({"zone": zones.encode(zone)})
 for name in ("SUL", "host"):
     print(f"{name} cells in the buffer: {np.sum((zone == 'contact') & (sulphide == name))}")
@@ -183,8 +183,8 @@ save(fig, "buffer")
 </details>
 
 ```text
-SUL cells in the buffer: 157
-host cells in the buffer: 251
+SUL cells in the buffer: 156
+host cells in the buffer: 249
 ```
 
 ![buffer](buffer.png)

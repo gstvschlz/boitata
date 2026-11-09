@@ -57,12 +57,12 @@ print("MAF variogram of each factor at 5 m:", np.round(transforms["MAF"].gammas_
 
 ```text
         r(f1, f2)  r(f1², f2)  skew f2  round trip
-PCA         0.000      -0.179    -0.35     1.9e-15
-MAF         0.000      -0.008     1.90     2.9e-15
+PCA         0.000      -0.178    -0.35     3.0e-15
+MAF        -0.000      -0.008     1.90     4.0e-15
 SCT         0.003       0.012     0.98     1.5e-16
-PPMT       -0.061       0.110     0.65     2.3e-08
+PPMT       -0.958       0.965    59.02     3.3e-08
 PCA explained variance ratio: [0.56 0.44]
-MAF variogram of each factor at 5 m: [0.177 0.223]
+MAF variogram of each factor at 5 m: [0.177 0.222]
 ```
 
 The data and the four sets of factors. Linear factors are uncorrelated but keep the L-shaped cloud of two mineral

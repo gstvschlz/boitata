@@ -35,7 +35,7 @@ from common import ACCENT, GRAY, save
 data = bt.datasets.topsoil_metals()
 train, grid = data["prediction"], data["grid"]
 names = ["Argovian", "Kimmeridgian", "Sequanian", "Portlandian", "Quaternary"]
-rock_types = bt.Categories(names, colors=["#1f4e79", "#6f9fc9", "#c9d9ea", "#c05a28", "#8c8c8c"])
+rock_types = bt.Categories(names, colors=["#0072b2", "#6f9fc9", "#c9d9ea", "#d55e00", "#8c8c8c"])
 rock = rock_types.encode(train["Rock"]).astype(int)
 true_rock = rock_types.encode(grid["Rock"]).astype(int)
 proportions = rock_types.shares(rock)

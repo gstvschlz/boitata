@@ -62,10 +62,10 @@ for name, r in runs.items():
 
 ```text
                  ore runs  ore (m) Au (g/t) metal in ore  balance
-raw                   256      556     9.23        85.1% -1.8e-12
-+ dilution 3 m        243      576     8.91        85.2% -1.8e-12
-+ edges 0.5 m         243      818     6.31        85.7% -2.7e-12
-+ minimum 2 m         229      798     6.43        85.1% -1.8e-12
+raw                   255      554     9.26        85.1% -9.1e-13
++ dilution 3 m        242      574     8.94        85.2% -9.1e-13
++ edges 0.5 m         242      815     6.34        85.7% -1.8e-12
++ minimum 2 m         228      795     6.45        85.1% -1.8e-12
 ```
 
 Dilution joins raw runs into fewer, longer ones at a lower grade, and the metal in ore barely moves because the
@@ -187,7 +187,7 @@ for k in np.flatnonzero(ore)[top]:
 </details>
 
 ```text
-28 final intercepts grade below 0.5 g/t
+27 final intercepts grade below 0.5 g/t
 hole        from      to     m  Au g/t
 UD0033    196.32  200.82   4.5  181.87
 UD0040    317.06  321.06   4.0   93.21
@@ -224,7 +224,7 @@ for min_length in [0.0, 2.0]:
 
 ```text
 minimum 0 m: 260 quartz vein runs, 397 m at 11.70 g/t
-minimum 2 m: 77 quartz vein runs, 205 m at 8.39 g/t
+minimum 2 m: 77 quartz vein runs, 205 m at 8.38 g/t
 ```
 
 Seven tenths of the quartz vein runs are thinner than 2 m. At a 2 m minimum they fall to waste, and the rest take in the

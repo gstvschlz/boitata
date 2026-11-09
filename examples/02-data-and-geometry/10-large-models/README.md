@@ -106,7 +106,7 @@ print(f"trend at the composites: variance {at_data.var():.0f} of {fe.var():.0f} 
 </details>
 
 ```text
-domains and trend in 2 s
+domains and trend in 3 s
 trend at the composites: variance 38 of 143 %²
 ```
 
@@ -156,9 +156,9 @@ print(f"first realization: mean {first.mean():.2f} % Fe, as accumulated {result[
 
 ```text
 residual scores: nugget 0.34, range 26 m
-10 realizations in 6 s; blocks above 60 % Fe: P10 22.7%, P90 22.9%
+10 realizations in 12 s; blocks above 60 % Fe: P10 22.7%, P90 23.0%
 output 77 MB
-first realization: mean 48.91 % Fe, as accumulated 48.91
+first realization: mean 48.97 % Fe, as accumulated 48.97
 ```
 
 Mining selects 25 × 25 × 12 m blocks. With `discretization`, each block of a file is simulated at nodes, here
@@ -189,7 +189,7 @@ print(f"{len(model):,} blocks of 25 m in {seconds:.0f} s; above 60 % Fe: P10 {lo
 </details>
 
 ```text
-47,510 blocks of 25 m in 2 s; above 60 % Fe: P10 14.0%, P90 14.3%
+47,510 blocks of 25 m in 3 s; above 60 % Fe: P10 14.0%, P90 14.3%
 ```
 
 Averaging smooths the highs: about 14 % of the 25 m blocks pass 60 % Fe, against 23 % of the 5 m blocks.

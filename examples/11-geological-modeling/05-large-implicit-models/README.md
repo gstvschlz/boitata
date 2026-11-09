@@ -78,9 +78,9 @@ print(f"dense and patches put {same.mean():.2%} of the blocks on the same side")
 </details>
 
 ```text
-  Dense, 12 m:         dense, 11.53 s, 100.0% of composites on their side, 50.8 Mm3, covers 56% of the solid, 33% outside it
-Patches, 12 m:   169 patches,  0.02 s, 100.0% of composites on their side, 50.8 Mm3, covers 56% of the solid, 33% outside it
- Patches, 2 m: 1,219 patches,  0.13 s, 100.0% of composites on their side, 71.3 Mm3, covers 63% of the solid, 46% outside it
+  Dense, 12 m:         dense,  6.79 s, 100.0% of composites on their side, 50.8 Mm3, covers 56% of the solid, 33% outside it
+Patches, 12 m:   169 patches,  0.03 s, 100.0% of composites on their side, 50.8 Mm3, covers 56% of the solid, 33% outside it
+ Patches, 2 m: 1,219 patches,  0.17 s, 100.0% of composites on their side, 71.3 Mm3, covers 63% of the solid, 46% outside it
 dense and patches put 99.93% of the blocks on the same side
 ```
 
@@ -147,9 +147,9 @@ for patch in (1600, 400, 100):
 </details>
 
 ```text
-patch=1600:   232 patches,  4.45 s, 100.00% of the blocks on the side patch=1600 puts them
-patch=400 : 1,219 patches,  0.11 s, 99.05% of the blocks on the side patch=1600 puts them
-patch=100 : 3,746 patches,  0.06 s, 98.59% of the blocks on the side patch=1600 puts them
+patch=1600:   232 patches, 11.25 s, 100.00% of the blocks on the side patch=1600 puts them
+patch=400 : 1,219 patches,  0.18 s, 99.05% of the blocks on the side patch=1600 puts them
+patch=100 : 3,746 patches,  0.05 s, 98.59% of the blocks on the side patch=1600 puts them
 ```
 
 The default of 400 stays within 1 % of the blocks of `patch=1600` at a small fraction of its time.
