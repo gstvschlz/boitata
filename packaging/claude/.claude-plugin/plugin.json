@@ -1,0 +1,8 @@
+{
+  "name": "boitata",
+  "description": "How to write correct boitatá code: the kinds of object, the calls each one takes, and where to look up a signature in the installed package.",
+  "author": { "name": "Gustavo Pretto Scholze" },
+  "homepage": "https://scholzegustavo.gitlab.io/boitata/",
+  "repository": "https://gitlab.com/scholzegustavo/boitata",
+  "license": "MIT"
+}

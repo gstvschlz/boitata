@@ -39,6 +39,16 @@ Whole problems, from the question to the decision.
 </li>
 </ol>
 
+## With Claude
+
+Install the [boitatá plugin](install.md#claude-plugin) in Claude Code or the Claude apps, and Claude stops guessing
+at the calls: it follows the library's rules and reads each signature from the package you installed.
+
+```text
+/plugin marketplace add https://gitlab.com/scholzegustavo/boitata.git
+/plugin install boitata@boitata
+```
+
 ## Modules
 
 <div class="grid cards" markdown>

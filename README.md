@@ -33,6 +33,22 @@ Published on PyPI and imported as `boitata`. Wheels for Linux, macOS and Windows
 Extras: `plot` (Matplotlib), `3d` (the notebook widget of `bt.plot3d`), `export` (headless screenshots), `all` (`plot`, `3d`, Polars, pandas, PyArrow).
 See the [install page](https://scholzegustavo.gitlab.io/boitata/install/) for uv, Poetry, conda, pixi and offline installs.
 
+## Claude plugin
+
+Without help, Claude guesses at boitatá's calls. The plugin gives it the library's rules and tells it to read each
+signature from the installed package, so the code it writes matches your version.
+
+In [Claude Code](https://claude.com/claude-code):
+
+```text
+/plugin marketplace add https://gitlab.com/scholzegustavo/boitata.git
+/plugin install boitata@boitata
+```
+
+In the Claude apps, open **Customize > Plugins**, choose **Add > Add marketplace**, paste the same URL and install
+`boitata`. The [install page](https://scholzegustavo.gitlab.io/boitata/install/#claude-plugin) says what the plugin
+holds and how to update it.
+
 ## Examples
 
 The [examples folder](https://gitlab.com/scholzegustavo/boitata/-/blob/main/examples) holds worked pages in 14 sections, each

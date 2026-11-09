@@ -107,6 +107,40 @@ pip download "boitata[all]" -d wheels                                 # connecte
 pip install --no-index --find-links wheels "boitata[all]"             # offline machine
 ```
 
+## Claude plugin
+
+Without help, Claude guesses at boitatá's calls from whatever it remembers. The plugin holds one skill, a short
+page Claude reads when your code imports `boitata` or you ask for geostatistics work. It gives the kinds of object
+and the calls each one takes, the rules every call follows (keyword-only options, containers that never change in
+place, the `(azimuth, dip, rake)` rotation), how missing values and errors behave, and how to save each object.
+It also tells Claude to read each signature from the stub and the docstrings of the boitatá you installed, so the
+code matches your version.
+
+### Claude Code
+
+Add this repository as a marketplace, then install the plugin from it:
+
+```text
+/plugin marketplace add https://gitlab.com/scholzegustavo/boitata.git
+/plugin install boitata@boitata
+```
+
+From a shell, the same two steps are `claude plugin marketplace add` and `claude plugin install`. The plugin
+installs for your user by default; add `--scope project` to the second command to record it in the project's
+`.claude/settings.json` for everyone who works on it.
+
+`/plugin marketplace update boitata` fetches the current skill after a new release.
+
+### Claude apps
+
+In Claude on the web or the desktop, open **Customize > Plugins**, choose **Add > Add marketplace** and paste
+`https://gitlab.com/scholzegustavo/boitata.git`. Then install `boitata` from the list. Claude runs code in its own
+sandbox there, so ask it to `pip install "boitata[all]"` first.
+
+The plugin adds no tools and sends nothing anywhere: it is the text in
+[`packaging/claude/skills/boitata/SKILL.md`](https://gitlab.com/scholzegustavo/boitata/-/blob/main/packaging/claude/skills/boitata/SKILL.md),
+which you can read before you install it.
+
 ## Contributors
 
 To build boitatá you need Rust ≥ 1.97 (pinned in `rust-toolchain.toml`) and a C compiler. `mise run build` compiles it
