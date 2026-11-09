@@ -1282,6 +1282,74 @@ def test_available_memory_is_a_positive_size():
     assert _memory.available() > 2**20
 
 
+@pytest.mark.skipif(not os.path.exists("/proc/meminfo"), reason="Linux only")
+def test_available_memory_counts_reclaimable_cache():
+    from boitata import _memory
+
+    with open("/proc/meminfo") as meminfo:
+        info = dict(line.split(":", 1) for line in meminfo)
+    mem_available = int(info["MemAvailable"].split()[0]) * 1024
+    cgroup = _memory._cgroup_available()
+    assert _memory.available() >= 0.9 * min(mem_available, cgroup or mem_available)
+
+
+def test_available_memory_stays_within_the_cgroup_limit(tmp_path):
+    from boitata import _memory
+
+    own = tmp_path / "app.slice" / "job.scope"
+    own.mkdir(parents=True)
+    (own / "memory.max").write_text("max\n")
+    (tmp_path / "app.slice" / "memory.max").write_text(f"{4 << 30}\n")
+    (tmp_path / "app.slice" / "memory.current").write_text(f"{3 << 30}\n")
+    (tmp_path / "app.slice" / "memory.stat").write_text(f"anon 1\ninactive_file {1 << 29}\n")
+    assert _memory._cgroup_available(str(tmp_path), "/app.slice/job.scope") == (1 << 30) + (1 << 29)
+    (tmp_path / "app.slice" / "memory.max").write_text("max\n")
+    assert _memory._cgroup_available(str(tmp_path), "/app.slice/job.scope") is None
+
+
+def test_realizations_do_not_depend_on_the_memory_budget():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    points = np.asarray(grid.coords)[:, :2]
+    tb = bt.TurningBands(gaussian, bands=60).fit(coords, values)
+    cats = (values > np.median(values)).astype(int)
+    sis = bt.SIS([gaussian, gaussian], bt.Search(radius=40, max_samples=12)).fit(coords, cats)
+    for tight, simulate in (
+        (1.5e5, lambda memory: sgs.simulate(points, n=5, seed=2, keep=True, quantiles=[0.5], memory=memory)),
+        (1e6, lambda memory: tb.simulate(points, n=5, seed=2, keep=True, quantiles=[0.5], memory=memory)),
+        (4e5, lambda memory: sis.simulate(points, n=5, seed=2, keep=True, memory=memory)),
+    ):
+        large = simulate(None)
+        np.testing.assert_array_equal(simulate(tight).realizations, large.realizations)
+
+
+@pytest.mark.parametrize("bands_only", [False, True])
+def test_multivariate_realizations_do_not_depend_on_the_memory_budget(bands_only):
+    data = np.column_stack([values, values**0.5 * np.linspace(0.5, 1.5, len(values))])
+    tb = bt.TurningBands(gaussian, bands=60)
+    first = tb if bands_only else bt.SGS(gaussian, bt.Search(radius=40, max_samples=12))
+    mv = bt.MultivariateSimulation(bt.PCA(), [first, tb]).fit(coords, data)
+    points = np.asarray(grid.coords)[:, :2]
+    large = mv.simulate(points, n=5, seed=2, keep=True)
+    # 3.5e5 bytes leave room for one realization at a time.
+    for got, want in zip(mv.simulate(points, n=5, seed=2, keep=True, memory=3.5e5), large):
+        np.testing.assert_array_equal(got.realizations, want.realizations)
+    with pytest.raises(bt.InvalidInput, match="memory budget"):
+        mv.simulate(points, n=5, memory=1e5)
+
+
+def test_runs_beyond_the_memory_budget_raise_invalid_input():
+    sgs = bt.SGS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    points = np.asarray(grid.coords)[:, :2]
+    with pytest.raises(bt.InvalidInput, match="memory budget"):
+        sgs.simulate(points, n=3, memory=1e4)
+    tb = bt.TurningBands(gaussian, bands=60).fit(coords, values)
+    with pytest.raises(bt.InvalidInput, match="more memory"):
+        tb.simulate(points, n=3, memory=1e4)
+    for bad in (0, -1, float("nan"), float("inf")):
+        with pytest.raises(bt.InvalidInput, match="memory is"):
+            sgs.simulate(points, n=3, memory=bad)
+
+
 CHANNELS = {"shape": "channel", "code": 1, "proportion": 0.25, "width": 8.0, "azimuth": (-10, 10)}
 LOBES = {"shape": "ellipsoid", "code": 2, "proportion": 0.1, "radii": (6.0, 3.0)}
 

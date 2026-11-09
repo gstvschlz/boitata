@@ -5,7 +5,7 @@ neighbors and kriging weights then depend on the path alone, so SGS finds them o
 reuses them; only the noise differs. `path="random"` draws a new path per realization instead, as points and
 sub-blocked models need. Both reproduce the histogram and the variogram, and the shared path gains speed as
 realizations and nodes grow. `batch`, the number simulated together, leaves the realizations unchanged and by
-default fills 70 % of the free memory.
+default fills `memory`, 70 % of the available memory unless given.
 
 <details><summary>Python</summary>
 

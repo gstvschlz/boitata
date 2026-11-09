@@ -660,6 +660,15 @@ struct Rows {
 }
 
 impl Rows {
+    /// Rows each realization of `count` targets is summarized at.
+    fn len(&self, count: usize) -> usize {
+        match (&self.groups, &self.blocks) {
+            (Some(g), _) => g.len(),
+            (_, Some(b)) => b.len(),
+            _ => count,
+        }
+    }
+
     fn of(&self, values: Vec<f64>) -> simulation::Result<Vec<f64>> {
         let values = averaged(&self.blocks, values)?;
         match (&self.window, &self.groups) {
@@ -1035,14 +1044,29 @@ fn lattice_of(targets: &Bound<PyAny>) -> Option<simulation::Lattice> {
     simulation::Lattice::from_model(&model.get().0)
 }
 
-/// Bytes a batch of realizations may take: 70 % of the memory free now.
-fn memory_budget(py: Python) -> PyResult<u64> {
+/// Bytes a run may take: `memory` when given, else 70 % of the memory
+/// available now.
+fn memory_budget(py: Python, memory: Option<f64>) -> PyResult<u64> {
+    if let Some(m) = memory {
+        if !(m.is_finite() && m >= 1.0) {
+            return Err(invalid(format!(
+                "memory is {m}; give the bytes the run may take, a finite number of at least 1"
+            )));
+        }
+        return Ok(m.min(u64::MAX as f64) as u64);
+    }
     let free: u64 = py
         .import("boitata._memory")?
         .getattr("available")?
         .call0()?
         .extract()?;
     Ok(free / 10 * 7)
+}
+
+/// Bytes a sequential simulation takes per node while one realization is
+/// simulated, beside its values, with `passes` search passes.
+fn sequential_node_bytes(passes: usize) -> u64 {
+    128 + 128 * passes.max(1) as u64
 }
 
 /// Sequential Gaussian simulation. `variogram` is the normal-score variogram
@@ -1425,9 +1449,13 @@ impl Sgs {
     /// searches, high-grade restrictions and soft boundaries need and the
     /// default then uses; "shared" raises InvalidInput where it cannot run.
     /// `batch`, on a shared path, is the number of realizations simulated
-    /// together, by default as many as fit in 70 % of the free memory; a run
-    /// whose quantiles, tolerances and kept realizations alone exceed that memory
-    /// raises InvalidInput. Realizations do not depend on `batch`.
+    /// together, by default as many as fit in `memory`; a run whose
+    /// quantiles, tolerances and kept realizations alone exceed it raises
+    /// InvalidInput. Realizations do not depend on `batch`. `memory`, the
+    /// bytes the run may take (at least 1), defaults to 70 % of the memory
+    /// available now; on a random path it bounds the realizations simulated
+    /// at once, and a run whose single realization does not fit raises
+    /// InvalidInput. Realizations do not depend on `memory`.
     /// `grade_tonnage_cutoffs` accumulates, per realization, the tonnes, metal
     /// and mean grade of the summary rows (the blocks when given) at or above
     /// each cutoff, as `grade_tonnage` counts them: tonnes from `density`, a
@@ -1437,7 +1465,7 @@ impl Sgs {
     /// as ``(0.15,)``, gives `SimulationSummary.precision`, the fraction of
     /// realizations within ``r * |mean|`` of the mean for each tolerance
     /// ``r``; like `quantiles`, it holds every value.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, path=None, batch=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1463,6 +1491,7 @@ impl Sgs {
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
+        memory: Option<f64>,
     ) -> PyResult<SimulationSummary> {
         let grade = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -1552,9 +1581,9 @@ impl Sgs {
             tonnage: gt,
             tolerances,
         };
+        let budget = memory_budget(py, memory)?;
         if let Some(lattice) = lattice {
             let kept = options.keep.kept(n).len();
-            let budget = memory_budget(py)?;
             let size = simulation::shared_batch(
                 lattice.len(),
                 n,
@@ -1611,8 +1640,16 @@ impl Sgs {
                 })
                 .map_err(err);
         }
+        let rows = upscale.len(grid.len());
+        let in_flight = simulation::in_flight(
+            options.bytes(rows, n),
+            grid.len() as u64 * sequential_node_bytes(search.len()) + 8 * rows as u64,
+            budget,
+            n,
+        )
+        .map_err(err)?;
         py.detach(|| {
-            simulation::continuous(n, &options, |k| {
+            simulation::continuous_bounded(n, &options, in_flight, |k| {
                 let params = SgsParams {
                     search: search.clone(),
                     seed: boitata_core::rng::realization_seed(seed, k as u64),
@@ -1959,6 +1996,11 @@ impl Dss {
     ///     with row ``k``.
     /// grade_tonnage_cutoffs, density, tonnage, categories : optional
     ///     Grade–tonnage curves per realization, as in SGS.simulate.
+    /// memory : int or float, optional
+    ///     Bytes the run may take, at least 1; default 70 % of the memory
+    ///     available now. It bounds the realizations simulated at once;
+    ///     a run whose single realization does not fit raises InvalidInput.
+    ///     The realizations do not depend on it.
     ///
     /// Returns
     /// -------
@@ -1969,7 +2011,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -1992,6 +2034,7 @@ impl Dss {
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
+        memory: Option<f64>,
     ) -> PyResult<SimulationSummary> {
         let grade = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -2053,9 +2096,17 @@ impl Dss {
                 Some((fitted, rows))
             }
         };
+        let rows = upscale.len(grid.len());
+        let in_flight = simulation::in_flight(
+            options.bytes(rows, n),
+            grid.len() as u64 * sequential_node_bytes(search.len()) + 8 * rows as u64,
+            memory_budget(py, memory)?,
+            n,
+        )
+        .map_err(err)?;
         let summary = py
             .detach(|| {
-                simulation::continuous(n, &options, |k| {
+                simulation::continuous_bounded(n, &options, in_flight, |k| {
                     let params = SgsParams {
                         search: search.clone(),
                         seed: boitata_core::rng::realization_seed(seed, k as u64),
@@ -2178,8 +2229,8 @@ impl TurningBands {
 
     /// `bands` lines, each discretized every `step` meters along the major axis
     /// (default: each nested structure on lines of its own, a fiftieth of its
-    /// range apart; a run whose lines would take more than 8 GiB raises
-    /// InvalidInput). `search` is the
+    /// range apart; a run whose lines would take more than the `memory` of
+    /// `simulate` raises InvalidInput). `search` is the
     /// neighborhood of the conditioning kriging (default: the 32 nearest
     /// data at any distance); a radius near the range skips nodes far from
     /// the data, where conditioning changes nothing. `classes` are the trend
@@ -2286,9 +2337,14 @@ impl TurningBands {
     /// label for all; a target in a domain without samples raises
     /// InvalidInput. Simulated domains, an ``(n, targets)`` array, give
     /// realization ``k`` of the grades the domains of row ``k``;
-    /// `domain_column` as in `SGS.simulate`.
+    /// `domain_column` as in `SGS.simulate`. `memory`, the bytes the run may
+    /// take (at least 1, default 70 % of the memory available now), holds
+    /// the bands of every realization, then as many realizations at a time
+    /// as fit beside them and the summary; a run whose bands or single
+    /// realization do not fit raises InvalidInput. Realizations do not
+    /// depend on `memory`.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
     fn simulate(
         &self,
         py: Python,
@@ -2309,6 +2365,7 @@ impl TurningBands {
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
+        memory: Option<f64>,
     ) -> PyResult<SimulationSummary> {
         let grade = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -2330,7 +2387,7 @@ impl TurningBands {
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let at_nodes = trend_at(d, targets, grid.len(), trend)?;
-        let params = self.params(seed, self.resolved()?);
+        let params = self.params(seed, self.resolved()?, memory_budget(py, memory)?);
         let tonnes = tonnes_unit(targets, blocks.as_deref(), density, tonnage)?;
         let (upscale, gt) = summary_rows(
             py,
@@ -2367,7 +2424,8 @@ impl TurningBands {
                 &params,
                 n,
             )?;
-            simulation::continuous_batched(n, &options, ensemble.batch(grid.len()), |ks| {
+            let batch = ensemble.batch(grid.len(), upscale.len(grid.len()), &options)?;
+            simulation::continuous_batched(n, &options, batch, |ks| {
                 ensemble
                     .realizations(
                         ks,
@@ -2411,8 +2469,13 @@ impl TurningBands {
     ///     Nodes per axis simulated in each block and averaged by volume, as
     ///     ``simulate(model.discretize(discretization), blocks=model)``;
     ///     default the centroid. A node takes its block's domain and trend.
+    /// memory : int or float, optional
+    ///     Bytes the run may take, at least 1; default 70 % of the memory
+    ///     available now. It holds the bands and the realizations of a
+    ///     chunk, and with `quantiles` caps `rows` per chunk; a run that
+    ///     does not fit raises InvalidInput. The values do not depend on it.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=None, quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None))]
+    #[pyo3(signature = (path, out, *, n=100, seed=0, cutoffs=None, quantiles=vec![], keep=None, rows=1_000_000, domains=None, domain_column=None, trend=None, discretization=None, memory=None))]
     fn simulate_to_parquet<'py>(
         &self,
         py: Python<'py>,
@@ -2428,6 +2491,7 @@ impl TurningBands {
         domain_column: Option<&str>,
         trend: Option<String>,
         discretization: Option<(usize, usize, usize)>,
+        memory: Option<f64>,
     ) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
         let unit = self.unit.as_deref();
         let cutoffs = cutoffs
@@ -2456,7 +2520,7 @@ impl TurningBands {
             .len();
         let blocks = if domains.is_some() { total } else { 0 };
         let nodes = node_domains(self.domains.as_deref(), domains, blocks, method)?;
-        let params = self.params(seed, self.resolved()?);
+        let params = self.params(seed, self.resolved()?, memory_budget(py, memory)?);
         let mut units = Vec::new();
         if let Some(u) = unit {
             let square = format!("({u})^2");
@@ -2511,13 +2575,19 @@ impl TurningBands {
 }
 
 impl TurningBands {
-    /// The parameters with `search`, or the default search.
-    fn params(&self, seed: u64, search: Option<estimation::Search>) -> TurningBandsParams {
+    /// The parameters with `search`, or the default search, and `memory`.
+    fn params(
+        &self,
+        seed: u64,
+        search: Option<estimation::Search>,
+        memory: u64,
+    ) -> TurningBandsParams {
         TurningBandsParams {
             n_bands: self.bands,
             step: self.step,
             seed,
             search: search.unwrap_or(TurningBandsParams::default().search),
+            memory,
         }
     }
 
@@ -2642,7 +2712,11 @@ impl Sis {
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
     /// `SGS.simulate`. `proportions`, shape ``(targets, k)``, are the local
     /// category proportions at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
+    /// `memory`, the bytes the run may take (at least 1, default 70 % of the
+    /// memory available now), bounds the realizations simulated at once; a
+    /// run whose single realization does not fit raises InvalidInput.
+    /// Realizations do not depend on `memory`.
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2653,6 +2727,7 @@ impl Sis {
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
+        memory: Option<f64>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -2669,8 +2744,16 @@ impl Sis {
         let local = self.local.as_deref().zip(at_grid.as_deref());
         let support = support(targets, &grid, blocks)?;
         let keep = keep_arg(keep)?;
+        let rows = support.as_ref().map_or(grid.len(), BlockSupport::len);
+        let in_flight = simulation::in_flight(
+            simulation::categorical_bytes(rows, n, k, &keep),
+            grid.len() as u64 * (sequential_node_bytes(1) + 16 * k as u64) + 8 * rows as u64,
+            memory_budget(py, memory)?,
+            n,
+        )
+        .map_err(err)?;
         py.detach(|| {
-            simulation::categorical(n, k, &keep, |i| {
+            simulation::categorical_bounded(n, k, &keep, in_flight, |i| {
                 let params = SisParams {
                     search: self.search.clone(),
                     seed: boitata_core::rng::realization_seed(seed, i as u64),
@@ -2969,10 +3052,11 @@ impl Plurigaussian {
         Ok(slf)
     }
 
-    /// Summary of `n` realizations; same options as `SIS.simulate`, and
+    /// Summary of `n` realizations; same options as `SIS.simulate`, `memory`
+    /// included, and
     /// `proportions` of shape ``(targets, k)``, the local facies proportions
     /// at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2983,6 +3067,7 @@ impl Plurigaussian {
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
+        memory: Option<f64>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, facies) = self.data.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -2998,8 +3083,17 @@ impl Plurigaussian {
         let support = support(targets, &grid, blocks)?;
         let k = self.facies();
         let keep = keep_arg(keep)?;
+        let rows = support.as_ref().map_or(grid.len(), BlockSupport::len);
+        let latent = self.variograms.len() as u64;
+        let in_flight = simulation::in_flight(
+            simulation::categorical_bytes(rows, n, k, &keep),
+            grid.len() as u64 * (sequential_node_bytes(1) + 16 * latent) + 8 * rows as u64,
+            memory_budget(py, memory)?,
+            n,
+        )
+        .map_err(err)?;
         py.detach(|| {
-            simulation::categorical(n, k, &keep, |i| {
+            simulation::categorical_bounded(n, k, &keep, in_flight, |i| {
                 let params = PgsParams {
                     seed: boitata_core::rng::realization_seed(seed, i as u64),
                     ..Default::default()
@@ -4181,7 +4275,8 @@ impl MultivariateSimulation {
                 } else if let Ok(s) = s.cast::<TurningBands>() {
                     let s = s.borrow();
                     let search = s.search.clone().map(|x| x.plain("MultivariateSimulation"));
-                    let params = s.params(0, search.transpose()?);
+                    // `memory` is set from the budget at each simulate.
+                    let params = s.params(0, search.transpose()?, simulation::DEFAULT_MEMORY);
                     Ok(Factor::Bands(s.variogram.clone(), Box::new(params)))
                 } else {
                     Err(invalid("simulators must be SGS or TurningBands"))
@@ -4337,12 +4432,17 @@ impl MultivariateSimulation {
     /// Parameters are those of `SGS.simulate`; `anisotropy` needs SGS for
     /// every factor. Factor `j` of realization `k` is simulated with a seed
     /// mixed from `seed`, `k` and `j`, so no two factors share random numbers.
+    /// `memory`, the bytes the run may take (at least 1, default 70 % of the
+    /// memory available now), bounds the realizations simulated at once and
+    /// the bands of turning-bands factors; a run that does not fit even one
+    /// realization at a time raises InvalidInput. Realizations do not depend
+    /// on `memory`.
     ///
     /// Returns
     /// -------
     /// list of SimulationSummary
     ///     One per variable, in column order.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -4355,6 +4455,7 @@ impl MultivariateSimulation {
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
+        memory: Option<f64>,
     ) -> PyResult<Vec<SimulationSummary>> {
         let f = self.fitted.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
@@ -4375,19 +4476,80 @@ impl MultivariateSimulation {
                 matches!(factor, Factor::Bands(_, params)
                     if f.imputed.is_none() || params.search.high_grade.is_none())
             });
-        py.detach(|| {
-            if bands_only {
-                let p = self.factors.len();
-                let (lo, hi) = simulation::bounds(&grid);
-                return simulation::multivariate_batched(
+        let p = self.factors.len();
+        let budget = memory_budget(py, memory)?;
+        let fixed = p as u64 * options.bytes(support.as_ref().map_or(grid.len(), |s| s.len()), n);
+        // A realization's factor columns, their rows, the rows back-transformed
+        // and its values, per node.
+        let rows_bytes = grid.len() as u64 * (32 * p as u64 + 80);
+        let (lo, hi) = simulation::bounds(&grid);
+        let (data_lo, data_hi) = simulation::bounds(&f.locs);
+        let (wide_lo, wide_hi) = (
+            std::array::from_fn::<f64, 3, _>(|i| lo[i].min(data_lo[i])),
+            std::array::from_fn::<f64, 3, _>(|i| hi[i].max(data_hi[i])),
+        );
+        // Bytes of the bands of factor `j` over `lo..hi` beside the
+        // realizations (`.0`), and for each realization (`.1`).
+        let bands = |j: usize, lo, hi| -> PyResult<(u64, u64)> {
+            let Factor::Bands(variogram, params) = &self.factors[j] else {
+                return Ok((0, 0));
+            };
+            let at = |r| simulation::band_bytes(lo, hi, variogram, params, r).map_err(err);
+            let (one, two) = (at(1)?, at(2)?);
+            let each = two.saturating_sub(one);
+            Ok((one.saturating_sub(each), each))
+        };
+        let summaries = |s: simulation::Result<Vec<simulation::ContinuousSummary>>| {
+            s.map(|s| {
+                s.into_iter()
+                    .enumerate()
+                    .map(|(j, s)| {
+                        let unit = self.units.get(j).cloned().flatten();
+                        SimulationSummary(s, None, unit, None)
+                    })
+                    .collect()
+            })
+            .map_err(err)
+        };
+        let with_memory = |params: &TurningBandsParams, memory: u64| TurningBandsParams {
+            memory,
+            ..params.clone()
+        };
+        if bands_only {
+            let (mut band_fixed, mut band_each) = (0, 0);
+            for j in 0..p {
+                let (a, b) = bands(j, lo, hi)?;
+                (band_fixed, band_each) = (band_fixed.max(a), band_each.max(b));
+            }
+            let at_nodes = 8 * (grid.len() + f.locs.len()) as u64;
+            let batch = simulation::in_flight(
+                fixed + band_fixed,
+                rows_bytes + band_each + at_nodes,
+                budget,
+                MULTIVARIATE_BATCH.min(n),
+            )
+            .map_err(err)?;
+            let memory = budget.saturating_sub(fixed + batch as u64 * rows_bytes);
+            let params: Vec<Option<TurningBandsParams>> = self
+                .factors
+                .iter()
+                .map(|factor| match factor {
+                    Factor::Bands(_, params) => Some(with_memory(params, memory)),
+                    Factor::Sgs(..) => None,
+                })
+                .collect();
+            return summaries(py.detach(|| {
+                simulation::multivariate_batched(
                     n,
                     p,
                     &f.transform,
                     &options,
                     support.as_ref(),
-                    MULTIVARIATE_BATCH.min(n),
+                    batch,
                     |j, ks| {
-                        let Factor::Bands(variogram, params) = &self.factors[j] else {
+                        let (Factor::Bands(variogram, _), Some(params)) =
+                            (&self.factors[j], &params[j])
+                        else {
                             unreachable!("checked")
                         };
                         let values: Vec<Vec<f64>> = match &f.imputed {
@@ -4425,15 +4587,33 @@ impl MultivariateSimulation {
                         )?
                         .realizations(0..ks.len(), &grid, |_| None, None)
                     },
-                );
-            }
-            simulation::multivariate(
+                )
+            }));
+        }
+        let mut most = 0;
+        for j in 0..p {
+            let bytes = match &self.factors[j] {
+                Factor::Sgs(_, search) => grid.len() as u64 * sequential_node_bytes(search.len()),
+                Factor::Bands(..) => {
+                    let (a, b) = bands(j, wide_lo, wide_hi)?;
+                    a + b + 8 * f.locs.len() as u64 + 32 * grid.len() as u64
+                }
+            };
+            most = most.max(bytes);
+        }
+        let in_flight = simulation::in_flight(fixed, rows_bytes + most, budget, n).map_err(err)?;
+        // Each realization in flight gets its share of the budget for its
+        // bands.
+        let share = (budget - fixed) / in_flight as u64 - rows_bytes;
+        summaries(py.detach(|| {
+            simulation::multivariate_bounded(
                 n,
                 seed,
                 self.factors.len(),
                 &f.transform,
                 &options,
                 support.as_ref(),
+                in_flight,
                 |k, j, factor| {
                     let drawn: Vec<f64>;
                     let values = match &f.imputed {
@@ -4469,7 +4649,7 @@ impl MultivariateSimulation {
                         Factor::Bands(variogram, params) => {
                             let params = TurningBandsParams {
                                 seed,
-                                ..params.as_ref().clone()
+                                ..with_memory(params, share)
                             };
                             simulation::turning_bands(
                                 locs, values, weights, holes, &grid, variogram, &params,
@@ -4479,17 +4659,7 @@ impl MultivariateSimulation {
                     .values)
                 },
             )
-        })
-        .map(|s| {
-            s.into_iter()
-                .enumerate()
-                .map(|(j, s)| {
-                    let unit = self.units.get(j).cloned().flatten();
-                    SimulationSummary(s, None, unit, None)
-                })
-                .collect()
-        })
-        .map_err(err)
+        }))
     }
 
     fn __repr__(&self) -> String {
@@ -4933,6 +5103,9 @@ impl Snesim {
     ///     dict; every domain needs an image.
     /// domain_column : str, optional
     ///     Column of `targets` holding the domains, instead of `domains`.
+    /// memory : int or float, optional
+    ///     Bytes the run may take, at least 1; default 70 % of the memory
+    ///     available now, that the search trees must fit.
     ///
     /// Returns
     /// -------
@@ -4950,7 +5123,7 @@ impl Snesim {
     ///     not ``(n_targets, k)`` of non-negative values, some row mixing
     ///     numbers and NaN or holding only zeros, or the domains do not match
     ///     the training images.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, anisotropy=None, domains=None, domain_column=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, anisotropy=None, domains=None, domain_column=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -4963,6 +5136,7 @@ impl Snesim {
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
+        memory: Option<f64>,
     ) -> PyResult<Py<PyAny>> {
         let lattice = lattice_of(targets)
             .ok_or_else(|| invalid("SNESIM simulates on a regular or masked BlockModel"))?;
@@ -4981,7 +5155,7 @@ impl Snesim {
         let local = anisotropy
             .map(|a| Ok::<_, PyErr>(a.at_targets(&self::targets(targets)?)))
             .transpose()?;
-        let memory = memory_budget(py)?;
+        let memory = memory_budget(py, memory)?;
         let local = simulation::SnesimLocal {
             zones: zones.as_deref(),
             anisotropy: local.as_ref(),
@@ -5240,6 +5414,10 @@ fn cells_arg(obj: &Bound<PyAny>, what: &str) -> PyResult<[usize; 3]> {
         .map_err(|_| invalid(format!("{what} must be an int or three ints")))
 }
 
+/// Bytes a realization of image quilting takes per grid cell while it is
+/// simulated: its values, cell roles, cut labels and seam buffers.
+const QUILT_CELL_BYTES: u64 = 64;
+
 impl ImageQuilting {
     fn params(&self) -> simulation::QuiltingParams {
         simulation::QuiltingParams {
@@ -5249,6 +5427,7 @@ impl ImageQuilting {
             data_weight: self.data_weight,
             soft_weight: self.soft_weight,
             secondary_weight: self.secondary_weight,
+            memory: simulation::DEFAULT_MEMORY,
         }
     }
 
@@ -5445,12 +5624,18 @@ impl ImageQuilting {
     ///     The secondary variable at the targets, as a column of `targets` or
     ///     an array; null where unknown. Needed exactly when the simulator was
     ///     built with `secondary`.
+    /// memory : int or float, optional
+    ///     Bytes the run may take, at least 1; default 70 % of the memory
+    ///     available now. It bounds the realizations simulated at once,
+    ///     and costs go by FFT when their buffers fit the rest; a run whose
+    ///     single realization does not fit raises InvalidInput. The
+    ///     realizations do not depend on it.
     ///
     /// Returns
     /// -------
     /// CategoricalSummary or SimulationSummary
     ///     Categorical for a categorical training image, else continuous.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, secondary=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, soft=None, secondary=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -5461,6 +5646,7 @@ impl ImageQuilting {
         keep: Option<&Bound<PyAny>>,
         soft: Option<&Bound<PyAny>>,
         secondary: Option<&Bound<PyAny>>,
+        memory: Option<f64>,
     ) -> PyResult<Py<PyAny>> {
         let model = targets
             .cast::<PyBlockModel>()
@@ -5504,9 +5690,25 @@ impl ImageQuilting {
             .map(|(p, &v)| ([p.0, p.1, p.2], v))
             .collect();
         let ti = self.ti()?;
+        let keep = keep_arg(keep)?;
+        let cells = lattice.len();
+        let fixed = match self.categorical {
+            true => simulation::categorical_bytes(cells, n, ti.n_categories(), &keep),
+            false => ContinuousOptions {
+                keep: keep.clone(),
+                ..Default::default()
+            }
+            .bytes(cells, n),
+        };
+        let (budget, each) = (memory_budget(py, memory)?, QUILT_CELL_BYTES * cells as u64);
+        let in_flight = simulation::in_flight(fixed, each, budget, n).map_err(err)?;
+        let params = simulation::QuiltingParams {
+            memory: budget - fixed - each * in_flight as u64,
+            ..self.params()
+        };
         let quilting = py
             .detach(|| {
-                let mut q = simulation::Quilting::new(ti, &lattice, &data, &self.params())?;
+                let mut q = simulation::Quilting::new(ti, &lattice, &data, &params)?;
                 if let Some(soft) = &soft {
                     q = q.with_soft(soft)?;
                 }
@@ -5516,7 +5718,6 @@ impl ImageQuilting {
                 Ok::<_, simulation::SimError>(q)
             })
             .map_err(err)?;
-        let keep = keep_arg(keep)?;
         let realization = |i: usize| {
             quilting
                 .simulate(boitata_core::rng::realization_seed(seed, i as u64))
@@ -5526,7 +5727,7 @@ impl ImageQuilting {
             let k = ti.n_categories();
             let summary = py
                 .detach(|| {
-                    simulation::categorical(n, k, &keep, |i| {
+                    simulation::categorical_bounded(n, k, &keep, in_flight, |i| {
                         Ok(realization(i).into_iter().map(|c| c as usize).collect())
                     })
                 })
@@ -5540,7 +5741,9 @@ impl ImageQuilting {
             ..Default::default()
         };
         let summary = py
-            .detach(|| simulation::continuous(n, &options, |i| Ok(realization(i))))
+            .detach(|| {
+                simulation::continuous_bounded(n, &options, in_flight, |i| Ok(realization(i)))
+            })
             .map_err(err)?;
         Ok(Bound::new(py, SimulationSummary::from(summary))?
             .into_any()
