@@ -778,7 +778,9 @@ impl SearchTree {
         }
     }
 
-    fn project(&self, p: &Point) -> [f64; 3] {
+    /// `p` in the isotropic search space, where [`SearchTree::distance`] is
+    /// the Euclidean norm of the difference.
+    pub fn project(&self, p: &Point) -> [f64; 3] {
         self.space.project(p)
     }
 
