@@ -47,8 +47,8 @@ pub use pgs::{
 };
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, Window,
-    categorical, continuous, continuous_batched, continuous_in_batches, continuous_many,
-    continuous_many_batched, localize, quantile_sorted,
+    categorical, continuous, continuous_batched, continuous_in_batches, continuous_in_parts,
+    continuous_many, continuous_many_batched, localize, quantile_sorted,
 };
 pub use select::select_realizations;
 pub use sgs::{

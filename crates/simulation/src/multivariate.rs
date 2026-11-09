@@ -5,6 +5,7 @@
 use transforms::{Maf, Pca, Ppmt, StepwiseConditional};
 
 use boitata_core::rng::realization_seed;
+use rayon::prelude::*;
 
 use crate::error::Result;
 use crate::post::{
@@ -101,6 +102,7 @@ pub fn multivariate_batched(
             .map(|j| simulate(j, ks.clone()))
             .collect::<Result<Vec<_>>>()?;
         (0..ks.len())
+            .into_par_iter()
             .map(|kk| {
                 let nodes = columns.first().map_or(0, |c| c[kk].len());
                 let rows: Vec<Vec<f64>> = (0..nodes)
@@ -339,22 +341,32 @@ mod tests {
         })
         .unwrap();
         let (lo, hi) = bounds(&targets);
-        for batch in [1, 3, n] {
-            let got = multivariate_batched(n, 2, &transform, &options, None, batch, |j, ks| {
-                let seeds: Vec<u64> = ks.clone().map(|k| factor_seed(seed, k, j)).collect();
-                TurningBandsEnsemble::with_realizations(
-                    &locs,
-                    &[column(j)],
-                    Some(&weights),
-                    None,
-                    lo,
-                    hi,
-                    &vg,
-                    &params,
-                    &seeds,
-                )?
-                .realizations(0..ks.len(), &targets, |_| None, None)
-            })
+        let one = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .unwrap();
+        for (batch, threads) in [(1, None), (3, None), (n, None), (n, Some(&one))] {
+            let run = || {
+                multivariate_batched(n, 2, &transform, &options, None, batch, |j, ks| {
+                    let seeds: Vec<u64> = ks.clone().map(|k| factor_seed(seed, k, j)).collect();
+                    TurningBandsEnsemble::with_realizations(
+                        &locs,
+                        &[column(j)],
+                        Some(&weights),
+                        None,
+                        lo,
+                        hi,
+                        &vg,
+                        &params,
+                        &seeds,
+                    )?
+                    .realizations(0..ks.len(), &targets, |_| None, None)
+                })
+            };
+            let got = match threads {
+                Some(pool) => pool.install(run),
+                None => run(),
+            }
             .unwrap();
             for (g, w) in got.iter().zip(&want) {
                 assert_eq!(g.mean, w.mean);
