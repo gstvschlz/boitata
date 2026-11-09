@@ -61,105 +61,14 @@ pub struct FitResult {
 
 /// Fit a single-structure model (with nugget) to an experimental variogram by WLS.
 ///
-/// Uses a coarse grid over `(nugget, sill, range)` followed by coordinate-descent
-/// refinement. The `Power` and `SineHole` models are supported but fit only their
-/// scaling/range (no bounded sill for `Power`).
+/// The free-nugget, free-structure case of [`fit_nested`]: for each candidate
+/// range the nugget and sill are solved exactly by non-negative least squares.
 pub fn fit(exp: &Experimental, model: Model, weighting: Weighting) -> Result<FitResult> {
-    if exp.lags.is_empty() {
-        return Err(VarioError::FittingFailed(
-            "empty experimental variogram".into(),
-        ));
-    }
-
-    let max_gamma = exp
-        .gammas
-        .iter()
-        .cloned()
-        .fold(f64::MIN, f64::max)
-        .max(f64::MIN_POSITIVE);
-    let max_lag = exp.lags.iter().cloned().fold(f64::MIN, f64::max);
-
-    let sill_hi = max_gamma * 1.5;
-    let range_hi = max_lag * 1.5;
-
-    let mut best = FitResult {
-        variogram: Variogram {
-            nugget: 0.0,
-            structures: vec![Structure::new(model, max_gamma, max_lag)],
-            anisotropy: None,
-        },
-        wsse: f64::INFINITY,
+    let spec = NestedSpec {
+        nugget: None,
+        structures: vec![StructureSpec::new(model)],
     };
-
-    let steps = 12;
-    for ni in 0..=6 {
-        let nugget = max_gamma * (ni as f64) / 12.0; // nugget up to half the sill
-        for si in 1..=steps {
-            let sill = sill_hi * (si as f64) / steps as f64;
-            for ri in 1..=steps {
-                let range = range_hi * (ri as f64) / steps as f64;
-                let cand = Variogram {
-                    nugget,
-                    structures: vec![Structure::new(model, sill, range)],
-                    anisotropy: None,
-                };
-                let e = wsse(&cand, exp, weighting);
-                if e < best.wsse {
-                    best = FitResult {
-                        variogram: cand,
-                        wsse: e,
-                    };
-                }
-            }
-        }
-    }
-
-    refine(&mut best, exp, model, weighting);
-
-    Ok(best)
-}
-
-fn refine(best: &mut FitResult, exp: &Experimental, model: Model, weighting: Weighting) {
-    let mut nugget = best.variogram.nugget;
-    let mut sill = best.variogram.structures[0].sill;
-    let mut range = best.variogram.structures[0].range;
-
-    let mut scale = 0.5;
-    for _ in 0..40 {
-        let mut improved = false;
-        for &(dn, ds, dr) in &[
-            (scale, 0.0, 0.0),
-            (-scale, 0.0, 0.0),
-            (0.0, scale, 0.0),
-            (0.0, -scale, 0.0),
-            (0.0, 0.0, scale),
-            (0.0, 0.0, -scale),
-        ] {
-            let cn = (nugget * (1.0 + dn)).max(0.0);
-            let cs = (sill * (1.0 + ds)).max(1e-9);
-            let cr = (range * (1.0 + dr)).max(1e-6);
-            let cand = Variogram {
-                nugget: cn,
-                structures: vec![Structure::new(model, cs, cr)],
-                anisotropy: None,
-            };
-            let e = wsse(&cand, exp, weighting);
-            if e < best.wsse {
-                best.wsse = e;
-                best.variogram = cand;
-                nugget = cn;
-                sill = cs;
-                range = cr;
-                improved = true;
-            }
-        }
-        if !improved {
-            scale *= 0.5;
-            if scale < 1e-4 {
-                break;
-            }
-        }
-    }
+    fit_nested(exp, &spec, weighting)
 }
 
 fn wsse(v: &Variogram, exp: &Experimental, weighting: Weighting) -> f64 {
@@ -221,13 +130,6 @@ pub fn fit_nested(
     spec: &NestedSpec,
     weighting: Weighting,
 ) -> Result<FitResult> {
-    if let [s] = spec.structures[..]
-        && spec.nugget.is_none()
-        && s.sill.is_none()
-        && s.range.is_none()
-    {
-        return fit(exp, s.model, weighting);
-    }
     let n = spec.structures.len();
     let (linear, ranges) = parameters(spec)?;
     let h_max = exp.lags.iter().cloned().fold(0.0, f64::max);
@@ -1469,6 +1371,39 @@ mod tests {
             fit.variogram.total_sill()
         );
         assert!((s.range - 120.0).abs() < 40.0, "range {}", s.range);
+    }
+
+    #[test]
+    fn default_fit_recovers_the_nugget() {
+        let truth = Variogram {
+            nugget: 0.1,
+            structures: vec![Structure::new(Model::Spherical, 0.9, 100.0)],
+            anisotropy: None,
+        };
+        let lags: Vec<f64> = (0..20).map(|i| 5.0 + 10.0 * i as f64).collect();
+        let exp = Experimental {
+            gammas: lags.iter().map(|&h| truth.gamma(h)).collect(),
+            counts: vec![100; lags.len()],
+            lags,
+            covariances: None,
+        };
+        for weighting in [
+            Weighting::Uniform,
+            Weighting::ByCount,
+            Weighting::ByCountOverGamma,
+            Weighting::ByCountOverDistance,
+        ] {
+            let r = fit(&exp, Model::Spherical, weighting).unwrap();
+            let s = &r.variogram.structures[0];
+            assert!(
+                (r.variogram.nugget - 0.1).abs() < 1e-6,
+                "nugget {}",
+                r.variogram.nugget
+            );
+            assert!((s.sill - 0.9).abs() < 1e-6, "sill {}", s.sill);
+            assert!((s.range - 100.0).abs() < 1e-4, "range {}", s.range);
+            assert!(r.wsse < 1e-10, "wsse {}", r.wsse);
+        }
     }
 
     #[test]
