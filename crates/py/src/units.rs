@@ -116,7 +116,7 @@ pub fn is_quantity(obj: &Bound<PyAny>) -> bool {
 /// for parameters whose unit is their own.
 pub fn given(obj: &Bound<PyAny>, what: &str) -> PyResult<(f64, Option<String>)> {
     if let Ok(v) = obj.extract::<f64>() {
-        return Ok((v, None));
+        return Ok((v, of(obj, None)?));
     }
     let text: String = obj
         .extract()
@@ -129,24 +129,44 @@ pub fn given(obj: &Bound<PyAny>, what: &str) -> PyResult<(f64, Option<String>)> 
 /// `obj`, a number in `unit` or text such as "150 ft", as a number in
 /// `unit`; text needs `unit` known.
 pub fn value(obj: &Bound<PyAny>, unit: Option<&str>, what: &str) -> PyResult<f64> {
-    match (given(obj, what)?, unit) {
-        ((v, None), _) => Ok(v),
-        ((v, Some(from)), Some(to)) => boitata_core::units::conversion(&from, to)
-            .map(|k| v * k)
+    let (v, from) = given(obj, what)?;
+    Ok(convert(vec![v], from.as_deref(), unit, what)?[0])
+}
+
+/// `v`, in `from` when known, as numbers in `to`; `from` needs `to` known.
+fn convert(v: Vec<f64>, from: Option<&str>, to: Option<&str>, what: &str) -> PyResult<Vec<f64>> {
+    match (from, to) {
+        (None, _) => Ok(v),
+        (Some(from), Some(to)) if from == to => Ok(v),
+        (Some(from), Some(to)) => boitata_core::units::conversion(from, to)
+            .map(|k| v.into_iter().map(|x| x * k).collect())
             .map_err(|e| invalid(format!("{what}: {e}"))),
-        ((_, Some(from)), None) => Err(invalid(format!(
+        (Some(from), None) => Err(invalid(format!(
             "{what} is in {from}, but the data have no unit to convert it to; declare theirs"
         ))),
     }
 }
 
-/// As [`value`], for each item of `obj`.
+/// As [`value`], for each item of `obj`; an array with a `unit` is in it.
 pub fn values(obj: &Bound<PyAny>, unit: Option<&str>, what: &str) -> PyResult<Vec<f64>> {
-    if let Ok(v) = obj.extract::<Vec<f64>>() {
-        return Ok(v);
-    }
-    if obj.extract::<String>().is_ok() {
+    let ndim = obj
+        .getattr_opt("ndim")?
+        .and_then(|n| n.extract::<usize>().ok());
+    if ndim == Some(0) || obj.extract::<String>().is_ok() {
         return Ok(vec![value(obj, unit, what)?]);
+    }
+    let from = of(obj, None)?;
+    // A numeric array's items are plain numbers; a list's may carry units.
+    let numeric = ndim.is_some()
+        && obj
+            .getattr_opt("dtype")?
+            .and_then(|d| d.getattr("kind").ok())
+            .and_then(|k| k.extract::<String>().ok())
+            .is_some_and(|k| matches!(k.as_str(), "f" | "i" | "u" | "b"));
+    if (from.is_some() || numeric)
+        && let Ok(v) = obj.extract::<Vec<f64>>()
+    {
+        return convert(v, from.as_deref(), unit, what);
     }
     obj.try_iter()
         .map_err(|_| invalid(format!("{what} must be numbers or texts such as '0.5 g/t'")))?
