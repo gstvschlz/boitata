@@ -666,7 +666,8 @@ impl Drillholes {
     /// mesh : Mesh
     ///     A closed mesh.
     /// step : float
-    ///     Sampling step down each hole, in meters.
+    ///     Sampling step down each hole, in meters; finite and > 0, with at
+    ///     most 1e7 samples per hole.
     /// tolerance : float
     ///     Depth tolerance the crossing is refined to, in meters.
     ///
@@ -687,23 +688,26 @@ impl Drillholes {
         if !(tolerance.is_finite() && tolerance >= 0.0) {
             return Err(invalid("tolerance must be finite and not negative"));
         }
+        if !(step.is_finite() && step > 0.0) {
+            return Err(invalid(format!("step must be finite and > 0, got {step}")));
+        }
         boitata_core::crs::same_crs(
             ("drill holes", self.crs.as_deref()),
             ("the mesh", mesh.mesh.crs.as_deref()),
         )
         .map_err(invalid)?;
         let solid = mesh.solid()?;
-        let runs: Vec<(&String, Vec<(f64, f64, bool)>)> = py.detach(|| {
-            self.paths
-                .par_iter()
-                .map(|(id, path)| {
-                    (
-                        id,
-                        drillholes::mesh_intervals(path, step, tolerance, |p| solid.contains(p)),
-                    )
-                })
-                .collect()
-        });
+        let runs: Vec<(&String, Vec<(f64, f64, bool)>)> = py
+            .detach(|| {
+                self.paths
+                    .par_iter()
+                    .map(|(id, path)| {
+                        drillholes::mesh_intervals(path, step, tolerance, |p| solid.contains(p))
+                            .map(|r| (id, r))
+                    })
+                    .collect::<Result<_, _>>()
+            })
+            .map_err(invalid)?;
         let rows: Vec<(&str, (f64, f64, bool))> = runs
             .iter()
             .flat_map(|(id, r)| r.iter().map(move |&run| (id.as_str(), run)))
@@ -1089,9 +1093,9 @@ fn json<T: serde::Serialize>(value: &T) -> PyResult<String> {
 /// max_deviation : float
 ///     Largest angle, in degrees, between the directions of consecutive
 ///     survey stations. A single wrong station is flagged twice: on itself
-///     and on the station below.
+///     and on the station below. Finite and >= 0.
 /// tolerance : float
-///     Depth tolerance of gaps, overlaps and ``past_depth``.
+///     Depth tolerance of gaps, overlaps and ``past_depth``. Finite and >= 0.
 ///
 /// Returns
 /// -------
@@ -1158,6 +1162,11 @@ fn check_drillholes<'py>(
     max_deviation: f64,
     tolerance: f64,
 ) -> PyResult<(Bound<'py, PyDict>, Table, Table)> {
+    for (name, v) in [("max_deviation", max_deviation), ("tolerance", tolerance)] {
+        if !(v.is_finite() && v >= 0.0) {
+            return Err(invalid(format!("{name} must be finite and >= 0, got {v}")));
+        }
+    }
     let s = &nodata;
     let collar = to_batch(collar)?;
     let collar_ids = text(&collar, hole)?;
