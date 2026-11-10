@@ -278,6 +278,12 @@ impl Mesh {
     }
 
     /// Enclosed volume of a closed mesh, positive when wound outward.
+    ///
+    /// Raises
+    /// ------
+    /// InvalidInput
+    ///     If the mesh is not closed or not consistently wound; ``repair()``
+    ///     fixes the winding.
     #[getter]
     fn volume(&self) -> PyResult<f64> {
         self.mesh.volume().map_err(core_error)

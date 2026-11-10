@@ -198,8 +198,11 @@ def test_mesh_topology():
     open_cube = bt.Mesh(cube.coords, cube.triangles[2:])
     assert open_cube.validate().summary["boundary_edges"] == 4
     assert open_cube.fill_holes().volume == pytest.approx(1000)
+    flipped = bt.Mesh(cube.coords, np.r_[cube.triangles[:2], [[4, 6, 5]], cube.triangles[3:]])
+    assert flipped.is_closed and flipped.validate().summary["inconsistent_edges"] == 3
     for call in (
         lambda: square.volume,
+        lambda: flipped.volume,
         lambda: square.contains([[0.5, 0.5, 0]]),
         lambda: square.proportion([[0, 0, 0]], size=(1, 1, 1)),
     ):
