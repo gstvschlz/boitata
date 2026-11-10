@@ -28,7 +28,9 @@
 
 use crate::conditioning::{Conditioning, Neighbor};
 use crate::error::{Result, SimError};
-use crate::post::{BlockSupport, ContinuousOptions, ContinuousSummary, continuous_batched};
+use crate::post::{
+    BlockSupport, ContinuousOptions, ContinuousSummary, continuous_batched, continuous_in_parts,
+};
 use crate::sgs::{Domains, Realization, Transform, Transforms, Trend, data};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
@@ -44,15 +46,22 @@ use variogram::Variogram;
 /// thread count.
 const TILE: usize = 1024;
 
-/// Memory a batch of realizations may take for its values and residuals.
-const BATCH_BYTES: usize = 1 << 30;
+/// Bytes a run may take by default ([`TurningBandsParams::memory`]). Batches
+/// grow to fill it, so a run with the default can peak near 8 GiB however
+/// small the machine; set `memory` to bound it (the Python layer gives 70 %
+/// of the memory available now).
+pub const DEFAULT_MEMORY: u64 = 8 << 30;
+
+fn default_memory() -> u64 {
+    DEFAULT_MEMORY
+}
 
 /// Blocks per streamed chunk: `rows`, fewer when quantiles keep every
-/// realization of the chunk, so they stay within [`BATCH_BYTES`].
-fn quantile_rows(rows: usize, n: usize, quantiles: usize) -> usize {
+/// realization of the chunk, so they take at most half of `free` bytes.
+fn quantile_rows(rows: usize, n: usize, quantiles: usize, free: u64) -> usize {
     match quantiles {
         0 => rows,
-        _ => rows.min(BATCH_BYTES / (n.max(1) * 8)).max(1),
+        _ => rows.min((free / 2 / (n.max(1) as u64 * 8)) as usize).max(1),
     }
 }
 
@@ -63,13 +72,18 @@ pub struct TurningBandsParams {
     pub n_bands: usize,
     /// Band discretization in the variogram's isotropic space (meters along
     /// the major axis), for every structure; `None` is a fiftieth of each
-    /// structure's range. Bands that would take more than 8 GiB over a run
-    /// are an error, never a coarser step.
+    /// structure's range. Bands that would take more than
+    /// [`Self::memory`] over a run are an error, never a coarser step.
     pub step: Option<f64>,
     /// Neighborhood for conditioning by kriging.
     pub search: Search,
     /// RNG seed.
     pub seed: u64,
+    /// Bytes a run may take: the bands of every realization, then as many
+    /// realizations at a time as fit beside them. The realizations do not
+    /// depend on it.
+    #[serde(default = "default_memory")]
+    pub memory: u64,
 }
 
 impl Default for TurningBandsParams {
@@ -78,6 +92,7 @@ impl Default for TurningBandsParams {
             n_bands: 300,
             step: None,
             seed: 1,
+            memory: DEFAULT_MEMORY,
             search: Search {
                 min_samples: 1,
                 max_samples: 32,
@@ -232,9 +247,6 @@ pub fn bounds(points: &[(f64, f64, f64)]) -> ([f64; 3], [f64; 3]) {
     )
 }
 
-/// Bytes the band factors and the bands of every realization may take.
-const BAND_BYTES: usize = 8 << 30;
-
 /// One structure's bands: their node spacing, the square root of the
 /// structure's share of the structures' sill, and the banded factor of its
 /// `C₁`.
@@ -252,18 +264,29 @@ struct Layout {
     corners: Vec<Vector3<f64>>,
     grids: Vec<BandGrid>,
     nugget: f64,
+    /// Bytes of the band factors and of the bands of every realization.
+    bytes: u64,
 }
 
+/// A band plan: the isotropic transform, the box corners, `(unit
+/// variogram, step, nodes, width, weight)` per structure, and the bytes of
+/// the bands.
+type Plan = (
+    Matrix3<f64>,
+    Vec<Vector3<f64>>,
+    Vec<(Variogram, f64, usize, usize, f64)>,
+    f64,
+);
+
 impl Layout {
-    /// The layout of `realizations` realizations over the box `lo..hi`;
-    /// an error when their bands would take more than [`BAND_BYTES`].
-    fn new(
+    /// The plan of [`Self::new`], without building the band factors.
+    fn plan(
         lo: [f64; 3],
         hi: [f64; 3],
         vg: &Variogram,
         params: &TurningBandsParams,
         realizations: usize,
-    ) -> Result<Self> {
+    ) -> Result<Plan> {
         let to_isotropic = vg
             .anisotropy
             .as_ref()
@@ -292,10 +315,10 @@ impl Layout {
         let per_node = 1 + realizations.max(1) * params.n_bands.max(1);
         let too_big = |bytes: f64, step: f64| {
             SimError::InvalidParameters(format!(
-                "turning bands with a step of {step} over this box need about {:.1} GB for {realizations} realizations of {} bands, above {} GB; give a larger step, fewer bands or realizations, or a smaller box",
-                bytes / 1e9,
+                "turning bands with a step of {step} over this box need about {} for {realizations} realizations of {} bands, above the memory budget of {}; give a larger step, fewer bands or realizations, a smaller box or more memory",
+                crate::post::size(bytes as u64),
                 params.n_bands,
-                BAND_BYTES >> 30,
+                crate::post::size(params.memory),
             ))
         };
         let (mut plans, mut bytes) = (vec![], 0.0);
@@ -307,17 +330,31 @@ impl Layout {
                 )));
             }
             let nodes = (diameter / step).ceil() + 2.0;
-            if bytes + nodes * per_node as f64 * 8.0 > BAND_BYTES as f64 {
+            if bytes + nodes * per_node as f64 * 8.0 > params.memory as f64 {
                 return Err(too_big(bytes + nodes * per_node as f64 * 8.0, step));
             }
             let (unit, n) = (Variogram::single(s.model, 1.0, s.range), nodes as usize);
             let width = band_width(&unit, n, step);
             bytes += (n * (width + per_node - 1)) as f64 * 8.0;
-            if bytes > BAND_BYTES as f64 {
+            if bytes > params.memory as f64 {
                 return Err(too_big(bytes, step));
             }
             plans.push((unit, step, n, width, (s.sill / sill).sqrt()));
         }
+        Ok((to_isotropic, corners, plans, bytes))
+    }
+
+    /// The layout of `realizations` realizations over the box `lo..hi`;
+    /// an error when their bands would take more than
+    /// [`TurningBandsParams::memory`].
+    fn new(
+        lo: [f64; 3],
+        hi: [f64; 3],
+        vg: &Variogram,
+        params: &TurningBandsParams,
+        realizations: usize,
+    ) -> Result<Self> {
+        let (to_isotropic, corners, plans, bytes) = Self::plan(lo, hi, vg, params, realizations)?;
         let grids = plans
             .into_par_iter()
             .map(|(unit, step, n, width, weight)| {
@@ -333,6 +370,7 @@ impl Layout {
             corners,
             grids,
             nugget: (vg.nugget / vg.total_sill()).clamp(0.0, 1.0),
+            bytes: bytes as u64,
         })
     }
 
@@ -604,6 +642,10 @@ pub struct TurningBandsEnsemble {
     at_data: Vec<Vec<f64>>,
     tree: SearchTree,
     vg: Variogram,
+    /// [`TurningBandsParams::memory`].
+    memory: u64,
+    /// Bytes held throughout: the bands and their field at the data.
+    fixed: u64,
 }
 
 impl TurningBandsEnsemble {
@@ -647,12 +689,14 @@ impl TurningBandsEnsemble {
         let tree = SearchTree::new(&data, &params.search, Some(vg_nscore));
         Ok(Self {
             transforms: vec![transforms],
+            fixed: layout.bytes + (n * data.len() * 8) as u64,
             data,
             trend: data_trend.map(|t| t.0.to_vec()),
             bands,
             at_data,
             tree,
             vg: vg_nscore.clone(),
+            memory: params.memory,
         })
     }
 
@@ -699,18 +743,20 @@ impl TurningBandsEnsemble {
             .iter()
             .map(|&s| boitata_core::rng::realization_seed(s, 0))
             .collect();
-        let (bands, at_data) = Layout::new(lo, hi, vg_nscore, params, seeds.len())?
-            .simulate(params, data_locs, &seeds);
+        let layout = Layout::new(lo, hi, vg_nscore, params, seeds.len())?;
+        let (bands, at_data) = layout.simulate(params, data_locs, &seeds);
         let data = data(data_locs, &data_vals[0], holes, None);
         let tree = SearchTree::new(&data, &params.search, Some(vg_nscore));
         Ok(Self {
             transforms,
+            fixed: layout.bytes + (seeds.len() * data.len() * 8) as u64,
             data,
             trend: None,
             bands,
             at_data,
             tree,
             vg: vg_nscore.clone(),
+            memory: params.memory,
         })
     }
 
@@ -821,10 +867,20 @@ impl TurningBandsEnsemble {
                 *r = self.fitted(k).scores[j] - self.at_data[k][j];
             }
         }
-        let tiles: Vec<Vec<Vec<f64>>> = targets
+        let mut all: Vec<Vec<f64>> = vec![vec![0.0; targets.len()]; b];
+        let mut slots: Vec<Vec<&mut [f64]>> = (0..targets.len().div_ceil(TILE))
+            .map(|_| Vec::with_capacity(b))
+            .collect();
+        for values in &mut all {
+            for (slot, chunk) in slots.iter_mut().zip(values.chunks_mut(TILE)) {
+                slot.push(chunk);
+            }
+        }
+        targets
             .par_chunks(TILE)
+            .zip(slots)
             .enumerate()
-            .map(|(t, tile)| {
+            .try_for_each(|(t, (tile, mut out))| {
                 let start = t * TILE;
                 let codes =
                     |kk: usize| domains(ks.start + kk).map(|d| &d[start..start + tile.len()]);
@@ -835,7 +891,6 @@ impl TurningBandsEnsemble {
                         None => groups.push((codes(kk), vec![kk])),
                     }
                 }
-                let mut out = vec![vec![]; b];
                 for (codes, members) in groups {
                     let c = Conditioning::new(tile, codes, &self.tree, &self.data, &self.vg)?;
                     let fields: Vec<Vec<f64>> = members
@@ -843,9 +898,6 @@ impl TurningBandsEnsemble {
                         .map(|&kk| self.bands[ks.start + kk].field_serial(tile))
                         .collect();
                     let (mut row, mut rk) = (vec![0.0; members.len()], vec![0.0; members.len()]);
-                    for kk in &members {
-                        out[*kk] = Vec::with_capacity(tile.len());
-                    }
                     for i in 0..tile.len() {
                         let domain = codes.map(|d| d[i]);
                         let residual = |n: &Neighbor, row: &mut [f64]| {
@@ -874,27 +926,34 @@ impl TurningBandsEnsemble {
                                 .expect("checked");
                             let u = fields[m][i];
                             let score = if found { u + rk[m] } else { u };
-                            out[kk].push(transform.back(score, at));
+                            out[kk][i] = transform.back(score, at);
                         }
                     }
                 }
-                Ok(out)
-            })
-            .collect::<Result<_>>()?;
-        let mut all: Vec<Vec<f64>> = (0..b).map(|_| Vec::with_capacity(targets.len())).collect();
-        for tile in tiles {
-            for (a, t) in all.iter_mut().zip(tile) {
-                a.extend(t);
-            }
-        }
+                Ok::<_, SimError>(())
+            })?;
         Ok(all)
     }
 
-    /// Realizations per batch for `targets` nodes: as many as keep the
-    /// batch's values and residuals within [`BATCH_BYTES`], at least one.
-    pub fn batch(&self, targets: usize) -> usize {
-        let per = (targets + self.data.len()).max(1) * std::mem::size_of::<f64>();
-        (BATCH_BYTES / per).clamp(1, self.bands.len().max(1))
+    /// Realizations per batch for `targets` nodes whose realizations reach
+    /// a summary of `options` as `summarized` values each: as many as fit
+    /// [`TurningBandsParams::memory`] beside the bands and the summary; an
+    /// error when not even one does.
+    pub fn batch(
+        &self,
+        targets: usize,
+        summarized: usize,
+        options: &ContinuousOptions,
+    ) -> Result<usize> {
+        let n = self.bands.len();
+        let threads = rayon::current_num_threads() as u64;
+        let each = 8 * (targets + self.data.len() + summarized) as u64 + threads * TILE as u64 * 8;
+        crate::post::in_flight(
+            self.fixed + options.bytes(summarized, n),
+            each,
+            self.memory,
+            n,
+        )
     }
 
     #[cfg(test)]
@@ -938,10 +997,98 @@ impl TurningBandsEnsemble {
         trend: Option<&[f64]>,
         options: &ContinuousOptions,
     ) -> Result<ContinuousSummary> {
-        continuous_batched(self.len(), options, self.batch(targets.len()), |ks| {
-            self.realizations(ks, targets, |_| domains, trend)
+        self.summary_of(targets, |_| domains, trend, options)
+    }
+
+    /// As [`Self::summary`], each realization `k` with the node domains
+    /// `domains(k)`. Every realization is drawn at once over a part of the
+    /// targets at a time, so a tile's neighbours and kriging weights are
+    /// found once for all realizations that give it the same domains.
+    pub fn summary_of<'d>(
+        &self,
+        targets: &[(f64, f64, f64)],
+        domains: impl Fn(usize) -> Option<&'d [u32]> + Sync,
+        trend: Option<&[f64]>,
+        options: &ContinuousOptions,
+    ) -> Result<ContinuousSummary> {
+        match self.part(targets.len(), options) {
+            Some(part) => self.summary_in_parts(targets, domains, trend, options, part),
+            None => {
+                let batch = self.batch(targets.len(), targets.len(), options)?;
+                continuous_batched(self.len(), options, batch, |ks| {
+                    self.realizations(ks, targets, &domains, trend)
+                })
+            }
+        }
+    }
+
+    /// Targets per part when every realization is drawn at once: as many
+    /// as fit [`TurningBandsParams::memory`] beside the bands, the summary
+    /// and the data residuals and tile fields of every realization, in
+    /// whole tiles; `None` when not even a tile fits.
+    fn part(&self, targets: usize, options: &ContinuousOptions) -> Option<usize> {
+        let n = self.len().max(1) as u64;
+        let threads = rayon::current_num_threads() as u64;
+        let held = 8 * n * (self.data.len() as u64 + threads * TILE as u64);
+        let free = self
+            .memory
+            .checked_sub(self.fixed)?
+            .checked_sub(options.bytes(targets, self.len()))?
+            .checked_sub(held)?;
+        let part = usize::try_from(free / (8 * n)).unwrap_or(usize::MAX);
+        match part {
+            p if p >= targets => Some(targets.max(1)),
+            p if p >= TILE => Some(p / TILE * TILE),
+            _ => None,
+        }
+    }
+
+    fn summary_in_parts<'d>(
+        &self,
+        targets: &[(f64, f64, f64)],
+        domains: impl Fn(usize) -> Option<&'d [u32]> + Sync,
+        trend: Option<&[f64]>,
+        options: &ContinuousOptions,
+        part: usize,
+    ) -> Result<ContinuousSummary> {
+        // Every part checks its realizations fully; only lengths here, so
+        // the parts can be sliced.
+        let m = targets.len();
+        if (0..self.len()).any(|k| domains(k).is_some_and(|d| d.len() != m)) {
+            return Err(SimError::InvalidParameters("one domain per node".into()));
+        }
+        if trend.is_some_and(|t| t.len() != m) {
+            return Err(SimError::InvalidParameters(
+                "one trend value per node".into(),
+            ));
+        }
+        continuous_in_parts(self.len(), targets.len(), options, part, |range| {
+            let r = range.clone();
+            self.realizations(
+                0..self.len(),
+                &targets[range],
+                |k| domains(k).map(|d| &d[r.clone()]),
+                trend.map(|t| &t[r.clone()]),
+            )
         })
     }
+}
+
+/// Bytes the bands of `realizations` realizations over the box `lo..hi`
+/// take, whatever [`TurningBandsParams::memory`] is; an error for a step
+/// that is not positive.
+pub fn band_bytes(
+    lo: [f64; 3],
+    hi: [f64; 3],
+    vg: &Variogram,
+    params: &TurningBandsParams,
+    realizations: usize,
+) -> Result<u64> {
+    let unbounded = TurningBandsParams {
+        memory: u64::MAX,
+        ..params.clone()
+    };
+    Ok(Layout::plan(lo, hi, vg, &unbounded, realizations)?.3 as u64)
 }
 
 /// A single conditional turning-bands realization over `grid`.
@@ -1082,7 +1229,8 @@ pub fn turning_bands_to_parquet(
         realization_mean: vec![0.0; n],
         realization_above: vec![vec![0.0; n]; options.cutoffs.len()],
     };
-    let rows = quantile_rows(rows, n, options.quantiles.len());
+    let free = params.memory.saturating_sub(ensemble.fixed);
+    let rows = quantile_rows(rows, n, options.quantiles.len(), free);
     let mut total = 0.0;
     std::thread::scope(|scope| -> Result<()> {
         let (send, receive) = std::sync::mpsc::sync_channel::<boitata_core::BlockModel>(1);
@@ -1107,7 +1255,9 @@ pub fn turning_bands_to_parquet(
                         Ok::<_, SimError>(owner.iter().map(|&b| at[b]).collect())
                     })
                     .transpose()?;
-                let s = continuous_batched(n, options, ensemble.batch(nodes.len()), |ks| {
+                let summarized = support.as_ref().map_or(nodes.len(), |_| chunk.len());
+                let batch = ensemble.batch(nodes.len(), summarized, options)?;
+                let s = continuous_batched(n, options, batch, |ks| {
                     ensemble
                         .realizations(ks, &nodes, |_| codes.as_deref(), at_nodes.as_deref())?
                         .into_iter()
@@ -2139,6 +2289,65 @@ mod tests {
         }
     }
 
+    /// The summary over parts of the targets, every realization at once, is
+    /// bit for bit the summary of realizations drawn a batch at a time.
+    #[test]
+    fn summary_in_parts_equals_the_batched_summary() {
+        use crate::post::TonnageOptions;
+        let z = zoned();
+        let (grid, nodes, node_trend) = zoned_grid();
+        let all: Vec<usize> = (0..z.locs.len()).collect();
+        let params = zoned_params(Some(estimation::Soft::All(8.0)), 4);
+        let flipped: Vec<u32> = nodes.iter().map(|c| 1 - c).collect();
+        let of = |k: usize| Some(if k % 3 == 1 { &flipped[..] } else { &nodes[..] });
+        let options = ContinuousOptions {
+            cutoffs: vec![0.5, 2.0, 1e9],
+            quantiles: vec![0.1, 0.5, 0.9],
+            keep: Keep::Indices(vec![4, 0]),
+            tonnage: Some(TonnageOptions {
+                cutoffs: vec![0.5, 1.5],
+                tonnes: (0..grid.len()).map(|i| 1.0 + (i % 7) as f64).collect(),
+                categories: Some(
+                    (0..grid.len())
+                        .map(|i| (i % 4 != 0).then_some((i % 3) as u32))
+                        .collect(),
+                ),
+                names: vec!["a".into(), "b".into(), "c".into()],
+            }),
+            tolerances: vec![0.25],
+        };
+        let n = 6;
+        let e = ensemble(&z, &all, Some(&z.codes), true, &params, n);
+        let trend = Some(&node_trend[..]);
+        let want = format!(
+            "{:?}",
+            continuous_batched(n, &options, 1, |ks| e.realizations(ks, &grid, of, trend)).unwrap()
+        );
+        for part in [1, 100, grid.len(), 4 * TILE] {
+            let got = e
+                .summary_in_parts(&grid, of, trend, &options, part)
+                .unwrap();
+            assert_eq!(format!("{got:?}"), want, "part {part}");
+        }
+        let one = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .unwrap();
+        let got = one
+            .install(|| e.summary_of(&grid, of, trend, &options))
+            .unwrap();
+        assert_eq!(format!("{got:?}"), want);
+        let short = &nodes[..10];
+        assert!(
+            e.summary_of(&grid, |_| Some(short), trend, &options)
+                .is_err()
+        );
+        assert!(
+            e.summary_of(&grid, of, Some(&node_trend[..10]), &options)
+                .is_err()
+        );
+    }
+
     #[test]
     fn serial_field_equals_the_pointwise_field() {
         let vg = Variogram {
@@ -2200,12 +2409,68 @@ mod tests {
 
     #[test]
     fn quantile_chunks_fit_the_memory_budget() {
-        assert_eq!(quantile_rows(1_000_000, 100, 0), 1_000_000);
+        let free = 1 << 30;
+        assert_eq!(quantile_rows(1_000_000, 100, 0, free), 1_000_000);
         assert_eq!(
-            quantile_rows(1_000_000, 100, 3),
-            (BATCH_BYTES / (100 * 8)).min(1_000_000)
+            quantile_rows(1_000_000, 100, 3, free),
+            (1 << 29) / (100 * 8)
         );
-        assert_eq!(quantile_rows(1_000_000, 1 << 40, 3), 1);
+        assert_eq!(quantile_rows(1_000_000, 1 << 40, 3, free), 1);
+    }
+
+    #[test]
+    fn realizations_do_not_depend_on_the_memory_budget() {
+        let data: Vec<_> = (0..60)
+            .map(|i| ((i * 37 % 101) as f64, (i * 53 % 97) as f64, 0.0))
+            .collect();
+        let values: Vec<f64> = (0..60).map(|i| 1.0 + (i as f64 / 9.0).sin()).collect();
+        let grid: Vec<_> = (0..3000)
+            .map(|i| ((i % 100) as f64, (i / 100) as f64 * 3.0, 0.0))
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.0, 30.0);
+        let (lo, hi) = bounds(&grid);
+        let options = ContinuousOptions {
+            cutoffs: vec![1.0],
+            quantiles: vec![0.5],
+            keep: Keep::All,
+            tonnage: None,
+            tolerances: vec![],
+        };
+        let n = 6;
+        let ensemble = |memory: u64| {
+            let params = TurningBandsParams {
+                n_bands: 40,
+                memory,
+                ..Default::default()
+            };
+            TurningBandsEnsemble::new(
+                &data, &values, None, None, None, None, lo, hi, &vg, &params, n,
+            )
+        };
+        let large = ensemble(DEFAULT_MEMORY).unwrap();
+        let each = 8 * (2 * grid.len() + data.len()) as u64
+            + rayon::current_num_threads() as u64 * TILE as u64 * 8;
+        let tight = large.fixed + options.bytes(grid.len(), n) + each;
+        let small = ensemble(tight).unwrap();
+        assert_eq!(small.batch(grid.len(), grid.len(), &options).unwrap(), 1);
+        assert_eq!(large.batch(grid.len(), grid.len(), &options).unwrap(), n);
+        let want = large.summary(&grid, None, None, &options).unwrap();
+        for threads in [1, 3] {
+            let got = rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| small.summary(&grid, None, None, &options).unwrap());
+            assert_eq!(got.realizations, want.realizations);
+            assert_eq!(got.mean, want.mean);
+            assert_eq!(got.variance, want.variance);
+            assert_eq!(got.quantile_values, want.quantile_values);
+        }
+        let short = ensemble(tight - each).unwrap();
+        let err = short.batch(grid.len(), grid.len(), &options).unwrap_err();
+        assert!(err.to_string().contains("memory budget"), "{err}");
+        let err = ensemble(1 << 10).err().unwrap();
+        assert!(err.to_string().contains("more memory"), "{err}");
     }
 
     #[test]

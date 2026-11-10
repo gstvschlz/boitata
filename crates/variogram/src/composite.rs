@@ -1,6 +1,7 @@
 //! Composite variogram: nugget + nested structures, with optional anisotropy.
 
 use crate::aniso::{Anisotropy, euclidean};
+use crate::error::{Result, VarioError};
 use crate::model::{Model, Structure};
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +31,19 @@ impl Variogram {
     pub fn with_anisotropy(mut self, aniso: Anisotropy) -> Self {
         self.anisotropy = Some(aniso);
         self
+    }
+
+    /// A finite nugget >= 0 and valid structures and anisotropy.
+    pub fn validate(&self) -> Result<()> {
+        if !(self.nugget >= 0.0 && self.nugget.is_finite()) {
+            return Err(VarioError::InvalidParameters(
+                "nugget must be finite and >= 0".into(),
+            ));
+        }
+        self.structures.iter().try_for_each(Structure::validate)?;
+        self.anisotropy
+            .as_ref()
+            .map_or(Ok(()), |a| a.angles.validate())
     }
 
     /// Total sill `C(0) = nugget + Σ partial sills`.
@@ -98,6 +112,20 @@ impl Variogram {
         } else {
             self.cov(h)
         }
+    }
+
+    /// Mean covariance `C̄(V, V)` between the discretization points `pts` of
+    /// a block, the nugget left out as in [`Variogram::block_cov_points`]. A
+    /// single point is point support, where `C̄(V, V) = C(0)` nugget included.
+    pub fn block_mean_cov(&self, pts: &[(f64, f64, f64)]) -> f64 {
+        if pts.len() == 1 {
+            return self.total_sill();
+        }
+        let total: f64 = pts
+            .iter()
+            .map(|p| pts.iter().map(|q| self.block_cov_points(p, q)).sum::<f64>())
+            .sum();
+        total / (pts.len() * pts.len()) as f64
     }
 
     /// `dγ/dh` at scalar lag `h`, summed over the structures.
@@ -202,6 +230,18 @@ mod tests {
     }
 
     #[test]
+    fn one_point_block_keeps_the_nugget() {
+        let v = Variogram {
+            nugget: 0.3,
+            structures: vec![Structure::new(Model::Spherical, 0.7, 100.0)],
+            anisotropy: None,
+        };
+        assert_eq!(v.block_mean_cov(&[(5.0, 1.0, 2.0)]), v.total_sill());
+        let two = [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0)];
+        assert!((v.block_mean_cov(&two) - (0.7 + v.cov(10.0)) / 2.0).abs() < 1e-12);
+    }
+
+    #[test]
     fn nested_structures_sum() {
         let v = Variogram {
             nugget: 0.1,
@@ -214,5 +254,42 @@ mod tests {
         assert!((v.total_sill() - 1.0).abs() < 1e-12);
         let g = v.gamma(50.0);
         assert!(g > 0.1 && g < 1.0);
+    }
+
+    #[test]
+    fn validate_rejects_non_finite_parameters() {
+        let ok = Variogram {
+            nugget: 0.1,
+            structures: vec![Structure::new(Model::Spherical, 1.0, 50.0)],
+            anisotropy: None,
+        };
+        assert!(ok.validate().is_ok());
+        for nugget in [f64::NAN, -0.1, f64::INFINITY] {
+            assert!(
+                Variogram {
+                    nugget,
+                    ..ok.clone()
+                }
+                .validate()
+                .is_err()
+            );
+        }
+        for (sill, range) in [
+            (f64::NAN, 50.0),
+            (-1.0, 50.0),
+            (1.0, f64::NAN),
+            (1.0, 0.0),
+            (1.0, f64::INFINITY),
+        ] {
+            let structures = vec![Structure::new(Model::Spherical, sill, range)];
+            assert!(
+                Variogram {
+                    structures,
+                    ..ok.clone()
+                }
+                .validate()
+                .is_err()
+            );
+        }
     }
 }

@@ -1,8 +1,8 @@
 site_name: boitatá
 site_description: My Python tooling for day-to-day geostatistics.
-site_url: https://scholzegustavo.gitlab.io/boitata/
-repo_url: https://gitlab.com/scholzegustavo/boitata
-repo_name: scholzegustavo/boitata
+site_url: https://gstvschlz.github.io/boitata/
+repo_url: https://github.com/gstvschlz/boitata
+repo_name: gstvschlz/boitata
 edit_uri: ""
 
 theme:
@@ -13,7 +13,7 @@ theme:
     text: IBM Plex Sans
     code: IBM Plex Mono
   icon:
-    repo: fontawesome/brands/gitlab
+    repo: fontawesome/brands/github
   features:
     - navigation.tabs
     - navigation.sections

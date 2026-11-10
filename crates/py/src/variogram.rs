@@ -152,8 +152,8 @@ fn nested(
 }
 
 fn bins(lag: f64, max_lag: f64) -> PyResult<LagBins> {
-    if !(lag > 0.0 && max_lag > lag) {
-        return Err(invalid("need 0 < lag < max_lag"));
+    if !(lag > 0.0 && max_lag > lag && max_lag.is_finite()) {
+        return Err(invalid("need finite 0 < lag < max_lag"));
     }
     Ok(LagBins {
         max_lag,
@@ -179,9 +179,19 @@ pub fn anisotropy(rotation: (f64, f64, f64), ratios: (f64, f64)) -> PyResult<Opt
 /// One nested structure: `sill` is the partial sill, `range` the range along
 /// the major axis.
 #[derive(Serialize, Deserialize)]
+#[serde(try_from = "CoreStructure")]
 #[pyclass(module = "boitata", name = "Structure", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Structure(pub CoreStructure);
+
+impl TryFrom<CoreStructure> for Structure {
+    type Error = variogram::VarioError;
+
+    fn try_from(s: CoreStructure) -> Result<Self, Self::Error> {
+        s.validate()?;
+        Ok(Self(s))
+    }
+}
 
 #[pymethods]
 impl Structure {
@@ -206,14 +216,9 @@ impl Structure {
         order: Option<f64>,
         exponent: Option<f64>,
     ) -> PyResult<Self> {
-        if !(sill >= 0.0 && range > 0.0) {
-            return Err(invalid("need sill >= 0 and range > 0"));
-        }
-        Ok(Self(CoreStructure::new(
-            self::model(model, order, exponent)?,
-            sill,
-            range,
-        )))
+        let structure = CoreStructure::new(self::model(model, order, exponent)?, sill, range);
+        structure.validate().map_err(err)?;
+        Ok(Self(structure))
     }
 
     #[getter]
@@ -267,7 +272,7 @@ fn structure(obj: &Bound<PyAny>) -> PyResult<(CoreStructure, Option<String>)> {
 /// (as in `LocalAnisotropy`) holds one per location; `ratios` are
 /// semi-major/major and minor/major range ratios.
 #[derive(Serialize, Deserialize)]
-#[serde(from = "VariogramRepr", into = "VariogramRepr")]
+#[serde(try_from = "VariogramRepr", into = "VariogramRepr")]
 #[pyclass(module = "boitata", name = "Variogram", frozen, from_py_object)]
 #[derive(Clone)]
 pub struct Variogram(pub CoreVariogram, pub Units);
@@ -300,9 +305,12 @@ struct VariogramRepr {
     units: Units,
 }
 
-impl From<VariogramRepr> for Variogram {
-    fn from(r: VariogramRepr) -> Self {
-        Self(r.variogram, r.units)
+impl TryFrom<VariogramRepr> for Variogram {
+    type Error = variogram::VarioError;
+
+    fn try_from(r: VariogramRepr) -> Result<Self, Self::Error> {
+        r.variogram.validate()?;
+        Ok(Self(r.variogram, r.units))
     }
 }
 
@@ -326,8 +334,8 @@ impl Variogram {
         ratios: (f64, f64),
         length_unit: Option<String>,
     ) -> PyResult<Self> {
-        if nugget < 0.0 {
-            return Err(invalid("nugget must be >= 0"));
+        if !(nugget >= 0.0 && nugget.is_finite()) {
+            return Err(invalid("nugget must be finite and >= 0"));
         }
         let (structures, units): (Vec<_>, Vec<_>) = structures
             .iter()
@@ -713,12 +721,13 @@ fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations>
 ///     (of ``other_coords`` when given) and ``holes``.
 /// lag, max_lag : float or str
 ///     Lag-bin width and largest pair distance, in the length unit of
-///     `coords` or as text such as ``"10 m"``.
+///     `coords` or as text such as ``"10 m"``; finite, with
+///     ``0 < lag < max_lag`` and at most 10000 lags, else InvalidInput.
 /// azimuth, dip, tolerance : float
-///     Direction and cone half-angle in degrees; omnidirectional when
-///     ``azimuth`` is None.
+///     Direction and cone half-angle in degrees, the half-angle in [0, 90];
+///     omnidirectional when ``azimuth`` is None.
 /// bandwidth : float, optional
-///     Largest offset of a pair from the direction line.
+///     Largest offset of a pair from the direction line, > 0.
 /// estimator : {"matheron", "cressie-hawkins", "covariance", "correlogram", "pairwise-relative", "madogram"}
 ///     Classical, robust, σ² − C(h), 1 − ρ(h), the pairwise-relative
 ///     variogram (non-negative values only), or the madogram
@@ -1632,8 +1641,11 @@ impl Transiogram {
     }
 
     /// `P(category j at x + h | category i at x)` as a matrix.
-    fn matrix<'py>(&self, py: Python<'py>, h: f64) -> Bound<'py, PyAny> {
-        array2(py, &self.0.matrix(h)).into_any()
+    fn matrix<'py>(&self, py: Python<'py>, h: f64) -> PyResult<Bound<'py, PyAny>> {
+        if !h.is_finite() {
+            return Err(invalid("h must be finite"));
+        }
+        Ok(array2(py, &self.0.matrix(h)).into_any())
     }
 }
 

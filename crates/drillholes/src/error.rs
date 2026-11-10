@@ -14,6 +14,9 @@ pub enum DrillholeError {
     #[error("Compositing error: {0}")]
     CompositeError(String),
 
+    #[error("Invalid parameter: {0}")]
+    InvalidParameter(String),
+
     #[error("Missing data: {0}")]
     MissingData(String),
 

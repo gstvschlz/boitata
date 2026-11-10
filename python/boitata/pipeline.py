@@ -116,9 +116,6 @@ class Pipeline:
         if not self.fitted_:
             raise InvalidInput("Pipeline is not fitted; call fit first")
 
-    def __repr__(self):
-        return f"Pipeline({[(n, type(s).__name__, c) for n, s, c in self.steps]})"
-
 
 def _takes(method, arg):
     try:

@@ -17,6 +17,7 @@ pub struct Mesh {
     face_attributes: RecordBatch,
     boundary_edges: usize,
     closed: bool,
+    oriented: bool,
     pub crs: Option<String>,
     /// Unit of the coordinates, such as `m` or `ft`; None when not declared.
     pub length_unit: Option<String>,
@@ -181,9 +182,13 @@ pub(crate) fn take_rows(batch: &RecordBatch, keep: Vec<u32>) -> Result<RecordBat
     take_record_batch(batch, &UInt32Array::from(keep)).map_err(|e| Error::Geometry(e.to_string()))
 }
 
-fn edge_counts(vertices: &[[f64; 3]], triangles: &[[u32; 3]]) -> (usize, bool) {
+/// Boundary edge count, whether the mesh is closed, and whether every
+/// directed edge appears at most once (neighbours traverse a shared edge in
+/// opposite directions).
+fn edge_counts(vertices: &[[f64; 3]], triangles: &[[u32; 3]]) -> (usize, bool, bool) {
     let mut edges: HashMap<(u32, u32), u32> = HashMap::new();
-    let mut valid = 0;
+    let mut arcs: HashSet<(u32, u32)> = HashSet::new();
+    let (mut valid, mut oriented) = (0, true);
     for &t in triangles {
         if degenerate(vertices, t) {
             continue;
@@ -191,10 +196,12 @@ fn edge_counts(vertices: &[[f64; 3]], triangles: &[[u32; 3]]) -> (usize, bool) {
         valid += 1;
         for (i, j) in directed(t) {
             *edges.entry((i.min(j), i.max(j))).or_insert(0) += 1;
+            oriented &= arcs.insert((i, j));
         }
     }
     let boundary = edges.values().filter(|&&n| n == 1).count();
-    (boundary, valid > 0 && edges.values().all(|&n| n == 2))
+    let closed = valid > 0 && edges.values().all(|&n| n == 2);
+    (boundary, closed, oriented)
 }
 
 fn directed(t: [u32; 3]) -> [(u32, u32); 3] {
@@ -549,10 +556,11 @@ impl Mesh {
                 "triangle index outside the vertices".into(),
             ));
         }
-        let (boundary_edges, closed) = edge_counts(&vertices, &triangles);
+        let (boundary_edges, closed, oriented) = edge_counts(&vertices, &triangles);
         Ok(Self {
             boundary_edges,
             closed,
+            oriented,
             vertex_attributes: empty(vertices.len()),
             face_attributes: empty(triangles.len()),
             vertices,
@@ -637,10 +645,15 @@ impl Mesh {
     }
 
     /// Enclosed volume, positive when triangles wind counter-clockwise seen
-    /// from outside.
+    /// from outside. Errors unless the mesh is closed and consistently wound.
     pub fn volume(&self) -> Result<f64> {
         if !self.is_closed() {
             return Err(Error::Geometry("volume needs a closed mesh".into()));
+        }
+        if !self.oriented {
+            return Err(Error::Geometry(
+                "volume needs a consistently wound mesh; call repair() first".into(),
+            ));
         }
         let o = self.vertices[0];
         Ok(volume6(&self.vertices, o, self.triangles.iter().copied()) / 6.0)
@@ -852,6 +865,20 @@ mod tests {
         assert!((c.volume().unwrap() - 1.0).abs() < 1e-12);
         assert!((c.area() - 6.0).abs() < 1e-12);
         assert_eq!(c.bounds(), Some(([0.0; 3], [1.0; 3])));
+    }
+
+    /// A closed cube with one triangle flipped would sum to 2/3, not 1.
+    #[test]
+    fn volume_rejects_inconsistent_winding() {
+        let c = cube();
+        let mut t = c.triangles().to_vec();
+        t[2] = [4, 6, 5];
+        let m = mesh(c.vertices(), &t);
+        assert!(m.is_closed());
+        assert_eq!(m.validate(0.0).unwrap().summary.inconsistent_edges, 3);
+        let e = m.volume().unwrap_err().to_string();
+        assert!(e.contains("consistently wound"), "{e}");
+        assert!((m.repair(0.0).unwrap().volume().unwrap() - 1.0).abs() < 1e-12);
     }
 
     #[test]

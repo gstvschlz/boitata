@@ -5,10 +5,12 @@
 use transforms::{Maf, Pca, Ppmt, StepwiseConditional};
 
 use boitata_core::rng::realization_seed;
+use rayon::prelude::*;
 
 use crate::error::Result;
 use crate::post::{
-    BlockSupport, ContinuousOptions, ContinuousSummary, continuous_many, continuous_many_batched,
+    BlockSupport, ContinuousOptions, ContinuousSummary, continuous_many_batched,
+    continuous_many_bounded,
 };
 
 /// A fitted transform from correlated variables to independent factors.
@@ -63,7 +65,33 @@ pub fn multivariate(
     support: Option<&BlockSupport>,
     simulate: impl Fn(usize, usize, u64) -> Result<Vec<f64>> + Sync,
 ) -> Result<Vec<ContinuousSummary>> {
-    continuous_many(n, factors, options, |k| {
+    multivariate_bounded(
+        n,
+        seed,
+        factors,
+        transform,
+        options,
+        support,
+        usize::MAX,
+        simulate,
+    )
+}
+
+/// As [`multivariate`] with at most `in_flight` realizations simulated at
+/// once (see [`crate::post::in_flight`]). The summaries do not depend on
+/// `in_flight`.
+#[allow(clippy::too_many_arguments)]
+pub fn multivariate_bounded(
+    n: usize,
+    seed: u64,
+    factors: usize,
+    transform: &Decorrelation,
+    options: &ContinuousOptions,
+    support: Option<&BlockSupport>,
+    in_flight: usize,
+    simulate: impl Fn(usize, usize, u64) -> Result<Vec<f64>> + Sync,
+) -> Result<Vec<ContinuousSummary>> {
+    continuous_many_bounded(n, factors, options, in_flight, |k| {
         let columns = (0..factors)
             .map(|j| simulate(k, j, factor_seed(seed, k, j)))
             .collect::<Result<Vec<_>>>()?;
@@ -101,6 +129,7 @@ pub fn multivariate_batched(
             .map(|j| simulate(j, ks.clone()))
             .collect::<Result<Vec<_>>>()?;
         (0..ks.len())
+            .into_par_iter()
             .map(|kk| {
                 let nodes = columns.first().map_or(0, |c| c[kk].len());
                 let rows: Vec<Vec<f64>> = (0..nodes)
@@ -162,6 +191,17 @@ mod tests {
         grid: &[Point],
         n: usize,
     ) -> Vec<ContinuousSummary> {
+        simulate_bounded(locs, data, weights, grid, n, usize::MAX)
+    }
+
+    fn simulate_bounded(
+        locs: &[Point],
+        data: &[Vec<f64>],
+        weights: &[f64],
+        grid: &[Point],
+        n: usize,
+        in_flight: usize,
+    ) -> Vec<ContinuousSummary> {
         let transform =
             Decorrelation::Ppmt(Ppmt::fit(data, Some(weights), &PpmtParams::default()).unwrap());
         let factors = transform.forward(data);
@@ -170,7 +210,7 @@ mod tests {
             keep: Keep::All,
             ..Default::default()
         };
-        multivariate(n, 3, 2, &transform, &options, None, |_, j, seed| {
+        let simulate = |_, j: usize, seed| {
             let column: Vec<f64> = factors.iter().map(|r| r[j]).collect();
             let params = SgsParams {
                 search: vec![Search {
@@ -180,8 +220,8 @@ mod tests {
                 seed,
             };
             Ok(sgs(locs, &column, Some(weights), None, grid, &vg, &params, None)?.values)
-        })
-        .unwrap()
+        };
+        multivariate_bounded(n, 3, 2, &transform, &options, None, in_flight, simulate).unwrap()
     }
 
     fn grid() -> Vec<Point> {
@@ -280,6 +320,29 @@ mod tests {
     }
 
     #[test]
+    fn realizations_do_not_depend_on_realizations_in_flight() {
+        let (locs, data, weights) = samples();
+        let targets = locs[..20].to_vec();
+        let run = |threads, in_flight| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| simulate_bounded(&locs, &data, &weights, &targets, 5, in_flight))
+        };
+        let want = run(1, usize::MAX);
+        for (threads, in_flight) in [(3, 1), (3, 2), (3, usize::MAX), (1, 1)] {
+            let got = run(threads, in_flight);
+            for v in 0..2 {
+                assert_eq!(
+                    got[v].realizations, want[v].realizations,
+                    "{threads} threads, {in_flight} in flight"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn honors_data_and_ignores_thread_count() {
         let (locs, data, weights) = samples();
         let targets = locs[..20].to_vec();
@@ -339,22 +402,32 @@ mod tests {
         })
         .unwrap();
         let (lo, hi) = bounds(&targets);
-        for batch in [1, 3, n] {
-            let got = multivariate_batched(n, 2, &transform, &options, None, batch, |j, ks| {
-                let seeds: Vec<u64> = ks.clone().map(|k| factor_seed(seed, k, j)).collect();
-                TurningBandsEnsemble::with_realizations(
-                    &locs,
-                    &[column(j)],
-                    Some(&weights),
-                    None,
-                    lo,
-                    hi,
-                    &vg,
-                    &params,
-                    &seeds,
-                )?
-                .realizations(0..ks.len(), &targets, |_| None, None)
-            })
+        let one = rayon::ThreadPoolBuilder::new()
+            .num_threads(1)
+            .build()
+            .unwrap();
+        for (batch, threads) in [(1, None), (3, None), (n, None), (n, Some(&one))] {
+            let run = || {
+                multivariate_batched(n, 2, &transform, &options, None, batch, |j, ks| {
+                    let seeds: Vec<u64> = ks.clone().map(|k| factor_seed(seed, k, j)).collect();
+                    TurningBandsEnsemble::with_realizations(
+                        &locs,
+                        &[column(j)],
+                        Some(&weights),
+                        None,
+                        lo,
+                        hi,
+                        &vg,
+                        &params,
+                        &seeds,
+                    )?
+                    .realizations(0..ks.len(), &targets, |_| None, None)
+                })
+            };
+            let got = match threads {
+                Some(pool) => pool.install(run),
+                None => run(),
+            }
             .unwrap();
             for (g, w) in got.iter().zip(&want) {
                 assert_eq!(g.mean, w.mean);

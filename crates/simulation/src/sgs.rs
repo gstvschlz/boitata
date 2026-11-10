@@ -573,7 +573,7 @@ pub(crate) fn sequential(
     path.shuffle(&mut rng);
 
     // 3. Simple kriging from neighbors, in kriging units.
-    let step = |known: &Known, node: usize, earlier: Option<&[usize]>| -> Option<Result<Step>> {
+    let step = |known: &Known, node: usize, earlier: Option<Earlier>| -> Option<Result<Step>> {
         let target = grid[node];
         let domain = domains.map(|d| d.1[node]);
         let aniso = local.map(|l| l.anisotropy(node));
@@ -595,7 +595,20 @@ pub(crate) fn sequential(
                     .fold(0.0, f64::max),
                 _ => search.radius,
             };
-            if earlier.iter().any(|&j| d(&grid[j]) <= reach * (1.0 + 1e-9)) {
+            let reach = reach * (1.0 + 1e-9);
+            let stale = match &aniso {
+                Some(_) => earlier.nodes.iter().any(|&j| d(&grid[j]) <= reach),
+                None => {
+                    let points = &earlier.points[passes[node]];
+                    let q = points[earlier.nodes.len()];
+                    points[..earlier.nodes.len()].iter().any(|p| {
+                        let d2 =
+                            (q[0] - p[0]).powi(2) + (q[1] - p[1]).powi(2) + (q[2] - p[2]).powi(2);
+                        d2.sqrt() <= reach
+                    })
+                }
+            };
+            if stale {
                 return None;
             }
         }
@@ -667,12 +680,26 @@ pub(crate) fn sequential(
         // so the realization is the sequential one for any batch size. A
         // node goes stale with probability about size * most / 2 / known,
         // one in 16 here.
-        let size = batch.unwrap_or(known.samples.len() / (8 * most).max(1));
+        let size = batch.unwrap_or(known.samples.len() / most.saturating_mul(8).max(1));
         let nodes = &path[start..(start + size.clamp(1, BATCH)).min(path.len())];
+        let points: Vec<Vec<[f64; 3]>> = match local {
+            Some(_) => vec![],
+            None => known
+                .trees
+                .iter()
+                .map(|tree| nodes.iter().map(|&j| tree.project(&grid[j])).collect())
+                .collect(),
+        };
         let steps: Vec<Option<Result<Step>>> = nodes
             .par_iter()
             .enumerate()
-            .map(|(t, &node)| step(&known, node, Some(&nodes[..t])))
+            .map(|(t, &node)| {
+                let earlier = Earlier {
+                    nodes: &nodes[..t],
+                    points: &points,
+                };
+                step(&known, node, Some(earlier))
+            })
             .collect();
         for (&node, s) in nodes.iter().zip(steps) {
             let s = s
@@ -732,6 +759,13 @@ struct Known {
     scores: Vec<f64>,
     trends: Vec<f64>,
     trees: Vec<SearchTree>,
+}
+
+/// The nodes of a batch before a node, and every node of the batch
+/// projected by each search tree, when there is no local anisotropy.
+struct Earlier<'a> {
+    nodes: &'a [usize],
+    points: &'a [Vec<[f64; 3]>],
 }
 
 /// A node's draw: a datum's value, or the kriged mean and standard
@@ -1947,7 +1981,23 @@ pub(crate) mod tests {
             })
             .collect();
         let clamped: Vec<Search> = soft.iter().map(clamp).collect();
-        for search in [soft, octant, clamped] {
+        let ellipse = Anisotropy::new(variogram::Angles {
+            azimuth: 30.0,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.4,
+            minor: 1.0,
+        })
+        .unwrap();
+        let rotated: Vec<Search> = soft
+            .iter()
+            .map(|s| Search {
+                anisotropy: Some(ellipse.clone()),
+                ..s.clone()
+            })
+            .collect();
+        for search in [soft, octant, clamped, rotated] {
             for local in [None, Some(&local)] {
                 let run = |threads, batch, seed| {
                     let params = SgsParams {

@@ -9,7 +9,7 @@ use boitata_core::{BlockModel, Geometry, Layout};
 use nalgebra::{Matrix3, Vector3};
 use rayon::prelude::*;
 
-use crate::{Aabb, BlockModelError, PolygonSelector, Result, SolidTester, Surface};
+use crate::{Aabb, BlockModelError, PolygonSelector, Result, SolidTester, Surface, block_samples};
 
 const WHOLE: [f64; 6] = [0.0, 0.0, 0.0, 1.0, 1.0, 1.0];
 
@@ -247,15 +247,16 @@ fn pieces(
 
 /// Share of each row of `model` inside `solid`, from `discretization` points
 /// per axis in each row where the surface may cut it; exact elsewhere.
+/// Errors when the discretization fails [`block_samples`].
 pub fn proportions(
     solid: &SolidTester,
     model: &BlockModel,
     discretization: [usize; 3],
-) -> Vec<f64> {
+) -> Result<Vec<f64>> {
     let frame = Frame::new(model.geometry());
     let d = discretization.map(|n| n.max(1));
-    let n = d.iter().product::<usize>();
-    (0..model.len())
+    let n = block_samples(d)?;
+    Ok((0..model.len())
         .into_par_iter()
         .map(|row| {
             let (cell, e) = (model.parent_index(row), extent(model, row));
@@ -280,7 +281,7 @@ pub fn proportions(
                 inside as f64 / n as f64
             }
         })
-        .collect()
+        .collect())
 }
 
 #[cfg(test)]
@@ -467,8 +468,8 @@ pub(crate) mod tests {
             assert_eq!(a.layout(), b.layout());
             assert_eq!(labels(&a, "domain"), labels(&b, "domain"));
             assert_eq!(
-                proportions(&fast, model, [3; 3]),
-                proportions(&exact, model, [3; 3])
+                proportions(&fast, model, [3; 3]).unwrap(),
+                proportions(&exact, model, [3; 3]).unwrap()
             );
         }
     }
@@ -493,6 +494,13 @@ pub(crate) mod tests {
         assert_eq!(labels(&one, "domain"), labels(&many, "domain"));
     }
 
+    #[test]
+    fn proportions_refuse_an_overflowing_discretization() {
+        let solid = SolidTester::new(&cube(-5.0, 5.0)).unwrap();
+        let model = grid(4.0, 2, [0.0; 3]);
+        assert!(proportions(&solid, &model, [1 << 22, 1 << 22, 1 << 20]).is_err());
+    }
+
     /// Proportions follow the model's rotation and each sub-block's extent.
     #[test]
     fn proportions_of_rotated_and_subblocked_models() {
@@ -510,6 +518,7 @@ pub(crate) mod tests {
         .unwrap();
         for m in [&model, &sub] {
             let v: f64 = proportions(&solid, m, [4; 3])
+                .unwrap()
                 .iter()
                 .zip(m.volumes())
                 .map(|(p, v)| p * v)

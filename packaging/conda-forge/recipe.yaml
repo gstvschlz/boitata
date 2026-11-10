@@ -7,8 +7,8 @@ package:
   version: ${{ version }}
 
 source:
-  # Switch to the GitLab tag archive once released (PyPI carries wheels only):
-  #   url: https://gitlab.com/scholzegustavo/boitata/-/archive/v${{ version }}/boitata-v${{ version }}.tar.gz
+  # Switch to the GitHub tag archive once released (PyPI carries wheels only):
+  #   url: https://github.com/gstvschlz/boitata/archive/refs/tags/v${{ version }}.tar.gz
   #   sha256: ...
   path: ../..
 
@@ -76,9 +76,9 @@ tests:
       - python smoke.py
 
 about:
-  homepage: https://gitlab.com/scholzegustavo/boitata
-  repository: https://gitlab.com/scholzegustavo/boitata
-  documentation: https://scholzegustavo.gitlab.io/boitata/
+  homepage: https://github.com/gstvschlz/boitata
+  repository: https://github.com/gstvschlz/boitata
+  documentation: https://gstvschlz.github.io/boitata/
   summary: Geostatistics in Rust with a Python interface
   license: MIT
   license_file:

@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::args::{
     Label, array1, array2, column, column_names, domain_codes, floats, holes, named, pair, per_row,
-    rows, same_length,
+    row_labels, rows, same_length, text,
 };
 use crate::categories::Categories;
 use crate::containers::{PyBlockModel, PyPointSet, coords_arg};
@@ -83,18 +83,29 @@ fn describe<'py>(
 }
 
 /// Sorted category labels and each value's index into them.
-fn categories(obj: &Bound<PyAny>, n: usize) -> PyResult<(Vec<String>, Vec<u32>)> {
-    let (labels, _) = holes(Some(obj), n)
-        .map_err(|_| invalid("categories must be a 1-D sequence of labels"))?
-        .expect("given");
-    let mut names = labels.clone();
+fn categories(obj: &Bound<PyAny>, n: usize, what: &str) -> PyResult<(Vec<String>, Vec<u32>)> {
+    Ok(coded(&row_labels(obj, n, what)?))
+}
+
+/// Sorted labels and each row's index into them; rows without a label get
+/// `names.len()`, so they count only in the "all" row.
+fn coded(labels: &[Option<String>]) -> (Vec<String>, Vec<u32>) {
+    let mut names: Vec<String> = labels.iter().flatten().cloned().collect();
     names.sort();
     names.dedup();
     let codes = labels
         .iter()
-        .map(|l| names.binary_search(l).expect("listed") as u32)
+        .map(|l| match l {
+            Some(l) => names.binary_search(l).expect("listed") as u32,
+            None => names.len() as u32,
+        })
         .collect();
-    Ok((names, codes))
+    (names, codes)
+}
+
+/// Whether a row of category `c` is shown: not the one of unlabelled rows.
+fn labelled(names: &[String], c: Option<u32>) -> bool {
+    c.is_none_or(|c| (c as usize) < names.len())
 }
 
 fn nullable(values: impl IntoIterator<Item = f64>) -> ArrayRef {
@@ -130,7 +141,8 @@ fn table<T>(
 /// values : array_like or str
 ///     Values, or their column in `data`; NaN is skipped.
 /// categories : array_like or str
-///     Category (e.g. domain) of each value, int or str, or its column.
+///     Category (e.g. domain) of each value, int or str, or its column; a
+///     value without one (None or NaN) counts only in ``"all"``.
 /// weights : array_like or str, optional
 ///     Declustering weights; default the volumes of a BlockModel `data`, else 1.
 /// quantiles : sequence of float
@@ -155,9 +167,11 @@ fn describe_by(
 ) -> PyResult<Table> {
     let values = floats(&column(data, values, "values")?, "values")?;
     let n = values.len();
-    let (names, codes) = self::categories(&column(data, categories, "categories")?, n)?;
+    let (names, codes) =
+        self::categories(&column(data, categories, "categories")?, n, "categories")?;
     let w = weights_or_volumes(data, weights, n)?;
-    let rows = eda::describe_by(&values, &codes, w.as_deref(), &quantiles).map_err(invalid)?;
+    let mut rows = eda::describe_by(&values, &codes, w.as_deref(), &quantiles).map_err(invalid)?;
+    rows.retain(|(c, _)| labelled(&names, *c));
     let col = |f: &dyn Fn(&eda::Summary) -> f64| nullable(rows.iter().map(|(_, s)| f(s)));
     let mut columns: Vec<(String, ArrayRef)> = vec![(
         "n".into(),
@@ -201,7 +215,7 @@ fn describe_by(
 ///     Density of each value; default 1.
 /// categories : array_like or str, optional
 ///     Category (e.g. domain) of each value, int or str; adds a curve per
-///     category.
+///     category. A value without one (None or NaN) counts only in ``"all"``.
 /// data : PointSet, BlockModel, Table or dict, optional
 ///     Where column names are looked up.
 ///
@@ -238,10 +252,12 @@ fn grade_tonnage(
             (vec![], vec![(None, r.map_err(invalid)?)])
         }
         Some(c) => {
-            let (names, codes) = self::categories(&column(data, c, "categories")?, n)?;
-            let rows =
+            let (names, codes) =
+                self::categories(&column(data, c, "categories")?, n, "categories")?;
+            let mut rows =
                 eda::grade_tonnage_by(&values, &codes, w.as_deref(), density.as_deref(), &cutoffs)
                     .map_err(invalid)?;
+            rows.retain(|(c, _)| labelled(&names, *c));
             (names, rows)
         }
     };
@@ -572,7 +588,8 @@ fn block_tonnes(
 ///     Cutoff grades in the unit of the values, or texts such as
 ///     ``"0.5 g/t"``; ``-inf`` keeps everything.
 /// categories : array_like or str, optional
-///     Category (e.g. class or domain) of each block, int or str, or its column.
+///     Category (e.g. class or domain) of each block, int or str, or its
+///     column; a block without one (None or NaN) counts only in ``"all"``.
 /// reference : str, optional
 ///     Model the others are compared with; the first by default.
 /// density : float, array_like or str, optional
@@ -624,13 +641,13 @@ fn compare_models(
             .ok_or_else(|| invalid(format!("reference {r:?} is not one of the models")))?,
     };
     let (names, codes) = categories
-        .map(|c| self::categories(&column(Some(model), c, "categories")?, n))
+        .map(|c| self::categories(&column(Some(model), c, "categories")?, n, "categories"))
         .transpose()?
         .unwrap_or_default();
     let grade = grade_units.first().cloned().flatten();
     let grade = grade.filter(|g| grade_units.iter().all(|u| u.as_deref() == Some(g.as_str())));
     let slices: Vec<&[f64]> = grades.iter().map(Vec::as_slice).collect();
-    let rows = eda::compare_models(
+    let mut rows = eda::compare_models(
         &slices,
         categories.map(|_| &codes[..]),
         Some(&tonnes),
@@ -638,6 +655,7 @@ fn compare_models(
         reference,
     )
     .map_err(invalid)?;
+    rows.retain(|r| labelled(&names, r.category));
     let mut columns = tonnage_columns(rows.iter().map(|r| &r.tonnage));
     let model = rows.iter().map(|r| labels[r.model].as_str());
     columns.insert(
@@ -766,7 +784,8 @@ fn swath(
 ///     Declustering weights of `data`; adds a ``declustered`` row that the
 ///     model is compared with.
 /// domain_column : str or tuple of str, optional
-///     Domain column of both `model` and `data`, or one name for each.
+///     Domain column of both `model` and `data`, or one name for each; a row
+///     without a domain (None or NaN) counts only in ``"all"``.
 /// density : float, array_like or str, optional
 ///     Block densities, or their column; default 1.
 /// reference : str or array_like, optional
@@ -814,15 +833,11 @@ fn validate_model(
         None => (vec![], None),
         Some(c) => {
             let (om, od) = pair(model, data, c, "domain_column")?;
-            let (lm, _) = holes(Some(&om), n)?.expect("given");
-            let (ld, _) = holes(Some(&od), values.len())?.expect("given");
-            let mut names: Vec<String> = lm.iter().chain(&ld).cloned().collect();
-            names.sort();
-            names.dedup();
-            let code = |l: &String| names.binary_search(l).expect("listed") as u32;
-            let codes: (Vec<u32>, Vec<u32>) =
-                (lm.iter().map(code).collect(), ld.iter().map(code).collect());
-            (names, Some(codes))
+            let mut labels = row_labels(&om, n, "domain_column")?;
+            labels.extend(row_labels(&od, values.len(), "domain_column")?);
+            let (names, mut codes) = coded(&labels);
+            let data = codes.split_off(n);
+            (names, Some((codes, data)))
         }
     };
     let rows = eda::validate_model(
@@ -835,6 +850,10 @@ fn validate_model(
         &[0.1, 0.5, 0.9],
     )
     .map_err(invalid)?;
+    let rows: Vec<_> = rows
+        .into_iter()
+        .filter(|r| labelled(&names, r.domain))
+        .collect();
     let source = rows.iter().map(|r| match r.source {
         eda::Source::Naive => "naive",
         eda::Source::Declustered => "declustered",
@@ -930,16 +949,13 @@ fn contact(
     let n = coords.len();
     let (_, hole_ids) = self::holes(Some(&column(Some(data), holes, "holes")?), n)?.expect("given");
     let domains = domain_labels(Some(data), domains, domain_column)?;
-    let (labels, ids) = self::holes(Some(&domains), n)
-        .map_err(|_| invalid("domains must be a 1-D sequence of labels"))?
-        .expect("given");
+    let (labels, ids) = categories(&domains, n, "domains")?;
     let code = |d: &Bound<PyAny>| -> PyResult<u32> {
-        let label = d.str()?.to_string();
+        let label = text(d)?.unwrap_or_else(|| d.to_string());
         labels
-            .iter()
-            .position(|l| *l == label)
-            .map(|i| ids[i])
-            .ok_or_else(|| invalid(format!("no sample in domain {label}")))
+            .binary_search(&label)
+            .map(|i| i as u32)
+            .map_err(|_| invalid(format!("no sample in domain {label}")))
     };
     let p = eda::contact(
         &coords,
@@ -1030,15 +1046,12 @@ fn soft_boundary<'py>(
     let coords = coords_arg(coords)?;
     let n = coords.len();
     let domains = domain_labels(Some(data), domains, domain_column)?;
-    let (labels, ids) = self::holes(Some(&domains), n)
-        .map_err(|_| invalid("domains must be a 1-D sequence of labels"))?
-        .expect("given");
-    let label = target.str()?.to_string();
+    let (labels, ids) = categories(&domains, n, "domains")?;
+    let label = text(target)?.unwrap_or_else(|| target.to_string());
     let target = labels
-        .iter()
-        .position(|l| *l == label)
-        .map(|i| ids[i])
-        .ok_or_else(|| invalid(format!("no sample in domain {label}")))?;
+        .binary_search(&label)
+        .map(|i| i as u32)
+        .map_err(|_| invalid(format!("no sample in domain {label}")))?;
     let w = weights_or_volumes(Some(data), weights, n)?;
     let r = eda::soft_boundary(
         &coords,
@@ -1096,8 +1109,8 @@ fn soft_boundary<'py>(
 /// weights : array_like or str, optional
 ///     Declustering weights; default the volumes of a BlockModel `data`, else 1.
 /// caps : array_like, optional
-///     Caps; default the weighted quantiles 0.9, 0.95, 0.975, 0.99, 0.995 and
-///     0.999.
+///     Caps, not NaN; default the weighted quantiles 0.9, 0.95, 0.975, 0.99,
+///     0.995 and 0.999.
 /// data : PointSet, BlockModel, Table or dict, optional
 ///     Where column names are looked up.
 ///
@@ -1167,17 +1180,19 @@ fn capping_report(
 ) -> PyResult<Table> {
     let values = floats(&column(data, values, "values")?, "values")?;
     let domains = domain_labels(data, domains, domain_column)?;
-    let (names, codes) = categories(&domains, values.len())?;
-    let mut by_domain = vec![f64::INFINITY; names.len()];
+    let (names, codes) = categories(&domains, values.len(), "domains")?;
+    let mut by_domain = vec![f64::INFINITY; names.len() + 1];
     for (k, cap) in caps.iter() {
-        let k = k.str()?.to_string();
+        let k = text(&k)?.unwrap_or_else(|| k.to_string());
         let i = names
             .binary_search(&k)
             .map_err(|_| invalid(format!("no value in domain {k}")))?;
         by_domain[i] = cap.extract()?;
     }
     let w = weights_or_volumes(data, weights, values.len())?;
-    let rows = eda::capping_report(&values, &codes, w.as_deref(), &by_domain).map_err(invalid)?;
+    let mut rows =
+        eda::capping_report(&values, &codes, w.as_deref(), &by_domain).map_err(invalid)?;
+    rows.retain(|(c, _)| labelled(&names, *c));
     let count = |f: fn(&eda::CapReport) -> usize| -> ArrayRef {
         Arc::new(UInt64Array::from_iter_values(
             rows.iter().map(|(_, r)| f(r) as u64),
@@ -1397,6 +1412,18 @@ impl Capping {
 
 #[pymethods]
 impl Capping {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "cap": serde_json::to_value(&self.cap).unwrap_or_default(),
+            "quantile": self.quantile,
+            "metal_removed": self.metal_removed,
+            "cv": self.cv,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -1843,15 +1870,10 @@ fn pairs(
     let codes = holes
         .map(|h| -> PyResult<_> {
             let (ha, hb) = pair(sa, sb, h, "holes")?;
-            let (la, _) = self::holes(Some(&ha), a.len())?.expect("given");
-            let (lb, _) = self::holes(Some(&hb), b.len())?.expect("given");
-            let mut ids = std::collections::HashMap::new();
-            let mut code = |l: String| {
-                let next = ids.len() as u32;
-                *ids.entry(l).or_insert(next)
-            };
-            let ca: Vec<u32> = la.into_iter().map(&mut code).collect();
-            let cb: Vec<u32> = lb.into_iter().map(&mut code).collect();
+            let mut labels = row_labels(&ha, a.len(), "holes")?;
+            labels.extend(row_labels(&hb, b.len(), "holes")?);
+            let mut ca = crate::args::hole_ids(&labels);
+            let cb = ca.split_off(a.len());
             Ok((ca, cb))
         })
         .transpose()?;
@@ -2317,15 +2339,6 @@ impl Domains {
     #[getter]
     fn spatial_entropy(&self) -> f64 {
         self.result.spatial_entropy
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Domains(k={}, wcss={:.3}, spatial_entropy={:.3})",
-            self.scheme.0.len(),
-            self.result.wcss,
-            self.result.spatial_entropy
-        )
     }
 }
 

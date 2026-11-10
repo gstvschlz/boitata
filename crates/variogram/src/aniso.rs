@@ -27,9 +27,20 @@ pub struct Angles {
 
 impl Angles {
     pub fn validate(&self) -> Result<()> {
-        if self.major <= 0.0 || self.semi <= 0.0 || self.minor <= 0.0 {
+        if [self.major, self.semi, self.minor]
+            .iter()
+            .any(|r| !(*r > 0.0 && r.is_finite()))
+        {
             return Err(VarioError::InvalidAnisotropy(
-                "all ranges must be positive".into(),
+                "all ranges must be finite and > 0".into(),
+            ));
+        }
+        if ![self.azimuth, self.dip, self.rake]
+            .iter()
+            .all(|a| a.is_finite())
+        {
+            return Err(VarioError::InvalidAnisotropy(
+                "azimuth, dip and rake must be finite".into(),
             ));
         }
         Ok(())
@@ -189,5 +200,47 @@ mod tests {
             minor: 100.0,
         };
         assert!(Anisotropy::new(bad).is_err());
+    }
+
+    #[test]
+    fn non_finite_angles_and_ranges_are_rejected() {
+        let ok = Angles {
+            azimuth: 30.0,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.5,
+            minor: 0.5,
+        };
+        assert!(Anisotropy::new(ok.clone()).is_ok());
+        let bad = [
+            Angles {
+                azimuth: f64::NAN,
+                ..ok.clone()
+            },
+            Angles {
+                dip: f64::INFINITY,
+                ..ok.clone()
+            },
+            Angles {
+                rake: f64::NAN,
+                ..ok.clone()
+            },
+            Angles {
+                semi: f64::NAN,
+                ..ok.clone()
+            },
+            Angles {
+                minor: f64::INFINITY,
+                ..ok.clone()
+            },
+            Angles {
+                major: -1.0,
+                ..ok.clone()
+            },
+        ];
+        for a in bad {
+            assert!(Anisotropy::new(a).is_err());
+        }
     }
 }

@@ -34,8 +34,13 @@ print(f"factor correlation {np.corrcoef(factors['U'], factors['V'])[0, 1]:.3f}")
 </details>
 
 ```text
-Pipeline([('cap', 'Capping', 'V'), ('ns_u', 'NormalScore', 'U'), ('ns_v', 'NormalScore', 'V'), ('ppmt', 'PPMT', ['U', 'V'])])
-factor correlation 0.002
+Pipeline  4 steps, fitted
+  step  transform                       columns
+  cap   Capping(fitted, quantile=0.99)  V
+  ns_u  NormalScore(fitted)             U
+  ns_v  NormalScore(fitted)             V
+  ppmt  PPMT(fitted, seed=7)            U, V
+factor correlation 0.006
 ```
 
 The steps replace `U` and `V` in place, so the output keeps the columns of the input and the next step reads the
@@ -77,7 +82,7 @@ print(
 
 ```text
 V cap 1052 ppm, back-transformed V max 1052 ppm
-U-V correlation: data 0.58, back-transformed 0.54
+U-V correlation: data 0.58, back-transformed 0.52
 ```
 
 Full script: [`example_04_11.py`](example_04_11.py)

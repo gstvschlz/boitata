@@ -194,6 +194,9 @@ pub struct QuiltingParams {
     /// Weight of the secondary variable against the overlap
     /// ([`Quilting::with_secondary`]).
     pub secondary_weight: f64,
+    /// Bytes the FFT path may hold, spectra and every thread's buffers;
+    /// above it, costs are summed directly, to the same values.
+    pub memory: u64,
 }
 
 impl Default for QuiltingParams {
@@ -205,6 +208,7 @@ impl Default for QuiltingParams {
             data_weight: 5.0,
             soft_weight: 1.0,
             secondary_weight: 1.0,
+            memory: crate::turning_bands::DEFAULT_MEMORY,
         }
     }
 }
@@ -377,15 +381,11 @@ struct Hard {
     value: f64,
 }
 
-/// Memory the FFT path may hold, spectra and every thread's buffers; above
-/// it, costs are summed directly.
-const FFT_MEMORY_BUDGET: usize = 1 << 30;
-
 /// How patch costs are computed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[cfg_attr(not(test), allow(dead_code))]
 enum CostPath {
-    /// By FFT when [`fft_pays`] and it fits [`FFT_MEMORY_BUDGET`].
+    /// By FFT when [`fft_pays`] and it fits [`QuiltingParams::memory`].
     Auto,
     Direct,
     Fft,
@@ -428,6 +428,7 @@ pub struct Quilting {
     soft: Option<Vec<Vec<f32>>>,
     secondary: Option<Secondary>,
     path: CostPath,
+    memory: u64,
     /// The FFT spectra, built by the first patch that needs them.
     spectra: OnceLock<CostFft>,
 }
@@ -518,6 +519,7 @@ impl Quilting {
             soft: None,
             secondary: None,
             path: CostPath::Auto,
+            memory: params.memory,
             spectra: OnceLock::new(),
         })
     }
@@ -832,8 +834,8 @@ impl Quilting {
                 } + 3 * usize::from(self.secondary.is_some());
                 let threads = rayon::current_num_threads();
                 fft_pays(self.ti_dims, patch, n_compared, n_kernels(terms, images))
-                    && fft_bytes(self.ti_dims, patch, n_spectra, n_spectra, threads)
-                        <= FFT_MEMORY_BUDGET
+                    && fft_bytes(self.ti_dims, patch, n_spectra, n_spectra, threads) as u64
+                        <= self.memory
             }
         };
         by_fft.then(|| {
@@ -1428,6 +1430,10 @@ mod tests {
             let direct = run(CostPath::Direct);
             assert_eq!(run(CostPath::Fft), direct);
             assert_eq!(run(CostPath::Auto), direct);
+            let mut starved = q.clone();
+            starved.memory = 0;
+            let starved: Vec<_> = (0..3).map(|s| starved.simulate(s).values).collect();
+            assert_eq!(starved, direct);
         }
     }
 

@@ -50,8 +50,8 @@ for name, a, b in zip(scheme.names, naive, declustered):
 ```text
 24501 composites
        naive  declustered
-OB     0.016        0.033
-HWS    0.560        0.550
+OB     0.015        0.032
+HWS    0.561        0.551
 VCL    0.244        0.212
 SUL    0.041        0.031
 FWV    0.135        0.171
@@ -199,8 +199,8 @@ for c, name in enumerate(scheme.names):
 ```text
 the most likely rock is the logged one at 89% of the composites
        Brier  p(1-p)
-OB     0.005   0.032
-HWS    0.031   0.248
+OB     0.005   0.031
+HWS    0.031   0.247
 VCL    0.069   0.167
 SUL    0.028   0.030
 FWV    0.027   0.142

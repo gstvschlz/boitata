@@ -23,6 +23,9 @@ use grid::{Grid, d2};
 
 type Point = (f64, f64, f64);
 
+/// Most plane sectors a search may balance over.
+pub const MAX_SECTORS: usize = 360;
+
 /// Search-neighborhood parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Search {
@@ -222,8 +225,8 @@ impl Search {
             Some(PlaneSectors {
                 count,
                 max_per_sector,
-            }) if count < 2 || max_per_sector == 0 => {
-                return invalid("sectors need count >= 2 and max_per_sector >= 1");
+            }) if !(2..=MAX_SECTORS).contains(&count) || max_per_sector == 0 => {
+                return invalid("sectors need 2 <= count <= 360 and max_per_sector >= 1");
             }
             Some(p) => (p.count, p.count),
             None if self.octant => (8, 4),
@@ -487,7 +490,7 @@ impl<'a> Selector<'a> {
             target,
             params,
             sectors,
-            chosen: Vec::with_capacity(params.max_samples),
+            chosen: vec![],
             per_hole: vec![],
             untagged: 0,
             per_sector: vec![
@@ -593,14 +596,13 @@ fn select(
 
 /// Ordered candidates with samples of different domains at one location
 /// reduced to one, which takes the place of the first: the one of the
-/// target's `domain` if any, otherwise the first. `kept` is passed through
-/// untouched. Nothing changes without a target domain.
+/// target's `domain` if any, otherwise the first. Nothing changes without a
+/// target domain.
 fn one_per_location(
     ordered: impl IntoIterator<Item = usize>,
     loc: impl Fn(usize) -> Point,
     of: impl Fn(usize) -> Option<u32>,
     domain: Option<u32>,
-    kept: Option<usize>,
 ) -> Vec<usize> {
     let ordered = ordered.into_iter();
     if domain.is_none() {
@@ -613,10 +615,6 @@ fn one_per_location(
     let mut at: HashMap<[u64; 3], usize> = HashMap::new();
     let mut out = Vec::new();
     for i in ordered {
-        if kept == Some(i) {
-            out.push(i);
-            continue;
-        }
         match at.entry(key(i)) {
             Entry::Vacant(e) => {
                 e.insert(out.len());
@@ -672,7 +670,6 @@ pub fn neighbors_in(
         |i| samples[i].loc,
         |i| samples[i].domain,
         domain,
-        None,
     );
     let sectors = Sectors::new(
         aniso,
@@ -778,7 +775,9 @@ impl SearchTree {
         }
     }
 
-    fn project(&self, p: &Point) -> [f64; 3] {
+    /// `p` in the isotropic search space, where [`SearchTree::distance`] is
+    /// the Euclidean norm of the difference.
+    pub fn project(&self, p: &Point) -> [f64; 3] {
         self.space.project(p)
     }
 
@@ -843,7 +842,7 @@ impl SearchTree {
             .filter(|&(d, i)| d <= params.radius && self.admits(target, domain, i, d))
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-        let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain, None);
+        let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain);
         let sectors = Sectors::new(Some(local), self.sectors.planar, params);
         select(
             target,
@@ -903,9 +902,8 @@ impl SearchTree {
         &self,
         ordered: impl IntoIterator<Item = usize>,
         domain: Option<u32>,
-        kept: Option<usize>,
     ) -> Vec<usize> {
-        one_per_location(ordered, |i| self.locs[i], |i| self.domains[i], domain, kept)
+        one_per_location(ordered, |i| self.locs[i], |i| self.domains[i], domain)
     }
 
     /// `chosen` round-robin over the sectors around `target`, each sector in
@@ -947,14 +945,14 @@ impl SearchTree {
         self.neighbors_around(target, domain, None)
     }
 
-    /// As [`SearchTree::neighbors_in`] for the target at sample `kept`, which
-    /// is selected as usual but leaves its location to samples of other
-    /// domains there; for leave-one-out.
+    /// As [`SearchTree::neighbors_in`] with sample `left_out`, if any, taken
+    /// out of the indexed samples: the selection equals that of a tree built
+    /// without it; for leave-one-out.
     pub fn neighbors_around(
         &self,
         target: &Point,
         domain: Option<u32>,
-        kept: Option<usize>,
+        left_out: Option<usize>,
     ) -> Result<Vec<usize>> {
         let params = &self.params;
         let mut selector = Selector::new(target, params, &self.sectors);
@@ -968,7 +966,7 @@ impl SearchTree {
         self.index
             .nearest(&query, params.radius * params.radius, |d2, i| {
                 if d2 != at && !group.is_empty() {
-                    full = self.offer(&mut group, at, target, domain, kept, &mut selector);
+                    full = self.offer(&mut group, at, target, domain, left_out, &mut selector);
                     if full {
                         return true;
                     }
@@ -978,7 +976,7 @@ impl SearchTree {
                 false
             });
         if !full {
-            self.offer(&mut group, at, target, domain, kept, &mut selector);
+            self.offer(&mut group, at, target, domain, left_out, &mut selector);
         }
         selector.finish()
     }
@@ -991,14 +989,14 @@ impl SearchTree {
         d2: f64,
         target: &Point,
         domain: Option<u32>,
-        kept: Option<usize>,
+        left_out: Option<usize>,
         selector: &mut Selector,
     ) -> bool {
         let admitted: Vec<usize> = group
             .drain(..)
-            .filter(|&i| self.admits(target, domain, i, d2.sqrt()))
+            .filter(|&i| Some(i) != left_out && self.admits(target, domain, i, d2.sqrt()))
             .collect();
-        for i in self.one_per_location(admitted, domain, kept) {
+        for i in self.one_per_location(admitted, domain) {
             if selector.offer(i, &self.locs[i], self.holes[i]) {
                 return true;
             }
@@ -1117,6 +1115,26 @@ mod tests {
             max_samples,
             radius,
             ..Default::default()
+        }
+    }
+
+    #[test]
+    fn max_samples_beyond_the_data_selects_them_all() {
+        let samples = vec![s(0.0, 0.0, 0.0, 1.0, None), s(1.0, 0.0, 0.0, 2.0, None)];
+        for max_samples in [usize::MAX / 4, 1 << 40, usize::MAX] {
+            let search = Search {
+                octant: true,
+                ..params(1, max_samples, 100.0)
+            };
+            assert!(search.check().is_ok());
+            let tree = SearchTree::new(&samples, &search, None);
+            assert_eq!(tree.neighbors(&(0.5, 0.0, 0.0)).unwrap().len(), 2);
+            assert_eq!(
+                neighbors(&(0.5, 0.0, 0.0), &samples, &search, None)
+                    .unwrap()
+                    .len(),
+                2
+            );
         }
     }
 
@@ -1553,6 +1571,9 @@ mod tests {
         assert!(sectored(4, 2).check().is_ok());
         assert!(sectored(1, 2).check().is_err());
         assert!(sectored(4, 0).check().is_err());
+        assert!(sectored(MAX_SECTORS, 1).check().is_ok());
+        let err = sectored(1 << 40, 1).check().unwrap_err().to_string();
+        assert!(err.contains("count <= 360"), "{err}");
         let both = Search {
             octant: true,
             ..sectored(4, 2)

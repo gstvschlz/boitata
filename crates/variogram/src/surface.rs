@@ -33,6 +33,10 @@ const CELL_DEG: f64 = 4.5;
 /// the floating-point result — does not depend on the thread count.
 const HISTOGRAM_CHUNKS: usize = 16;
 
+/// Most lag bins a map takes: each chunk's lattice holds every (direction ×
+/// lag) cell, so this keeps the chunks at tens of megabytes.
+const MAX_MAP_LAGS: usize = 200;
+
 /// A direction whose cone caught fewer populated bins than this has no range
 /// worth reporting.
 const MIN_FIT_BINS: usize = 3;
@@ -140,15 +144,10 @@ impl PairHistogram {
                 "at least 2 samples required".into(),
             ));
         }
-        if bins.lag_width <= 0.0 || bins.max_lag <= 0.0 {
-            return Err(VarioError::InvalidParameters(
-                "lag_width and max_lag must be positive".into(),
-            ));
-        }
+        let n_bins = bins.count(MAX_MAP_LAGS)?;
 
         let az_cells = (360.0 / CELL_DEG).round() as usize;
         let dip_cells = (90.0 / CELL_DEG).round() as usize;
-        let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
         let slots = az_cells * dip_cells * n_bins;
         let n = locations.len();
 
@@ -299,7 +298,7 @@ pub(crate) fn populated(lags: &[f64], curve: &ConeCurve) -> Option<Experimental>
 }
 
 pub(crate) fn check_tolerance(tolerance: f64) -> Result<f64> {
-    if tolerance <= 0.0 || tolerance > 90.0 {
+    if !(tolerance > 0.0 && tolerance <= 90.0) {
         return Err(VarioError::InvalidParameters(
             "tolerance must be in (0, 90] degrees".into(),
         ));
@@ -560,6 +559,22 @@ mod tests {
         ] {
             let (u, v) = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0));
             assert!(plane_map(&locations, &values, u, v, &params).is_err());
+        }
+    }
+
+    #[test]
+    fn rejects_unbounded_lag_counts() {
+        let (locations, values) = anisotropic_grid();
+        let (u, v) = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0));
+        for (max_lag, lag_width) in [(f64::INFINITY, 10.0), (100.0, 1e-300), (2010.0, 10.0)] {
+            let params = PlaneMapParams {
+                bins: LagBins { max_lag, lag_width },
+                ..Default::default()
+            };
+            assert!(matches!(
+                plane_map(&locations, &values, u, v, &params),
+                Err(VarioError::InvalidParameters(_))
+            ));
         }
     }
 }

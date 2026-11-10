@@ -83,12 +83,12 @@ for name, s in searches.items():
 ```text
 26% of the samples above 600 ppm, 1448 halo blocks
        search  halo mean error  block RMSE  metal above 300 ppm  cross-validation mean error
-         none        +5.6 ppm    107.1           99.9%                +5.6 ppm
-         drop        -0.4 ppm    107.3           89.9%                -8.3 ppm
-        clamp        +3.3 ppm    107.6           95.4%                -3.4 ppm
-      ellipse        +2.9 ppm    106.3           95.2%                +0.4 ppm
- passes, none        +5.8 ppm    107.6          101.6%                +8.6 ppm
-       passes        +1.7 ppm    108.4           92.8%                -6.9 ppm
+         none        +5.6 ppm    107.1           99.9%                +6.2 ppm
+         drop        -0.4 ppm    107.3           89.9%                -7.6 ppm
+        clamp        +3.3 ppm    107.6           95.4%                -2.8 ppm
+      ellipse        +2.9 ppm    106.3           95.2%                +1.1 ppm
+ passes, none        +5.8 ppm    107.6          101.6%                +8.9 ppm
+       passes        +1.7 ppm    108.4           92.8%                -6.6 ppm
 ```
 
 Unrestricted, the halo blocks are overestimated by 6 ppm on average. Dropping the rich samples beyond 20 m takes a

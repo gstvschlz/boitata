@@ -59,7 +59,7 @@ OrdinaryKriging  fitted on 470 samples
   search     radius 60, 4 to 24 samples
 ```
 
-The line of a `Variogram`, `Structure`, `Search` or `HighGrade` is the call that builds it, with the arguments you left at their defaults dropped, so you can paste it back into a script. A container above a million rows prints its columns without the null count and range, which would take a pass over every column.
+The line of a `Variogram`, `Structure`, `Search`, `HighGrade`, `Categories`, `LocalGrid` or `Transiogram` is the call that builds it, with the arguments you left at their defaults dropped, so you can paste it back into a script. A transform or an estimator starts its line with `fitted` or `not fitted`, then the options you set, and its card adds what the fit learned, such as the caps of a `Capping`. A container above a million rows prints its columns without the null count and range, which would take a pass over every column.
 
 ## Five kinds of object
 

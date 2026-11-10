@@ -44,6 +44,20 @@ impl Structure {
         Self { model, sill, range }
     }
 
+    /// A finite sill >= 0 and a finite range > 0.
+    pub fn validate(&self) -> crate::error::Result<()> {
+        if !(self.sill >= 0.0
+            && self.sill.is_finite()
+            && self.range > 0.0
+            && self.range.is_finite())
+        {
+            return Err(crate::error::VarioError::InvalidParameters(
+                "structure sill must be finite and >= 0, range finite and > 0".into(),
+            ));
+        }
+        Ok(())
+    }
+
     /// Structural semivariance contribution at lag `h` (already scaled by sill).
     pub fn semivariance(&self, h: f64) -> f64 {
         self.sill * shape(self.model, h, self.range)

@@ -4,9 +4,12 @@
 //! [`variogram::Variogram`] (which may carry anisotropy). Up to
 //! 64 samples are solved on the stack by Cholesky (see `kernel`), where a
 //! matrix that is not positive definite is [`crate::EstimError::Singular`];
-//! larger systems, and variograms without a sill, by LU.
+//! larger systems, and variograms without a sill, by LU. Samples within
+//! 1e-6 m of each other are first merged into one datum whose weight they
+//! share equally, whichever solver takes the system.
 
 use crate::Sample;
+use crate::coincident::Clusters;
 use crate::error::{EstimError, Result};
 use nalgebra::{DMatrix, DVector};
 use serde::{Deserialize, Serialize};
@@ -83,8 +86,41 @@ pub fn krige(
     samples: &[Sample],
     vg: &Variogram,
 ) -> Result<Estimate> {
+    if let Some(c) = Clusters::find(samples) {
+        let e = krige(kind, target, &c.merge(samples, vg), vg)?;
+        return Ok(c.spread(e, |w| value(kind, w, samples)));
+    }
     crate::kernel::krige(kind, target, samples, vg)
         .unwrap_or_else(|| krige_lu(kind, target, samples, vg))
+}
+
+/// The estimate of `kind` from `weights` on `samples`.
+pub(crate) fn value(kind: Kind, weights: &[f64], samples: &[Sample]) -> f64 {
+    let sum = |f: &dyn Fn(f64) -> f64| {
+        weights
+            .iter()
+            .zip(samples)
+            .map(|(w, s)| w * f(s.value))
+            .sum::<f64>()
+    };
+    match kind {
+        Kind::Simple { mean } => mean + sum(&|z| z - mean),
+        Kind::Indicator { threshold } => {
+            sum(&|z| f64::from(u8::from(z <= threshold))).clamp(0.0, 1.0)
+        }
+        Kind::Ordinary => sum(&|z| z),
+    }
+}
+
+/// [`EstimError::InvalidParameters`] for simple kriging with a variogram
+/// without a sill, whose pseudo-covariance has no meaning without Σλ = 1.
+pub(crate) fn check_simple(kind: Kind, vg: &Variogram) -> Result<()> {
+    if matches!(kind, Kind::Simple { .. }) && !vg.is_stationary() {
+        return Err(EstimError::InvalidParameters(
+            "simple kriging needs a variogram with a sill: every structure must be stationary (not power); use ordinary kriging".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// [`krige`] by LU with partial pivoting over the full bordered system.
@@ -98,6 +134,7 @@ pub(crate) fn krige_lu(
     if n == 0 {
         return Err(EstimError::InsufficientData("no samples".into()));
     }
+    check_simple(kind, vg)?;
 
     let z: Vec<f64> = match kind {
         Kind::Indicator { threshold } => samples
@@ -281,6 +318,33 @@ mod tests {
                 assert!(est.value > loo.value && est.value < 5.0);
             }
         }
+    }
+
+    #[test]
+    fn simple_kriging_rejects_a_variogram_without_a_sill() {
+        let vg = Variogram::single(Model::Power { exponent: 1.5 }, 1.0, 10.0);
+        let samples = vec![
+            samp(0.0, 0.0, 1.0),
+            samp(30.0, 0.0, 2.0),
+            samp(0.0, 30.0, 3.0),
+        ];
+        let target = (100.0, 100.0, 0.0);
+        let simple = Kind::Simple { mean: 0.0 };
+        let invalid = |r: Result<Estimate>| matches!(r, Err(EstimError::InvalidParameters(m)) if m.contains("simple kriging"));
+        assert!(invalid(krige(simple, &target, &samples, &vg)));
+        let pts = [target, (101.0, 100.0, 0.0)];
+        assert!(invalid(crate::block::block_krige_points(
+            simple, &pts, &samples, &vg
+        )));
+        let none = crate::kriging_algebra::DriftSpec::simple(3);
+        assert!(invalid(crate::kriging_algebra::krige_universal(
+            &target,
+            &samples,
+            &none,
+            &vg,
+            Some(0.0)
+        )));
+        assert!(krige(Kind::Ordinary, &target, &samples, &vg).is_ok());
     }
 
     #[test]

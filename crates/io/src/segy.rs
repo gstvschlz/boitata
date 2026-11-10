@@ -7,6 +7,7 @@
 //! traces       each a 240-byte header (inline, crossline, CDP x/y, ...) and its samples
 //! ```
 
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::path::Path;
@@ -24,6 +25,8 @@ use crate::{Error, Result};
 const TEXT_HEADER: u64 = 3200;
 const BINARY_HEADER: usize = 400;
 const TRACE_HEADER: usize = 240;
+/// More empty positions than this per trace means wrong line-number bytes.
+const MAX_POSITIONS_PER_TRACE: usize = 100;
 
 fn bad(message: impl Into<String>) -> Error {
     Error::Segy(message.into())
@@ -187,26 +190,30 @@ pub fn read_segy(path: impl AsRef<Path>, options: &SegyOptions) -> Result<BlockM
     };
     let n_positions = nx.checked_mul(ny).ok_or_else(too_large)?;
     let n_values = n_positions.checked_mul(nz).ok_or_else(too_large)?;
+    if n_positions / MAX_POSITIONS_PER_TRACE > n_traces {
+        return Err(bad(format!(
+            "the line numbers span {nx} x {ny} positions for {n_traces} traces, more than \
+             {MAX_POSITIONS_PER_TRACE} per trace; check inline_byte and crossline_byte"
+        )));
+    }
     let mut values: Vec<f32> = Vec::new();
     values
         .try_reserve_exact(n_values)
         .map_err(|_| too_large())?;
-    let mut trace_at = vec![usize::MAX; n_positions];
+    let mut trace_at = HashMap::with_capacity(n_traces);
     let mut placed = Vec::with_capacity(n_traces);
     for (t, &(il, xl, xy)) in traces.iter().enumerate() {
         let i = ((i64::from(il) - i_first) / i_step) as usize;
         let j = ((i64::from(xl) - j_first) / j_step) as usize;
-        let cell = &mut trace_at[i + nx * j];
-        if *cell != usize::MAX {
+        if let Some(first) = trace_at.insert((i, j), t) {
             return Err(bad(format!(
                 "traces {} and {} are both at inline {il}, crossline {xl}; only post-stack \
                  cubes with one trace per position are read (set inline_byte and \
                  crossline_byte if the line numbers are elsewhere)",
-                *cell + 1,
+                first + 1,
                 t + 1
             )));
         }
-        *cell = t;
         placed.push((i as f64, j as f64, xy));
     }
 
@@ -856,6 +863,14 @@ mod tests {
         let survey = Survey::new(vec![(1, 1), (1, 1), (1, 2), (1, 2)]);
         let err = read_segy(survey.write("prestack.sgy"), &SegyOptions::default()).unwrap_err();
         assert!(message(err).contains("post-stack"));
+    }
+
+    #[test]
+    fn sparse_line_numbers_are_an_error_before_allocating() {
+        let mut survey = Survey::new(grid(&[1, 2, i32::MAX], &[1, 2, 3, 4]));
+        survey.n_samples = 1;
+        let err = read_segy(survey.write("sparse.sgy"), &SegyOptions::default()).unwrap_err();
+        assert!(message(err).contains("check inline_byte"));
     }
 
     #[test]

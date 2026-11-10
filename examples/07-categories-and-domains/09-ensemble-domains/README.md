@@ -74,7 +74,13 @@ for c, name in enumerate(domains.names):
 </details>
 
 ```text
-Domains(k=3, wcss=0.886, spatial_entropy=0.518)
+Domains  3 domains, 6,502 samples
+  wcss             0.8862
+  spatial entropy  0.5179
+  domain  samples
+  D1        2,855
+  D2        2,699
+  D3          948
          n   Zn %   Pb %   Cu %  Ag g/t
 D1    2855   0.03   0.01   0.01     0.6
 D2    2699   0.09   0.04   0.06     2.1
@@ -100,9 +106,9 @@ for r, name in enumerate(rocks.names):
 
 ```text
          D1    D2    D3      n
-OB      63%   37%    0%     30
-HWS     74%   26%    0%    202
-VCL     58%   40%    3%   3789
+OB      61%   39%    0%     23
+HWS     73%   27%    0%    210
+VCL     58%   40%    3%   3788
 SUL      0%   18%   82%   1008
 FWV     34%   65%    1%   1454
 DYK     26%   68%    5%     19

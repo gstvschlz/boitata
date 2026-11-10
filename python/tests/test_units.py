@@ -603,3 +603,24 @@ def test_streamed_simulation_writes_its_units(tmp_path):
         "realization_1": "g/t",
     }
     assert out.length_unit == "m"
+
+
+def test_unit_array_cutoffs_are_converted():
+    v = bt.UnitArray(np.array([0.5, 1.5, 2.5]), "%")
+
+    def tonnage(cutoffs):
+        return np.asarray(bt.grade_tonnage(v, cutoffs)["tonnage"], dtype=float)
+
+    text = tonnage(["10000 ppm"])
+    for cutoffs in (
+        bt.UnitArray(np.array([10000.0]), "ppm"),
+        [bt.UnitArray(np.float64(10000.0), "ppm")],
+        bt.UnitArray(np.float64(10000.0), "ppm"),
+    ):
+        np.testing.assert_allclose(tonnage(cutoffs), text)
+    np.testing.assert_allclose(tonnage(bt.UnitArray([1.0], "%")), text)
+    np.testing.assert_allclose(tonnage(np.array([1.0])), text)
+    with pytest.raises(bt.InvalidInput, match="cutoffs is in ppm, but the data have no unit"):
+        bt.grade_tonnage([0.5, 1.5], bt.UnitArray([10000.0], "ppm"))
+    with pytest.raises(bt.InvalidInput, match="cutoffs: cannot convert"):
+        bt.grade_tonnage(v, bt.UnitArray([1.0], "m"))

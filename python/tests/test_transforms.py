@@ -225,8 +225,31 @@ def test_ppmt_marginal_step_with_weights_round_trips(skewed):
     x = np.column_stack([skewed, skewed * rng.lognormal(0, 0.3, len(skewed))])
     ppmt = bt.PPMT(seed=3).fit(x, weights=rng.uniform(0.5, 1.5, len(x)))
     np.testing.assert_allclose(ppmt.inverse_transform(ppmt.transform(x)), x, atol=1e-6)
-    with pytest.raises(bt.InvalidInput):
-        bt.PPMT(marginal=False).fit(x, weights=np.ones(len(x)))
+
+
+@pytest.mark.parametrize("marginal", [True, False])
+def test_ppmt_factors_are_standard_normal_under_declustering_weights(marginal):
+    a, b = rng.normal(size=(2, 1000))
+    x = np.column_stack([np.exp(a), 0.7 * a + 0.7 * b + 0.3 * a**2])
+    w = np.where(a > 0.5, 0.2, 1.0)
+    g = bt.PPMT(seed=3, marginal=marginal).fit_transform(x, weights=w)
+    mean = np.average(g, axis=0, weights=w)
+    var = np.average((g - mean) ** 2, axis=0, weights=w)
+    np.testing.assert_allclose(mean, 0.0, atol=0.05)
+    np.testing.assert_allclose(var, 1.0, atol=0.1)
+
+
+def test_normal_score_zero_weights_and_bad_weights():
+    values = np.arange(1.0, 11.0)
+    w = np.ones(10)
+    w[0] = 0.0
+    ns = bt.NormalScore()
+    y = ns.fit_transform(values, weights=w)
+    assert y[0] == y[1] and y[0] > -4.0
+    assert ns.inverse_transform(np.array([-3.0]))[0] >= 2.0
+    for bad in ([1e308, 1e308, 1.0, 1.0, 1.0], [np.inf, 1.0, 1.0, 1.0, 1.0]):
+        with pytest.raises(bt.InvalidInput, match="weights"):
+            bt.NormalScore().fit(values[:5], weights=np.array(bad))
 
 
 def test_transforms_take_column_names(skewed):
@@ -579,3 +602,10 @@ def test_spatial_bootstrap_widens_with_correlation():
 def test_normal_score_rejects_negative_weights():
     with pytest.raises(bt.InvalidInput):
         bt.NormalScore().fit([1.0, 2.0, 3.0, 4.0], weights=[1, -1, 1, 1])
+
+
+@pytest.mark.parametrize("cell_size", [np.nan, np.inf])
+def test_cell_declustering_rejects_non_finite_cell_size(cell_size):
+    xy = np.column_stack([np.arange(20.0), np.arange(20.0) % 5])
+    with pytest.raises(bt.InvalidInput):
+        bt.cell_declustering(xy, np.arange(20.0), cell_size=cell_size)
