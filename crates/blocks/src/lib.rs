@@ -33,7 +33,7 @@ pub use shell::{
     BlockSubset, Orientation, ShellBlock, ShellFilter, ShellLimits, ShellMesh, Slab,
     estimate_shell_faces, extract_shell, infer_orientation,
 };
-pub use solid::{Aabb, BlockDomainRule, BlockSolid, SolidTester};
+pub use solid::{Aabb, BlockDomainRule, BlockSolid, MAX_BLOCK_SAMPLES, SolidTester, block_samples};
 pub use subblock::{Domain, Region, proportions, subblock};
 pub use tin::{tin, tin_residuals};
 pub use unfold::{Reference, Unfold, UnfoldMode};

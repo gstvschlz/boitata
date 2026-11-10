@@ -22,7 +22,7 @@
 //! or on a mesh whose edges do not cancel, it takes the full winding sum, so
 //! answers never change.
 
-use crate::error::Result;
+use crate::error::{BlockModelError, Result};
 use crate::{is_inside_winding, require_closed, signed_solid_angle};
 use boitata_core::Mesh;
 use nalgebra::Vector3;
@@ -333,7 +333,8 @@ impl SolidTester {
             .any(|&t| self.triangle_bounds[t as usize].overlaps(box_bounds))
     }
 
-    /// Measures one axis-aligned block against the solid.
+    /// Measures one axis-aligned block against the solid. The sign of `size`
+    /// is ignored; [`block_samples`] checks `discretization` beforehand.
     ///
     /// `discretization` is the sub-cell count along each axis used where the
     /// surface cuts the block, with sample points at sub-cell centers, so the
@@ -381,7 +382,7 @@ impl SolidTester {
         }
 
         let d = discretization.map(|n| n.max(1));
-        let step = [0, 1, 2].map(|a| size[a] / d[a] as f64);
+        let step = [0, 1, 2].map(|a| 2.0 * half[a] / d[a] as f64);
         let mut inside_count = 0usize;
         for i in 0..d[0] {
             for j in 0..d[1] {
@@ -399,10 +400,28 @@ impl SolidTester {
         }
 
         BlockSolid {
-            proportion: inside_count as f64 / d.iter().product::<usize>() as f64,
+            proportion: inside_count as f64 / d.iter().map(|&n| n as f64).product::<f64>(),
             centroid_inside: self.contains(center),
         }
     }
+}
+
+/// Most sample points per block a discretization may ask for.
+pub const MAX_BLOCK_SAMPLES: usize = 10_000_000;
+
+/// Sample points per block for `discretization`, a count of zero meaning one.
+/// Errors when the product exceeds [`MAX_BLOCK_SAMPLES`].
+pub fn block_samples(discretization: [usize; 3]) -> Result<usize> {
+    discretization
+        .iter()
+        .try_fold(1usize, |n, &d| n.checked_mul(d.max(1)))
+        .filter(|&n| n <= MAX_BLOCK_SAMPLES)
+        .ok_or_else(|| {
+            BlockModelError::InvalidGridParams(format!(
+                "discretization {discretization:?} must give at most {MAX_BLOCK_SAMPLES} \
+                 samples per block"
+            ))
+        })
 }
 
 #[cfg(test)]
@@ -665,6 +684,25 @@ pub(crate) mod tests {
             centroid_inside: false,
         };
         assert!(!BlockDomainRule::Any.selects(&empty));
+    }
+
+    #[test]
+    fn negative_size_gives_the_same_proportion() {
+        let s = SolidTester::new(&cube(0.0, 10.0)).unwrap();
+        let pos = s.evaluate_block([10.0, 5.0, 5.0], [2.0, 2.0, 2.0], [4, 4, 4]);
+        let neg = s.evaluate_block([10.0, 5.0, 5.0], [-2.0, 2.0, 2.0], [4, 4, 4]);
+        assert_eq!(pos.proportion, 0.5);
+        assert_eq!(neg.proportion, pos.proportion);
+    }
+
+    #[test]
+    fn block_samples_refuses_an_overflowing_discretization() {
+        assert_eq!(block_samples([4, 0, 2]).unwrap(), 8);
+        assert_eq!(block_samples([10, 1000, 1000]).unwrap(), MAX_BLOCK_SAMPLES);
+        for d in [[1 << 22, 1 << 22, 1 << 20], [10_001, 1000, 1]] {
+            let e = block_samples(d).unwrap_err().to_string();
+            assert!(e.contains("discretization"), "{e}");
+        }
     }
 
     #[test]

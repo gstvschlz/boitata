@@ -618,7 +618,9 @@ impl Mesh {
     /// Proportion of each block inside, from a grid of points per block
     /// where the surface may cut it: `discretization` per axis, or one count
     /// for all three. `targets` is a BlockModel, whose rotation and sub-block
-    /// extents count, or axis-aligned centroids with a shared `size`.
+    /// extents count, or axis-aligned centroids with a shared `size`, finite
+    /// and positive. A discretization of more than 10 000 000 points per
+    /// block raises InvalidInput.
     #[pyo3(signature = (targets, *, size=None, discretization=Discretization::All(4)))]
     fn proportion<'py>(
         &self,
@@ -638,11 +640,21 @@ impl Mesh {
             Discretization::All(n) => [n; 3],
             Discretization::Axes(n) => n,
         };
+        blocks::block_samples(discretization).map_err(err)?;
         let size = match (size, targets.cast::<PyBlockModel>()) {
-            (Some(s), _) => s,
+            (Some(s), _) => {
+                if !s.iter().all(|v| v.is_finite() && *v > 0.0) {
+                    return Err(invalid(format!(
+                        "size must be finite and > 0 on every axis, got {s:?}"
+                    )));
+                }
+                s
+            }
             (None, Ok(b)) => {
                 let model = &b.get().0;
-                let p = py.detach(|| blocks::proportions(solid, model, discretization));
+                let p = py
+                    .detach(|| blocks::proportions(solid, model, discretization))
+                    .map_err(err)?;
                 return Ok(array1(py, p).into_any());
             }
             (None, Err(_)) => return Err(invalid("give size for plain centroids")),
@@ -1158,6 +1170,8 @@ fn grid_surface(py: Python, model: PyRef<PyBlockModel>, column: &str) -> PyResul
 }
 
 /// Visible skin of a block model; `column` becomes the face column `value`.
+/// Sub-blocks are drawn at their own extents; a model whose blocks share no
+/// lattice raises InvalidInput.
 #[pyfunction]
 #[pyo3(signature = (model, *, column=None))]
 fn block_shell<'py>(
@@ -1166,8 +1180,15 @@ fn block_shell<'py>(
     column: Option<&str>,
 ) -> PyResult<Mesh> {
     let m = &model.0;
-    let size = m.geometry().size;
+    let parent = m.geometry().size;
     let centroids = m.centroids();
+    let sizes: Vec<[f64; 3]> = match m.layout() {
+        boitata_core::Layout::SubBlocked { extent, .. } => extent
+            .iter()
+            .map(|e| [0, 1, 2].map(|a| parent[a] * (e[a + 3] - e[a])))
+            .collect(),
+        _ => vec![parent; m.len()],
+    };
     let values = match column {
         Some(c) => Some(finite(
             &crate::table::column(py, m.attributes(), c)?,
@@ -1185,9 +1206,10 @@ fn block_shell<'py>(
     };
     let shell = extract_shell(
         || {
-            centroids
-                .iter()
-                .map(move |c| ShellBlock { centroid: *c, size })
+            centroids.iter().zip(&sizes).map(|(c, s)| ShellBlock {
+                centroid: *c,
+                size: *s,
+            })
         },
         values.as_deref(),
         &filter,
@@ -1195,6 +1217,14 @@ fn block_shell<'py>(
         &orientation,
     )
     .map_err(err)?;
+    if shell.blocks_kept < m.len() {
+        return Err(invalid(format!(
+            "{} of {} blocks don't sit on a lattice common to the model; \
+             sub-block extents must be multiples of one sub-cell per axis",
+            m.len() - shell.blocks_kept,
+            m.len()
+        )));
+    }
     let mut mesh = Mesh::build(&shell.vertices, &shell.triangles)?;
     if !shell.values.is_empty() {
         let values: Float64Array = mesh

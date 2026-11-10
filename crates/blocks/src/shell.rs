@@ -16,11 +16,11 @@
 //!
 //! Blocks arrive as axis-aligned boxes with no topology (a CSV block model is
 //! just rows of centroid + size), so the sweep first infers the lattice they
-//! sit on — the minimum block size per axis, anchored at the model's minimum
-//! corner. A uniform model maps one block to one cell; a sub-blocked model
-//! maps a parent block to the span of cells it covers. Models whose blocks
-//! don't land on any such lattice are rejected rather than silently
-//! mis-rendered.
+//! sit on — the largest cell every block size per axis is a multiple of,
+//! anchored at the model's minimum corner. A uniform model maps one block to
+//! one cell; a sub-blocked model maps a parent block to the span of cells it
+//! covers. Models whose blocks don't land on any such lattice are rejected
+//! rather than silently mis-rendered.
 
 use rayon::prelude::*;
 
@@ -260,8 +260,8 @@ impl ShellMesh {
     }
 }
 
-/// The lattice the blocks were found to sit on: the smallest cell size per
-/// axis, anchored at the model's minimum corner.
+/// The lattice the blocks were found to sit on: the largest cell per axis that
+/// divides every block size, anchored at the model's minimum corner.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Lattice {
     min: [f64; 3],
@@ -299,6 +299,25 @@ struct Span {
 /// irregular — a fraction of the cell, so it scales with block size.
 const ALIGN_TOLERANCE: f64 = 0.02;
 
+/// The largest cell both `a` and `b` are near-whole multiples of (Euclid's
+/// algorithm, with remainders within [`ALIGN_TOLERANCE`] of a cell taken as
+/// zero). Sub-blocks of two and three fifths of a parent share a cell of one
+/// fifth, which the smaller of them is not. Sizes with no common cell end on
+/// a vanishing one, which the lattice's cell limit then refuses.
+fn common_cell(a: f64, b: f64) -> f64 {
+    let (mut a, mut b) = (a.max(b), a.min(b));
+    loop {
+        if b <= a * 1e-9 {
+            return b;
+        }
+        let r = a % b;
+        if r <= ALIGN_TOLERANCE * b || b - r <= ALIGN_TOLERANCE * b {
+            return b;
+        }
+        (a, b) = (b, r);
+    }
+}
+
 fn infer_lattice<I>(blocks: I, limits: &ShellLimits) -> Result<Lattice>
 where
     I: Iterator<Item = ShellBlock>,
@@ -319,7 +338,11 @@ where
             }
             min[axis] = min[axis].min(block.centroid[axis] - half);
             max[axis] = max[axis].max(block.centroid[axis] + half);
-            cell[axis] = cell[axis].min(block.size[axis]);
+            cell[axis] = if cell[axis].is_finite() {
+                common_cell(cell[axis], block.size[axis])
+            } else {
+                block.size[axis]
+            };
         }
     }
 
@@ -1185,7 +1208,7 @@ mod tests {
     }
 
     // Sub-blocked models: a parent block spans several lattice cells, and the
-    // lattice is set by the smallest block. Burial is per-face and
+    // lattice cell divides every block size. Burial is per-face and
     // conservative — the sub-block's face against the parent is hidden and
     // goes, while the parent's face stays because the sub-block covers only a
     // quarter of it. Over-drawing a partly-covered parent face is the safe
@@ -1205,6 +1228,30 @@ mod tests {
         let mesh = shell_of(&blocks);
         assert_eq!(mesh.blocks_kept, 2);
         assert_eq!(mesh.face_count(), 6 + 5);
+    }
+
+    // A parent split into two and three fifths along x: neither piece divides
+    // the other, so the lattice cell is the fifth they share, and no block is
+    // dropped from the skin.
+    #[test]
+    fn sub_blocks_no_size_divides_share_a_finer_cell() {
+        let blocks = [
+            ShellBlock {
+                centroid: [2.5, 2.5, 2.5],
+                size: [5.0, 5.0, 5.0],
+            },
+            ShellBlock {
+                centroid: [6.0, 2.5, 2.5],
+                size: [2.0, 5.0, 5.0],
+            },
+            ShellBlock {
+                centroid: [8.5, 2.5, 2.5],
+                size: [3.0, 5.0, 5.0],
+            },
+        ];
+        let mesh = shell_of(&blocks);
+        assert_eq!(mesh.blocks_kept, 3);
+        assert_eq!(mesh.face_count(), 1 + 1 + 3 * 4);
     }
 
     #[test]
