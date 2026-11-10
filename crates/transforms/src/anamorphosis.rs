@@ -19,6 +19,7 @@
 use crate::error::{Result, TransformError};
 use crate::hermite::{self, interval_integral};
 use crate::normal::probit;
+use crate::normal_score::normalized_weights;
 use serde::{Deserialize, Serialize};
 
 /// A fitted Hermite anamorphosis `Z = φ(Y)`.
@@ -61,18 +62,7 @@ impl HermiteAnamorphosis {
         let mut order: Vec<usize> = (0..n).collect();
         order.sort_by(|&a, &b| values[a].partial_cmp(&values[b]).unwrap());
 
-        let w: Vec<f64> = match weights {
-            Some(w) => {
-                let s: f64 = w.iter().sum();
-                if s <= 0.0 || s.is_nan() || w.iter().any(|&x| x < 0.0) {
-                    return Err(TransformError::InvalidParameters(
-                        "weights must not be negative and must sum to more than 0".into(),
-                    ));
-                }
-                w.iter().map(|x| x / s).collect()
-            }
-            None => vec![1.0 / n as f64; n],
-        };
+        let w = normalized_weights(weights, n)?;
 
         // Gaussian class bounds: y_i = Φ⁻¹(cumulative frequency at class edge).
         // Class i (ordered value z_(i)) spans the Gaussian interval (yb[i], yb[i+1]).
@@ -301,5 +291,17 @@ mod tests {
         assert!((same.variance() - point_var).abs() < 1e-9);
         // Mean preserved by change of support (ψ₀ unchanged).
         assert!((block.mean() - anam.mean()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn rejects_non_finite_weights_and_overflowing_sums() {
+        let vals = [1.0, 2.0, 3.0, 4.0, 5.0];
+        for w in [
+            [1e308, 1e308, 1.0, 1.0, 1.0],
+            [f64::INFINITY, 1.0, 1.0, 1.0, 1.0],
+            [f64::NAN, 1.0, 1.0, 1.0, 1.0],
+        ] {
+            assert!(HermiteAnamorphosis::fit(&vals, Some(&w), 10).is_err());
+        }
     }
 }

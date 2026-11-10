@@ -632,8 +632,8 @@ impl Ppmt {
     }
 
     /// `data` is `(n, d)`, or a container whose `columns` (default all) are
-    /// the variables; `weights` (e.g. declustering, or their column) shape
-    /// the marginal scores.
+    /// the variables; `weights` (e.g. declustering, or their column) apply to
+    /// the final normal score of each factor.
     #[pyo3(signature = (data, *, columns=None, weights=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
