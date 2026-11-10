@@ -172,8 +172,8 @@ b.legend()
 save(fig, "virtual_grids")
 
 # %% [markdown]
-# The median quarterly MEE grows from 7.1 % at 5 m to 29.2 % at 20 m. At 5 m, 89.7 % of the quarterly windows
-# meet the criterion; at 7.5 m, 70.9 %; at 10 m, 56.9 %. A yearly window covers four times the area, and 100.0 %
+# The median quarterly MEE grows from 7.0 % at 5 m to 29.1 % at 20 m. At 5 m, 89.2 % of the quarterly windows
+# meet the criterion; at 7.5 m, 70.9 %; at 10 m, 58.1 %. A yearly window covers four times the area, and 99.8 %
 # of them still meet it at 10 m.
 #
 # !!! step "Step 4: Required spacing"
@@ -202,7 +202,7 @@ save(fig, "required_spacing")
 
 # %% [markdown]
 # The yearly volume needs holes every 13.5 m for 90 % of its windows, and its median window meets ±15 % up to
-# 19.5 m. The quarterly volume misses the 90 % mark on every grid tried: its P90 MEE is 15.2 % at 5 m, so
+# 19.4 m. The quarterly volume misses the 90 % mark on every grid tried: its P90 MEE is 15.4 % at 5 m, so
 # `required_spacing` returns NaN. Its median window crosses 15 % at 10.8 m.
 #
 # !!! key "Key idea"
@@ -242,15 +242,15 @@ for name in plans:
     )
 
 # %% [markdown]
-# The MEE covers the truth in 84.4 % of the quarterly windows and 84.3 % of the yearly ones, a little short of
-# 90 %. With the holes between nodes, 88.6 % of the quarterly windows meet ±15 % at 5 m and 54.0 % at 10 m. The
-# share changes from truth to truth: at 10 m one truth scores 49.5 %, another 59.2 %, a standard deviation of
-# 3.6 points. The grids of Step 2 put holes on node centers, and they score 89.7 % at 5 m:
+# The MEE covers the truth in 85.6 % of the quarterly windows and 87.8 % of the yearly ones, a little short of
+# 90 %. With the holes between nodes, 88.2 % of the quarterly windows meet ±15 % at 5 m and 54.0 % at 10 m. The
+# share changes from truth to truth: at 10 m one truth scores 49.7 %, another 60.0 %, a standard deviation of
+# 3.9 points. The grids of Step 2 put holes on node centers, and they score 89.2 % at 5 m:
 # a node that holds a sample keeps its value in every realization, which narrows its window.
 #
 # ## The decision
 #
-# Drill on 13 m or closer for yearly planning: at 12.5 m, 93.8 % of the 80 × 80 m windows meet ±15 % at 90 %.
+# Drill on 13 m or closer for yearly planning: at 12.5 m, 94.8 % of the 80 × 80 m windows meet ±15 % at 90 %.
 # A quarter needs holes closer than 5 m, which no resource drilling pays for; plan quarters from grade control.
 # [The learning curve](../../14-workflows/08-drillhole-spacing-learning-curve/README.md) reads the same
 # relation from one simulation of the current data.

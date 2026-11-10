@@ -250,8 +250,8 @@ print(
 </details>
 
 ```text
-largest departure of a block total from 100 %: 4.3e-14
-smallest simulated part: 0.033 %
+largest departure of a block total from 100 %: 5.7e-14
+smallest simulated part: 0.028 %
 hematite nodes simulated apart: Fe2O3 + SiO2 above 100 % at 32%
 r(Fe, SiO2): composites -1.00, hematite blocks -0.99, nodes simulated apart -0.00
 ```
@@ -338,24 +338,24 @@ save(fig, "reconciliation")
 ```text
 345 blocks hold blastholes, 6 per block (median)
                    Fe blast  Fe sim Fe drill SiO2 blast SiO2 sim SiO2 drill
-hematite              61.99   57.51    58.73       7.42    13.37      11.85
-friable itabirite     51.04   50.24    52.45      22.84    24.01      21.03
-compact itabirite     45.54   48.40    41.79      31.40    26.88      36.98
+hematite              61.99   57.46    58.73       7.42    13.40      11.85
+friable itabirite     51.04   50.17    52.45      22.84    24.09      21.03
+compact itabirite     45.54   47.58    41.79      31.40    28.09      36.98
 87 composites from 8 holes in the window
-Fe variance: blastholes 99, simulated at the blastholes 139, blasthole means per block 80, simulated blocks 40
-blasthole means per block against the mean of the simulations: r 0.74, slope 1.58
+Fe variance: blastholes 99, simulated at the blastholes 142, blasthole means per block 80, simulated blocks 42
+blasthole means per block against the mean of the simulations: r 0.76, slope 1.55
 ```
 
 ![reconciliation](reconciliation.png)
 
 Per domain the simulation sits near the drilling in the window, not the blastholes: 87 composites from 8 holes,
 against 1953 blastholes. Hematite blocks come out 4.5 % Fe poorer than the blastholes say, compact itabirite blocks
-2.9 % richer; friable itabirite is close. The spreads order as the supports do: 139 at 6 m points, 99 for the
-12 m blastholes, 80 for the mean of about six blastholes per block, 40 for simulated blocks. The mean of six
+2.0 % richer; friable itabirite is close. The spreads order as the supports do: 142 at 6 m points, 99 for the
+12 m blastholes, 80 for the mean of about six blastholes per block, 42 for simulated blocks. The mean of six
 blastholes still carries their analytical error and short-scale variation, so it varies more than the block
 itself would.
 
-Blocks rank well (r 0.74), but the blasthole means spread 1.58 times as far as the simulated means: with holes
+Blocks rank well (r 0.76), but the blasthole means spread 1.55 times as far as the simulated means: with holes
 100 m apart, the model cannot place the 25 m contrasts between hematite and itabirite that grade control sees. Grade
 control drills blastholes to close that gap.
 

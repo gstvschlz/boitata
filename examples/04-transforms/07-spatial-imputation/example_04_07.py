@@ -36,7 +36,7 @@ print(f"{len(data)} sulphide samples, density measured in {seen.sum()}")
 
 
 # %% [markdown]
-# The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 15
+# The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 14
 # m, shorter than the spacing between holes, so most of the information comes from the samples above and below in the
 # same hole. The imputer rescales its sill to one.
 

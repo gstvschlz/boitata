@@ -55,8 +55,8 @@ print(f"normal scores: {gaussian}\ngrades:        {raw}")
 </details>
 
 ```text
-normal scores: Variogram([('spherical', 0.913818210965821, 124.0562547366332)], nugget=0.08618178903417904, rotation=(170.0, 0.0, 0.0), ratios=(0.4095872533818296, 1.0))
-grades:        Variogram([('spherical', 0.7843991923831034, 102.90381954293758)], nugget=0.21560080761689654, rotation=(170.0, 0.0, 0.0), ratios=(0.4598890787188343, 1.0))
+normal scores: Variogram([('spherical', 0.9198959372908582, 123.39893489850286)], nugget=0.08010406270914183, rotation=(170.0, 0.0, 0.0), ratios=(0.4202456530489358, 1.0))
+grades:        Variogram([('spherical', 0.7815483583438634, 103.13969280814382)], nugget=0.21845164165613667, rotation=(170.0, 0.0, 0.0), ratios=(0.4648166465332574, 1.0))
 ```
 
 DSS simple kriges each node with the declustered mean and draws it from the declustered histogram, as the
@@ -100,10 +100,10 @@ print(
 </details>
 
 ```text
-16.49% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
-DSS: mean 283, variance 66393, at 0 ppm 20.1%, above 500 ppm 20.7%
+16.40% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
+DSS: mean 283, variance 66354, at 0 ppm 20.0%, above 500 ppm 20.7%
 corrected DSS: mean 285, variance 64081, at 0 ppm 4.8%, above 500 ppm 19.0%
-SGS: mean 274, variance 61386, at 0 ppm 4.1%, above 500 ppm 18.2%
+SGS: mean 273, variance 61022, at 0 ppm 4.0%, above 500 ppm 18.0%
 true: mean 280, variance 65444, at 0 ppm 5.1%, above 500 ppm 18.7%
 ```
 

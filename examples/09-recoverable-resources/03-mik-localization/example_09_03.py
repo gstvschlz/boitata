@@ -110,9 +110,9 @@ save(fig, "localized-mik")
 
 
 # %% [markdown]
-# The localized blocks spread wider than the true ones (variance 55 442 against 50 084), while kriging smooths them to
+# The localized blocks spread wider than the true ones (variance 54 909 against 50 084), while kriging smooths them to
 # 41 398. Block by block they follow the truth a little less well than kriging (correlation 0.85 against 0.92). The
 # affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking: at 500
-# ppm the localized blocks put 20.7% above cutoff against a true 16.9%, overshooting by as much as kriging falls short.
+# ppm the localized blocks put 19.9% above cutoff against a true 16.9%, overshooting by as much as kriging falls short.
 # [Uniform conditioning](../../09-recoverable-resources/02-uniform-conditioning/README.md) localizes the same panels
 # from a Gaussian model.

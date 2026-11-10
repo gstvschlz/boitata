@@ -54,10 +54,10 @@ print(gaussian)
 12 samples at 0 ppm
 Variogram  sill 1, 1 structure
   rotation  azimuth 170°, dip 0°, rake 0°
-  ratios    semi/major 0.4491, minor/major 1
-  structure  sill  major   semi  minor
-  nugget        0
-  spherical     1  111.1  49.88  111.1
+  ratios    semi/major 0.4234, minor/major 1
+  structure     sill  major   semi  minor
+  nugget     0.08229
+  spherical   0.9177  119.5  50.59  119.5
 ```
 
 ## Distributions at points
@@ -88,10 +88,10 @@ print(f"expected area above 500 ppm {p500.mean():.1%}, true {np.mean(true_at_nod
 </details>
 
 ```text
-mean E-type 267 ppm, true 280
+mean E-type 274 ppm, true 280
 correlation with the truth 0.83
-truth inside the 80% interval at 61% of nodes
-expected area above 500 ppm 17.4%, true 18.7%
+truth inside the 80% interval at 75% of nodes
+expected area above 500 ppm 18.3%, true 18.7%
 ```
 
 The E-type is smooth like kriging. The probability map says where grade above 500 ppm is likely, and the interval
@@ -154,7 +154,7 @@ save(fig, "checks")
 </details>
 
 ```text
-panel means: r 0.95
+panel means: r 0.96
 panel shares above 500 ppm: r 0.95
 ```
 
@@ -179,11 +179,11 @@ for p, a in zip([0.5, 0.8, 0.9], cv.accuracy([0.5, 0.8, 0.9])):
 </details>
 
 ```text
-mean E-type 267 ppm, declustered sample mean 285 ppm
-cross-validation: ME 5.3  RMSE 146.9  goodness 0.76
-inside the central 50% interval: 36%
-inside the central 80% interval: 62%
-inside the central 90% interval: 74%
+mean E-type 274 ppm, declustered sample mean 285 ppm
+cross-validation: ME 4.2  RMSE 150.6  goodness 0.95
+inside the central 50% interval: 47%
+inside the central 80% interval: 79%
+inside the central 90% interval: 88%
 ```
 
 ## Compared with multiple indicator kriging

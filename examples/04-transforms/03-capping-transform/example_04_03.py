@@ -107,8 +107,7 @@ save(fig, "probability")
 # The capped grades feed the estimate as any other column. Ordinary kriging estimates 5 m blocks inside the V1 solid
 # from the raw and from the capped composites of V1, with one variogram and search. The extreme channels no longer
 # spread their grade over their neighborhood: the richest blocks drop below the diagonal and the low-grade ones stay on
-# it. The blocks lose 8.6 % of their mean grade, against 9.1 % for the declustered composites, because most blocks draw on
-# samples below the cap, which capping leaves unchanged.
+# it. The blocks lose 9.5 % of their mean grade, close to the 9.1 % of the declustered composites.
 
 # %%
 v1 = quartz.filter(quartz["VEIN"] == "V1")

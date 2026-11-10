@@ -54,10 +54,10 @@ print(model)
 </details>
 
 ```text
-Variogram  sill 1532.7, 1 structure
-  structure    sill   range
-  nugget      346.2
-  spherical  1186.5  1189.6
+Variogram  sill 1529, 1 structure
+  structure    sill  range
+  nugget      399.8
+  spherical  1129.2   1238
 ```
 
 `ExternalDriftKriging` takes the drift column names at `fit` (read off `samples`) and again at `predict` (read off
@@ -81,8 +81,8 @@ print(f"correlation between the two maps: {np.corrcoef(ok[inside], edk[inside])[
 </details>
 
 ```text
-mean: ordinary 56.5, external drift 55.9 ppm
-correlation between the two maps: 0.974
+mean: ordinary 56.5, external drift 56.0 ppm
+correlation between the two maps: 0.972
 ```
 
 The two maps agree where covariates are flat and pull apart where magnetics or elevation depart from the neighborhood

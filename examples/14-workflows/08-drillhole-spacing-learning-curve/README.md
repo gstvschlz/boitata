@@ -145,7 +145,7 @@ for side in (40, 80):
 </details>
 
 ```text
-40 m windows: 924, MEE median 24.1%, 24.4% at or below 15 %
+40 m windows: 924, MEE median 24.1%, 24.0% at or below 15 %
 80 m windows: 168, MEE median 12.1%, 67.3% at or below 15 %
 ```
 
@@ -224,13 +224,13 @@ for s, p50 in zip(grid["spacing"], grid["P50"], strict=True):
 </details>
 
 ```text
-virtual grid  5.0 m: median MEE 7.1%
+virtual grid  5.0 m: median MEE 7.0%
 virtual grid  7.5 m: median MEE 10.7%
 virtual grid 10.0 m: median MEE 13.7%
-virtual grid 12.5 m: median MEE 17.9%
-virtual grid 15.0 m: median MEE 22.2%
-virtual grid 20.0 m: median MEE 28.4%
-virtual grid 25.0 m: median MEE 35.0%
+virtual grid 12.5 m: median MEE 17.8%
+virtual grid 15.0 m: median MEE 22.3%
+virtual grid 20.0 m: median MEE 28.5%
+virtual grid 25.0 m: median MEE 34.8%
 ```
 
 ![learning_curve](learning_curve.png)

@@ -57,10 +57,10 @@ print(f"        σ/√n: {sd / np.sqrt(len(holes)):.3f} m")
 ```text
 Variogram  sill 1, 1 structure
   structure    sill   range
-  nugget     0.2026
-  spherical  0.7974  8545.8
+  nugget     0.1976
+  spherical  0.8024  8812.5
 independent: standard deviation of the mean 0.039 m
-    spatial: standard deviation of the mean 0.372 m
+    spatial: standard deviation of the mean 0.379 m
         σ/√n: 0.038 m
 ```
 
@@ -165,7 +165,7 @@ for name, v in (("independent", nugget), ("spatial", variogram)):
 
 ```text
 independent: P10 172 Mt, P50 177 Mt, P90 182 Mt; thicker than 2 m 32% to 39%
-    spatial: P10 129 Mt, P50 172 Mt, P90 226 Mt; thicker than 2 m 8% to 65%
+    spatial: P10 128 Mt, P50 172 Mt, P90 227 Mt; thicker than 2 m 8% to 66%
 ```
 
 Independent resampling promises the tonnage within a few percent; with the spatial correlation the P10 to P90 range is

@@ -63,6 +63,19 @@ def test_nested_fit_with_fixed_and_bounded_parameters():
         exp.fit(nugget=(0.3, 0.1))
 
 
+def test_default_fit_solves_the_nugget():
+    r = np.random.default_rng(0)
+    phi, z = np.exp(-1 / 20), np.zeros(2000)
+    for i in range(1, z.size):
+        z[i] = phi * z[i - 1] + np.sqrt(1 - phi * phi) * r.normal()
+    values = z + np.sqrt(0.3) * r.normal(size=z.size)
+    x = np.arange(z.size, dtype=float)
+    exp = bt.experimental_variogram(np.c_[x, 0 * x], values, lag=2, max_lag=100)
+    fitted = exp.fit("exponential")
+    assert fitted.nugget == pytest.approx(0.3, abs=0.05)
+    assert repr(fitted) == repr(exp.fit("exponential", nugget=(0.0, np.inf)))
+
+
 def test_directional_fit_finds_the_anisotropy():
     xy = np.stack(np.meshgrid(np.arange(0, 80, 2.0), np.arange(0, 80, 2.0)), -1).reshape(-1, 2)
     t = np.radians(30)

@@ -95,10 +95,10 @@ print(f"SIS is unsure whether {unsure.mean():.0%} of the nodes are Argovian")
 
 ```text
 Co (ppm)                                   true rock types  SIS rock types
-mean                                                  8.31            8.27
-mean on true Argovian                                 5.52            7.05
-std where SIS is unsure of Argovian                   2.61            3.41
-std elsewhere                                         2.49            2.67
+mean                                                  8.31            8.29
+mean on true Argovian                                 5.52            7.11
+std where SIS is unsure of Argovian                   2.59            3.40
+std elsewhere                                         2.50            2.67
 SIS is unsure whether 55% of the nodes are Argovian
 ```
 
@@ -123,9 +123,9 @@ save(fig, "grades-in-rock-types")
 
 ![grades-in-rock-types](grades-in-rock-types.png)
 
-Within the true rock types, Co drops at each Argovian contact and averages 5.50 ppm on Argovian. Within the SIS rock
+Within the true rock types, Co drops at each Argovian contact and averages 5.52 ppm on Argovian. Within the SIS rock
 types the contacts move from one realization to the next, so the lean Argovian Co spreads over its uncertain margin:
-the true Argovian averages 7.04 ppm. Where SIS is unsure of Argovian (over half of the nodes), the spread of Co across
-realizations is 3.38 ppm against 2.57 ppm with the domains fixed.
+the true Argovian averages 7.11 ppm. Where SIS is unsure of Argovian (over half of the nodes), the spread of Co across
+realizations is 3.40 ppm against 2.59 ppm with the domains fixed.
 
 Full script: [`example_07_08.py`](example_07_08.py)

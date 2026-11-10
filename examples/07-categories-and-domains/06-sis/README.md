@@ -75,11 +75,11 @@ for name, v in zip(names, variograms):
 </details>
 
 ```text
-Argovian     nugget 0.076, sill 0.115, range 2.01 km
-Kimmeridgian nugget 0.077, sill 0.141, range 0.62 km
-Sequanian    nugget 0.108, sill 0.080, range 0.90 km
+Argovian     nugget 0.076, sill 0.115, range 2.03 km
+Kimmeridgian nugget 0.139, sill 0.085, range 1.18 km
+Sequanian    nugget 0.132, sill 0.059, range 1.22 km
 Portlandian  nugget 0.000, sill 0.011, range 0.50 km
-Quaternary   nugget 0.049, sill 0.118, range 0.42 km
+Quaternary   nugget 0.032, sill 0.136, range 0.40 km
 ```
 
 <details><summary>Python</summary>
@@ -133,12 +133,12 @@ print(
 ```text
               true grid   mean    min    max
 Argovian           0.21   0.22   0.18   0.25
-Kimmeridgian       0.34   0.33   0.29   0.38
-Sequanian          0.27   0.27   0.23   0.32
-Portlandian        0.05   0.02   0.01   0.03
-Quaternary         0.13   0.17   0.13   0.21
-a realization matches the true rock type at 45% to 49% of the nodes
-the most likely type matches at 58%; mean entropy 0.53
+Kimmeridgian       0.34   0.35   0.30   0.43
+Sequanian          0.27   0.26   0.23   0.31
+Portlandian        0.05   0.01   0.00   0.03
+Quaternary         0.13   0.15   0.12   0.19
+a realization matches the true rock type at 44% to 48% of the nodes
+the most likely type matches at 57%; mean entropy 0.55
 ```
 
 <details><summary>Python</summary>
@@ -171,10 +171,9 @@ save(fig, "realizations")
 
 ![realizations](realizations.png)
 
-Each realization matches the true rock type at 45 % to 49 % of the nodes, and two realizations differ wherever the
-samples leave room. The proportions drift from the samples: Kimmeridgian, whose indicator has the longest range,
-grows to 0.44 on average against 0.33 in the samples, while Argovian and Portlandian shrink. No realization
-recovers Portlandian's 5 % of the area from 3 of 259 samples. The most likely type matches at 58 %, more than any
+Each realization matches the true rock type at 44 % to 48 % of the nodes, and two realizations differ wherever the
+samples leave room. On average the proportions stay within 0.02 of the true grid, except Portlandian: no realization
+recovers its 5 % of the area from 3 of 259 samples. The most likely type matches at 57 %, more than any
 realization, though it is a smooth estimate and no possible map looks like it. Entropy peaks at the contacts and
 far from the samples.
 

@@ -35,7 +35,7 @@ density missing in 94% of 20095 samples
 3325 sulphide samples, density measured in 1221
 ```
 
-The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 15
+The spatial model is the variogram of the density normal scores, on 2 m lags: a small nugget and a range of about 14
 m, shorter than the spacing between holes, so most of the information comes from the samples above and below in the
 same hole. The imputer rescales its sill to one.
 
@@ -55,7 +55,7 @@ save(fig, "variogram")
 </details>
 
 ```text
-nugget 0.16, spherical sill 0.81, range 14.6 m
+nugget 0.11, spherical sill 0.85, range 14.0 m
 ```
 
 ![variogram](variogram.png)
@@ -96,10 +96,10 @@ for test, hidden in tests.items():
 ```text
 hidden              imputer       one draw   mean    sd
 every other hole    same sample      0.172  0.073  0.45
-every other hole    spatial          0.177  0.074  0.46
+every other hole    spatial          0.178  0.074  0.46
 every other hole    truth                          0.43
 every other sample  same sample      0.148  0.071  0.47
-every other sample  spatial          0.130  0.077  0.47
+every other sample  spatial          0.129  0.078  0.47
 every other sample  truth                          0.46
 ```
 

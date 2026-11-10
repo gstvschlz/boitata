@@ -82,7 +82,7 @@ for name, check in checks.items():
 </details>
 
 ```text
-Co alone    correlation with Ni -0.17 to 0.11 (samples 0.81)
+Co alone    correlation with Ni -0.17 to 0.10 (samples 0.81)
 Co with Ni  correlation with Ni 0.80 to 0.88 (samples 0.81)
 ```
 
@@ -160,7 +160,7 @@ print(f"co-DSS: correlation of Co and Ni over the nodes {min(r):.2f} to {max(r):
 
 ```text
 correlation of Co and Ni grades at the samples: 0.81
-co-DSS: correlation of Co and Ni over the nodes 0.83 to 0.89
+co-DSS: correlation of Co and Ni over the nodes 0.82 to 0.89
 ```
 
 The co-DSS realizations follow their Ni realizations as closely as the cosimulated SGS ones: their correlation with

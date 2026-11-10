@@ -58,7 +58,7 @@ print(
 </details>
 
 ```text
-declustered mean 285 ppm; realization means 260 to 288 ppm
+declustered mean 285 ppm; realization means 260 to 287 ppm
 ```
 
 ## Correcting to the declustered data
@@ -96,8 +96,8 @@ save(fig, "histograms")
 </details>
 
 ```text
-SGS realizations  means    260 to    288 ppm
-strength 0.5      means    273 to    286 ppm
+SGS realizations  means    260 to    287 ppm
+strength 0.5      means    272 to    286 ppm
 strength 1        means    285 to    285 ppm
 order kept in every realization: True
 ```
@@ -143,7 +143,7 @@ print(f"{len(outside)} of {len(reals)} realizations corrected; means now {m.min(
 </details>
 
 ```text
-8 of 20 realizations corrected; means now 271 to 288 ppm
+9 of 20 realizations corrected; means now 272 to 287 ppm
 ```
 
 ## A smooth reference
