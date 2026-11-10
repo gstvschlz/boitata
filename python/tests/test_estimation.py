@@ -1418,3 +1418,34 @@ def test_block_kriging_follows_a_rotated_model():
     model = bt.BlockModel((0, 0, 0), (50, 5, 1), (1, 1, 1), rotation=(90, 0, 0))
     block = lambda size, targets: bt.BlockKriging(vg, search, size).fit(xy, z).predict(targets)
     assert block((50, 5, 1), model) == pytest.approx(block((5, 50, 1), model.coords))
+
+
+def test_hole_distance_int_and_float_domain_labels_pair():
+    targets = coords[:5] + 1.0
+    holes = np.arange(len(coords))
+    ints = (np.ones(5, dtype=int), np.ones(len(coords), dtype=int))
+    expected = bt.hole_distance(targets, coords, holes, 2, domains=ints)
+    assert np.all(np.isfinite(expected))
+    mixed = bt.hole_distance(targets, coords, holes, 2, domains=(ints[0], np.ones(len(coords))))
+    np.testing.assert_allclose(mixed, expected)
+    unlabelled = np.r_[np.nan, np.ones(len(coords) - 1)]
+    out = bt.hole_distance(targets, coords, holes, 2, domains=(np.r_[np.nan, ints[0][1:]], unlabelled))
+    assert out[0] == np.inf and np.all(np.isfinite(out[1:]))
+
+
+@pytest.mark.parametrize("missing", [None, np.nan])
+def test_missing_hole_ids_count_as_their_own_hole(missing):
+    holes = np.array([missing] * len(coords), dtype=object)
+    targets = coords[:3] + 1.0
+    np.testing.assert_allclose(
+        bt.hole_distance(targets, coords, holes, 2),
+        bt.hole_distance(targets, coords, np.arange(len(coords)), 2),
+    )
+    est = bt.OrdinaryKriging(model, bt.Search(radius=200, max_samples=12, min_holes=2))
+    out = est.fit(coords, values, holes=holes).predict(targets)
+    np.testing.assert_allclose(out, est.fit(coords, values).predict(targets))
+
+
+def test_hole_ids_must_be_finite_labels():
+    with pytest.raises(bt.InvalidInput, match="holes must be a 1-D sequence of labels"):
+        bt.hole_distance(coords[:3], coords, np.full(len(coords), np.inf), 2)

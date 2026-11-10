@@ -253,32 +253,63 @@ pub fn triple(values: Vec<f64>, fill: f64, what: &str) -> PyResult<Point> {
     }
 }
 
-/// Hole labels as text plus integer codes for `Sample::hole`; ints or strings.
-pub fn holes(obj: Option<&Bound<PyAny>>, n: usize) -> PyResult<Option<(Vec<String>, Vec<u32>)>> {
-    let Some(obj) = obj else { return Ok(None) };
-    let np = obj.py().import("numpy")?;
-    let labels: Vec<String> = np
-        .call_method1("asarray", (obj,))?
-        .call_method1("astype", ("str",))?
-        .call_method0("tolist")?
-        .extract()
-        .map_err(|_| invalid("holes must be a 1-D sequence of ids"))?;
-    same_length(n, labels.len(), "holes")?;
+/// Labels of `n` rows as text, as `texts`; None for None and NaN.
+pub fn row_labels(obj: &Bound<PyAny>, n: usize, what: &str) -> PyResult<Vec<Option<String>>> {
+    let obj = match obj.hasattr("to_pylist")? {
+        true => obj.clone(),
+        false => obj
+            .py()
+            .import("numpy")?
+            .call_method1("asarray", (obj,))?
+            .call_method0("tolist")?,
+    };
+    let labels = texts(&obj, what).map_err(|_| {
+        invalid(format!(
+            "{what} must be a 1-D sequence of labels: strings, finite numbers or booleans, \
+                 None or NaN for none"
+        ))
+    })?;
+    same_length(n, labels.len(), what)?;
+    Ok(labels)
+}
+
+/// Codes for `Sample::hole`: one per distinct label, and a fresh one for each
+/// unlabelled row, so that it counts as its own hole.
+pub fn hole_ids(labels: &[Option<String>]) -> Vec<u32> {
     let mut codes = std::collections::HashMap::new();
-    let ids = labels
+    let mut next = 0;
+    let mut fresh = || {
+        next += 1;
+        next - 1
+    };
+    labels
         .iter()
-        .map(|l| {
-            let next = codes.len() as u32;
-            *codes.entry(l.clone()).or_insert(next)
+        .map(|l| match l {
+            Some(l) => *codes.entry(l).or_insert_with(&mut fresh),
+            None => fresh(),
         })
-        .collect();
+        .collect()
+}
+
+/// Hole labels as text plus integer codes for `Sample::hole`; ints or strings.
+pub fn holes(
+    obj: Option<&Bound<PyAny>>,
+    n: usize,
+) -> PyResult<Option<(Vec<Option<String>>, Vec<u32>)>> {
+    let Some(obj) = obj else { return Ok(None) };
+    let labels = row_labels(obj, n, "holes")?;
+    let ids = hole_ids(&labels);
     Ok(Some((labels, ids)))
 }
 
 /// Rows to keep so that no two samples share a location: the first of each
 /// group. Dropped groups are reported in a `UserWarning` naming their holes
 /// (or rows when `holes` is `None`).
-pub fn distinct(py: Python, locs: &[Point], holes: Option<&[String]>) -> PyResult<Vec<usize>> {
+pub fn distinct(
+    py: Python,
+    locs: &[Point],
+    holes: Option<&[Option<String>]>,
+) -> PyResult<Vec<usize>> {
     distinct_in(py, locs, holes, None)
 }
 
@@ -287,7 +318,7 @@ pub fn distinct(py: Python, locs: &[Point], holes: Option<&[String]>) -> PyResul
 pub fn distinct_in(
     py: Python,
     locs: &[Point],
-    holes: Option<&[String]>,
+    holes: Option<&[Option<String>]>,
     domains: Option<&[u32]>,
 ) -> PyResult<Vec<usize>> {
     let shared = |rows: &[usize]| -> PyResult<Vec<Vec<usize>>> {
@@ -311,14 +342,13 @@ pub fn distinct_in(
     let mut lines = Vec::new();
     for g in &groups {
         g[1..].iter().for_each(|&i| dropped[i] = true);
-        let who = match holes {
-            Some(h) => format!(
-                "holes {}",
-                g.iter()
-                    .map(|&i| h[i].as_str())
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            ),
+        let tagged = holes.and_then(|h| {
+            g.iter()
+                .map(|&i| h[i].as_deref())
+                .collect::<Option<Vec<_>>>()
+        });
+        let who = match tagged {
+            Some(h) => format!("holes {}", h.join(", ")),
             None => format!(
                 "rows {}",
                 g.iter()

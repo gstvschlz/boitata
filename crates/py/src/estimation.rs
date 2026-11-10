@@ -1964,7 +1964,8 @@ fn neighborhood_stats(
 ///     Sample coordinates, (n, 2) or (n, 3).
 /// holes : array_like or str
 ///     Hole id of each sample, or the column of `coords` holding them;
-///     samples of one hole count once.
+///     samples of one hole count once, and one without an id (None or NaN)
+///     counts as its own hole.
 /// n : int or sequence of int
 ///     Number of holes averaged; one per class.
 /// search : Search, optional
@@ -1973,7 +1974,8 @@ fn neighborhood_stats(
 ///     omitted.
 /// domains : tuple of array_like, optional
 ///     ``(target_domains, sample_domains)``: each target only sees samples of
-///     its own domain.
+///     its own domain, ``1`` and ``1.0`` being one domain; a target or sample
+///     without one (None or NaN) is in none.
 /// domain_column : str or tuple of str, optional
 ///     The column of `targets` and `coords` holding their domains, or one
 ///     name for each; instead of `domains`.
@@ -2051,9 +2053,8 @@ fn hole_distance<'py>(
     };
     let targets = self::targets(targets)?;
     let labels = |obj: &Bound<PyAny>, len: usize| {
-        args::holes(Some(obj), len)
+        args::row_labels(obj, len, "domains")
             .map_err(|_| invalid("domains must be two 1-D sequences of labels"))
-            .map(|l| l.expect("given").0)
     };
     let groups: Vec<(Vec<usize>, Vec<usize>)> = match &domains {
         None => vec![((0..targets.len()).collect(), (0..locs.len()).collect())],
@@ -2062,10 +2063,12 @@ fn hole_distance<'py>(
             let mut by: std::collections::BTreeMap<&str, (Vec<usize>, Vec<usize>)> =
                 Default::default();
             for (i, d) in at.iter().enumerate() {
-                by.entry(d).or_default().0.push(i);
+                if let Some(d) = d {
+                    by.entry(d).or_default().0.push(i);
+                }
             }
             for (i, d) in of.iter().enumerate() {
-                if let Some(g) = by.get_mut(d.as_str()) {
+                if let Some(g) = d.as_deref().and_then(|d| by.get_mut(d)) {
                     g.1.push(i);
                 }
             }
