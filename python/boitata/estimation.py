@@ -442,14 +442,14 @@ class IndicatorKriging(_Base):
 
 
 class UniversalKriging(_Base):
-    """Kriging with a polynomial drift of `degree` in the coordinates."""
+    """Kriging with a polynomial drift of `degree` (0, 1 or 2) in the coordinates."""
 
     def __init__(self, variogram: Variogram, search: Searches, *, degree: int = 1):
         super().__init__("universal", search, variogram, degree=degree)
 
 
 class ExternalDriftKriging(_Base):
-    """Kriging with a polynomial drift of `degree` (0 by default) plus one column per external
+    """Kriging with a polynomial drift of `degree` (0, 1 or 2; 0 by default) plus one column per external
     drift variable, evaluated at the samples with `fit` and at the targets with `predict`."""
 
     def __init__(
@@ -460,7 +460,7 @@ class ExternalDriftKriging(_Base):
 
 
 class FactorialKriging(_Base):
-    """Estimates only the selected components: `structures` by index, plus the nugget if asked."""
+    """Estimates only the selected components: `structures` by distinct index, plus the nugget if asked."""
 
     def __init__(self, variogram: Variogram, search: Searches, structures, *, nugget: bool = False):
         super().__init__("factorial", search, variogram, structures=list(structures), nugget=nugget)
@@ -483,7 +483,8 @@ class BayesianKriging(_Base):
     `prior_mean` and `prior_variance` are per coefficient of the polynomial
     in world coordinates, in the order ``1, x, y, z, x**2, x*y, x*z, y**2,
     y*z, z**2``; their length selects the axes, so 3 at degree 1 is
-    ``1, x, y``. The variances are independent in world coordinates.
+    ``1, x, y``. The variances are independent in world coordinates, finite
+    and at least 0; 0 fixes a coefficient at its mean. `degree` is 0, 1 or 2.
     """
 
     def __init__(
@@ -500,7 +501,7 @@ class BayesianKriging(_Base):
 
 
 class InverseDistance(_Base):
-    """Inverse-distance weighting; a `variogram` supplies anisotropic distances."""
+    """Inverse-distance weighting with a finite `power` >= 0; a `variogram` supplies anisotropic distances."""
 
     def __init__(self, search: Searches, *, power: float = 2.0, variogram: Variogram | None = None):
         super().__init__("inverse_distance", search, variogram, power=power)
@@ -522,7 +523,7 @@ class MovingMedian(_Base):
 
 
 class LocalLeastSquares(_Base):
-    """Local polynomial of `degree` fitted to the neighbors."""
+    """Local polynomial of `degree` (0, 1 or 2) fitted to the neighbors."""
 
     def __init__(self, search: Searches, *, degree: int = 1, variogram: Variogram | None = None):
         super().__init__("local_least_squares", search, variogram, degree=degree)

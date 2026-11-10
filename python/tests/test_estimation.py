@@ -118,6 +118,43 @@ def test_nearest_and_inverse_distance():
     assert np.all((est >= values.min()) & (est <= values.max()))
 
 
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: bt.UniversalKriging(model, search, degree=3),
+        lambda: bt.ExternalDriftKriging(model, search, "d", degree=3),
+        lambda: bt.BayesianKriging(model, search, [0.0] * 10, [1.0] * 10, degree=3),
+        lambda: bt.LocalLeastSquares(search, degree=3),
+        lambda: bt.DualKriging(model, degree=3),
+    ],
+)
+def test_drift_degree_above_two_is_invalid(make):
+    with pytest.raises(bt.InvalidInput, match="degree must be 0, 1 or 2; got 3"):
+        make()
+
+
+@pytest.mark.parametrize("power", [float("nan"), -2.0, float("inf")])
+def test_inverse_distance_power_must_be_finite_and_non_negative(power):
+    with pytest.raises(bt.InvalidInput, match="power must be finite and >= 0"):
+        bt.InverseDistance(search, power=power)
+
+
+@pytest.mark.parametrize(
+    ("structures", "nugget", "match"),
+    [([5], False, "0 to 0"), ([0, 0], False, "distinct"), ([], False, "at least one")],
+)
+def test_factorial_structures_must_be_distinct_indices(structures, nugget, match):
+    v = bt.Variogram([("spherical", 0.8, 50.0)], nugget=0.2)
+    with pytest.raises(bt.InvalidInput, match=match):
+        bt.FactorialKriging(v, search, structures, nugget=nugget)
+
+
+@pytest.mark.parametrize(("mean", "variance"), [(100.0, -5.0), (100.0, float("nan")), (float("nan"), 1.0)])
+def test_bayesian_prior_must_be_finite_with_non_negative_variance(mean, variance):
+    with pytest.raises(bt.InvalidInput, match="prior_"):
+        bt.BayesianKriging(model, search, [mean], [variance])
+
+
 def test_cross_validation_summary():
     cv = bt.OrdinaryKriging(model, search).fit(coords, values).cross_validate()
     assert cv.estimate.shape == values.shape
