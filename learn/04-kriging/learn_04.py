@@ -334,7 +334,7 @@ for m in (4, 8, 24, 48):
 # samples on, the slope reaches 1.02 and the variance of the estimates settles near 43 300. The RMSE stays between
 # 144.4 and 147.3 ppm across the four searches. A small search keeps more of the variability, and a larger one
 # removes conditional bias. That trade-off drives the choice of search;
-# [search](../../examples/06-kriging/06-search/example_06_06.md) explores it further.
+# [search](../../examples/09-estimation/06-search/example_09_06.md) explores it further.
 #
 # ## Points and blocks
 #
@@ -407,11 +407,11 @@ print(
 #     - Why is a block kriging variance smaller than a point kriging variance at the block center?
 #
 # !!! seealso "See also"
-#     - Examples: [ordinary kriging](../../examples/06-kriging/01-ordinary-kriging/example_06_01.md),
-#       [simple estimators](../../examples/06-kriging/02-simple-estimators/example_06_02.md),
-#       [block kriging](../../examples/06-kriging/05-block-kriging/example_06_05.md),
-#       [search](../../examples/06-kriging/06-search/example_06_06.md),
-#       [search calibration](../../examples/06-kriging/07-search-calibration/example_06_07.md).
+#     - Examples: [ordinary kriging](../../examples/09-estimation/01-ordinary-kriging/example_09_01.md),
+#       [simple estimators](../../examples/09-estimation/02-simple-estimators/example_09_02.md),
+#       [block kriging](../../examples/09-estimation/05-block-kriging/example_09_05.md),
+#       [search](../../examples/09-estimation/06-search/example_09_06.md),
+#       [search calibration](../../examples/09-estimation/07-search-calibration/example_09_07.md).
 #     - API: [`Search`](../../api/estimation/Search.md),
 #       [`OrdinaryKriging`](../../api/estimation/OrdinaryKriging.md),
 #       [`BlockKriging`](../../api/estimation/BlockKriging.md),

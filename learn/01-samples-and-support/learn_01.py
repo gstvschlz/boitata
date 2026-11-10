@@ -320,13 +320,13 @@ save(fig, "clustering")
 #       ore?
 #
 # !!! seealso "See also"
-#     - [Desurveying drill holes](../../examples/02-data-and-geometry/02-desurvey/example_02_02.md) compares
+#     - [Desurveying drill holes](../../examples/02-drillholes-and-samples/03-desurvey/example_02_03.md) compares
 #       desurvey methods.
-#     - [Checking drill holes](../../examples/02-data-and-geometry/01-check-drillholes/example_02_01.md) finds
+#     - [Checking drill holes](../../examples/02-drillholes-and-samples/01-check-drillholes/example_02_01.md) finds
 #       errors in collar, survey and interval tables.
-#     - [Compositing](../../examples/02-data-and-geometry/03-compositing/example_02_03.md) covers run-length and bench
+#     - [Compositing](../../examples/02-drillholes-and-samples/04-compositing/example_02_04.md) covers run-length and bench
 #       composites and the residual rules.
-#     - [Block models](../../examples/01-first-steps/02-block-models/example_01_02.md) shows masked, rotated and
+#     - [Block models](../../examples/01-getting-started/02-block-models/example_01_02.md) shows masked, rotated and
 #       sub-blocked grids.
 #     - API: [`PointSet`](../../api/containers/PointSet.md), [`BlockModel`](../../api/containers/BlockModel.md),
 #       [`Drillholes`](../../api/drillholes/Drillholes.md),

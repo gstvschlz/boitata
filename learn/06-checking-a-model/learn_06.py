@@ -359,7 +359,7 @@ for name in ("measured", "indicated", "inferred"):
 # an RMSE of 79.7 ppm, although they hold the highest grades. Inferred blocks lie in the gaps and at the edges, in
 # lower grades. Their RMSE of 95.7 ppm looks modest, yet their mean is overstated by a fifth, 190 ppm against
 # 157 ppm. Errors in ppm follow grade as well as confidence, so rank confidence by the diagnostics and the drill
-# spacing. The [classification example](../../examples/10-checking-models/05-classification/example_10_05.md) adds
+# spacing. The [classification example](../../examples/11-validation-and-reporting/05-classification/example_11_05.md) adds
 # drill spacing and smooths the classes into coherent zones.
 #
 # !!! check "Check before you move on"
@@ -370,13 +370,13 @@ for name in ("measured", "indicated", "inferred"):
 #     - Which checks can see an error that the declustered samples share with the model?
 #
 # !!! seealso "See also"
-#     - Gallery: [model checks](../../examples/10-checking-models/01-model-checks/example_10_01.md),
-#       [cross-validation](../../examples/10-checking-models/02-cross-validation/example_10_02.md),
-#       [kriging diagnostics](../../examples/10-checking-models/03-kriging-diagnostics/example_10_03.md),
-#       [classification](../../examples/10-checking-models/05-classification/example_10_05.md),
-#       [result plots](../../examples/10-checking-models/06-result-plots/example_10_06.md) and
-#       [search calibration](../../examples/06-kriging/07-search-calibration/example_06_07.md).
+#     - Gallery: [model checks](../../examples/11-validation-and-reporting/01-model-checks/example_11_01.md),
+#       [cross-validation](../../examples/11-validation-and-reporting/02-cross-validation/example_11_02.md),
+#       [kriging diagnostics](../../examples/11-validation-and-reporting/03-kriging-diagnostics/example_11_03.md),
+#       [classification](../../examples/11-validation-and-reporting/05-classification/example_11_05.md),
+#       [result plots](../../examples/11-validation-and-reporting/06-result-plots/example_11_06.md) and
+#       [search calibration](../../examples/09-estimation/07-search-calibration/example_09_07.md).
 #     - API: [`swath`](../../api/eda/swath.md), [`grade_tonnage`](../../api/validation/grade_tonnage.md).
 #
-# **Next:** the [Workflows](../../examples/14-workflows/index.md) chapter runs these steps end to end on real
+# **Next:** the [Workflows](../../examples/02-drillholes-and-samples/index.md) chapter runs these steps end to end on real
 # problems, and the [Guide](../../guide/organization.md) explains how boitatá is organized.

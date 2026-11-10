@@ -13,7 +13,7 @@ My Python tooling for day-to-day geostatistics.
 boitatá holds the tools I use for resource work: drill hole checks, statistics, transforms, variograms, kriging, simulation and model checks.
 
 [Get started](#start-here){ .md-button .md-button--primary }
-[Examples](examples/01-first-steps/index.md){ .md-button }
+[Examples](examples/01-getting-started/index.md){ .md-button }
 [API reference](api/containers/index.md){ .md-button }
 </div>
 </div>
@@ -29,11 +29,11 @@ One command: `pip install "boitata[all]"`.
 
 What a sample stands for, before any code.
 </li>
-<li markdown="block">**[Quick tour](examples/01-first-steps/01-quick-tour/example_01_01.md)**
+<li markdown="block">**[Quick tour](examples/01-getting-started/01-quick-tour/example_01_01.md)**
 
 From samples to a checked estimate in one page of code.
 </li>
-<li markdown="block">**[Workflows](examples/14-workflows/index.md)**
+<li markdown="block">**[Case studies](examples/12-case-studies/index.md)**
 
 Whole problems, from the question to the decision.
 </li>
@@ -66,67 +66,67 @@ In Claude Code:
 
     How the library is organized, so you can guess your way around it, and [which page answers your question](guide/finder.md).
 
--   :material-rocket-launch-outline: **[First steps](examples/01-first-steps/index.md)**
+-   :material-rocket-launch-outline: **[First steps](examples/01-getting-started/index.md)**
 
     ---
 
     A quick tour from samples to a checked estimate, plus short pages such as saving to Parquet.
 
--   :material-database-outline: **[Data and geometry](examples/02-data-and-geometry/index.md)**
+-   :material-database-outline: **[Data and geometry](examples/03-geometry-and-block-models/index.md)**
 
     ---
 
     Drill holes, composites, block models, solids, meshes and GIS files.
 
--   :material-chart-bell-curve: **[Exploratory analysis](examples/03-exploratory-analysis/index.md)**
+-   :material-chart-bell-curve: **[Exploratory analysis](examples/05-exploratory-analysis/index.md)**
 
     ---
 
     Declustering, top cuts, contacts, swaths and data spacing before any model.
 
--   :material-swap-horizontal: **[Transforms](examples/04-transforms/index.md)**
+-   :material-swap-horizontal: **[Transforms](examples/06-transforms/index.md)**
 
     ---
 
     Normal scores, log-ratios, multivariate factors and imputation.
 
--   :material-vector-curve: **[Spatial continuity](examples/05-spatial-continuity/index.md)**
+-   :material-vector-curve: **[Spatial continuity](examples/07-variography/index.md)**
 
     ---
 
     Experimental variograms, model fitting and coregionalization.
 
--   :material-grid: **[Kriging](examples/06-kriging/index.md)**
+-   :material-grid: **[Kriging](examples/09-estimation/index.md)**
 
     ---
 
     Point and block kriging, cokriging, indicators and search tuning.
 
--   :material-shape-outline: **[Categories and domains](examples/07-categories-and-domains/index.md)**
+-   :material-shape-outline: **[Categories and domains](examples/08-domains-and-geology/index.md)**
 
     ---
 
     Rock types as proportions, probabilities and simulated layouts.
 
--   :material-dice-multiple-outline: **[Stochastic simulation](examples/08-stochastic-simulation/index.md)**
+-   :material-dice-multiple-outline: **[Stochastic simulation](examples/10-simulation/index.md)**
 
     ---
 
     SGS, turning bands and cosimulation, reproducible from one seed.
 
--   :material-pickaxe: **[Recoverable resources](examples/09-recoverable-resources/index.md)**
+-   :material-pickaxe: **[Recoverable resources](examples/09-estimation/index.md)**
 
     ---
 
     Tonnes and grade above cutoff at the size of a mining block.
 
--   :material-check-decagram-outline: **[Checking models](examples/10-checking-models/index.md)**
+-   :material-check-decagram-outline: **[Checking models](examples/11-validation-and-reporting/index.md)**
 
     ---
 
     Cross-validation, swaths, realization checks and classification.
 
--   :material-layers-triple-outline: **[Geological modeling](examples/11-geological-modeling/index.md)**
+-   :material-layers-triple-outline: **[Geological modeling](examples/08-domains-and-geology/index.md)**
 
     ---
 
@@ -138,7 +138,7 @@ In Claude Code:
 
     Four deposits, each from raw tables to a result.
 
--   :material-texture-box: **[Multiple-point statistics](examples/13-multiple-point-statistics/index.md)**
+-   :material-texture-box: **[Multiple-point statistics](examples/10-simulation/index.md)**
 
     ---
 

@@ -10,7 +10,7 @@
 <p align="center">
   My Python tooling for day-to-day geostatistics.<br>
   <a href="https://gstvschlz.github.io/boitata/">Docs</a> ·
-  <a href="https://gstvschlz.github.io/boitata/examples/01-first-steps/">Examples</a> ·
+  <a href="https://gstvschlz.github.io/boitata/examples/01-getting-started/">Examples</a> ·
   <a href="https://gstvschlz.github.io/boitata/api/containers/">API</a>
 </p>
 
@@ -66,7 +66,7 @@ workspaces and other agents, and says what the plugin holds and how to update it
 ## Examples
 
 The [examples folder](https://github.com/gstvschlz/boitata/blob/main/examples) holds worked pages in 14 sections, each
-alternating text, code and its results; the [docs render them with figures](https://gstvschlz.github.io/boitata/examples/01-first-steps/).
+alternating text, code and its results; the [docs render them with figures](https://gstvschlz.github.io/boitata/examples/01-getting-started/).
 For the geostatistics itself, the [learn track](https://gstvschlz.github.io/boitata/learn/01-samples-and-support/learn_01/)
 runs from what a sample stands for to checking a model.
 

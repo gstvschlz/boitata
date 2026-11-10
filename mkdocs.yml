@@ -56,41 +56,188 @@ plugins:
   - gallery:
       examples_dirs:
         - learn
-        - examples/01-first-steps
-        - examples/02-data-and-geometry
-        - examples/03-exploratory-analysis
-        - examples/04-transforms
-        - examples/05-spatial-continuity
-        - examples/06-kriging
-        - examples/07-categories-and-domains
-        - examples/08-stochastic-simulation
-        - examples/09-recoverable-resources
-        - examples/10-checking-models
-        - examples/11-geological-modeling
+        - examples/01-getting-started
+        - examples/02-drillholes-and-samples
+        - examples/03-geometry-and-block-models
+        - examples/04-viewing
+        - examples/05-exploratory-analysis
+        - examples/06-transforms
+        - examples/07-variography
+        - examples/08-domains-and-geology
+        - examples/09-estimation
+        - examples/10-simulation
+        - examples/11-validation-and-reporting
         - examples/12-case-studies
-        - examples/13-multiple-point-statistics
-        - examples/14-workflows
       gallery_dirs:
         - docs/learn
-        - docs/examples/01-first-steps
-        - docs/examples/02-data-and-geometry
-        - docs/examples/03-exploratory-analysis
-        - docs/examples/04-transforms
-        - docs/examples/05-spatial-continuity
-        - docs/examples/06-kriging
-        - docs/examples/07-categories-and-domains
-        - docs/examples/08-stochastic-simulation
-        - docs/examples/09-recoverable-resources
-        - docs/examples/10-checking-models
-        - docs/examples/11-geological-modeling
+        - docs/examples/01-getting-started
+        - docs/examples/02-drillholes-and-samples
+        - docs/examples/03-geometry-and-block-models
+        - docs/examples/04-viewing
+        - docs/examples/05-exploratory-analysis
+        - docs/examples/06-transforms
+        - docs/examples/07-variography
+        - docs/examples/08-domains-and-geology
+        - docs/examples/09-estimation
+        - docs/examples/10-simulation
+        - docs/examples/11-validation-and-reporting
         - docs/examples/12-case-studies
-        - docs/examples/13-multiple-point-statistics
-        - docs/examples/14-workflows
       filename_pattern: (example_\d\d_\d\d|learn_\d\d)\.py$
       ignore_pattern: (render|common)\.py$
       within_subsection_order: FileNameSortKey
       show_memory: false
       inspect_global_variables: false
+  - redirects:
+      redirect_maps:
+        examples/01-first-steps/01-quick-tour/example_01_01.md: examples/01-getting-started/01-quick-tour/example_01_01.md
+        examples/01-first-steps/02-block-models/example_01_02.md: examples/01-getting-started/02-block-models/example_01_02.md
+        examples/01-first-steps/03-saving-and-loading/example_01_03.md: examples/01-getting-started/03-saving-and-loading/example_01_03.md
+        examples/01-first-steps/04-parquet/example_01_04.md: examples/01-getting-started/04-parquet/example_01_04.md
+        examples/02-data-and-geometry/01-check-drillholes/example_02_01.md: examples/02-drillholes-and-samples/01-check-drillholes/example_02_01.md
+        examples/02-data-and-geometry/02-desurvey/example_02_02.md: examples/02-drillholes-and-samples/03-desurvey/example_02_03.md
+        examples/02-data-and-geometry/03-compositing/example_02_03.md: examples/02-drillholes-and-samples/04-compositing/example_02_04.md
+        examples/02-data-and-geometry/04-duplicates/example_02_04.md: examples/02-drillholes-and-samples/05-duplicates/example_02_05.md
+        examples/02-data-and-geometry/05-solids/example_02_05.md: examples/03-geometry-and-block-models/05-solids/example_03_05.md
+        examples/02-data-and-geometry/06-sub-blocks/example_02_06.md: examples/03-geometry-and-block-models/04-sub-blocks/example_03_04.md
+        examples/02-data-and-geometry/07-mesh-files/example_02_07.md: examples/03-geometry-and-block-models/13-mesh-files/example_03_13.md
+        examples/02-data-and-geometry/08-polygons/example_02_08.md: examples/03-geometry-and-block-models/10-polygons/example_03_10.md
+        examples/02-data-and-geometry/09-gis-formats/example_02_09.md: examples/03-geometry-and-block-models/14-gis-formats/example_03_14.md
+        examples/02-data-and-geometry/10-large-models/example_02_10.md: examples/03-geometry-and-block-models/03-large-models/example_03_03.md
+        examples/02-data-and-geometry/11-3d-views/example_02_11.md: examples/04-viewing/01-3d-views/example_04_01.md
+        examples/02-data-and-geometry/12-block-model-from-extents/example_02_12.md: examples/03-geometry-and-block-models/01-block-model-from-extents/example_03_01.md
+        examples/02-data-and-geometry/13-runs-and-strip-logs/example_02_13.md: examples/02-drillholes-and-samples/06-runs-and-strip-logs/example_02_06.md
+        examples/02-data-and-geometry/14-domain-cleanup/example_02_14.md: examples/02-drillholes-and-samples/07-domain-cleanup/example_02_07.md
+        examples/02-data-and-geometry/15-mesh-interval-splits/example_02_15.md: examples/02-drillholes-and-samples/08-mesh-interval-splits/example_02_08.md
+        examples/02-data-and-geometry/16-stepped-sections/example_02_16.md: examples/04-viewing/05-stepped-sections/example_04_05.md
+        examples/02-data-and-geometry/17-hole-traces/example_02_17.md: examples/04-viewing/04-hole-traces/example_04_04.md
+        examples/02-data-and-geometry/18-outlines/example_02_18.md: examples/03-geometry-and-block-models/11-outlines/example_03_11.md
+        examples/02-data-and-geometry/19-topography/example_02_19.md: examples/03-geometry-and-block-models/12-topography/example_03_12.md
+        examples/02-data-and-geometry/20-sections-with-holes/example_02_20.md: examples/04-viewing/06-sections-with-holes/example_04_06.md
+        examples/02-data-and-geometry/21-live-scene/example_02_21.md: examples/04-viewing/02-live-scene/example_04_02.md
+        examples/02-data-and-geometry/22-meshes-and-points/example_02_22.md: examples/04-viewing/03-meshes-and-points/example_04_03.md
+        examples/02-data-and-geometry/23-filtering-block-models/example_02_23.md: examples/03-geometry-and-block-models/02-filtering-block-models/example_03_02.md
+        examples/02-data-and-geometry/24-interactive-sections/example_02_24.md: examples/04-viewing/07-interactive-sections/example_04_07.md
+        examples/02-data-and-geometry/25-units/example_02_25.md: examples/02-drillholes-and-samples/09-units/example_02_09.md
+        examples/02-data-and-geometry/26-local-grid/example_02_26.md: examples/02-drillholes-and-samples/10-local-grid/example_02_10.md
+        examples/02-data-and-geometry/27-coordinate-systems/example_02_27.md: examples/02-drillholes-and-samples/11-coordinate-systems/example_02_11.md
+        examples/02-data-and-geometry/28-geojson/example_02_28.md: examples/03-geometry-and-block-models/15-geojson/example_03_15.md
+        examples/02-data-and-geometry/29-vtk-files/example_02_29.md: examples/03-geometry-and-block-models/16-vtk-files/example_03_16.md
+        examples/02-data-and-geometry/30-mesh-sections/example_02_30.md: examples/04-viewing/08-mesh-sections/example_04_08.md
+        examples/02-data-and-geometry/31-mesh-booleans/example_02_31.md: examples/03-geometry-and-block-models/09-mesh-booleans/example_03_09.md
+        examples/03-exploratory-analysis/01-paired-data/example_03_01.md: examples/05-exploratory-analysis/01-paired-data/example_05_01.md
+        examples/03-exploratory-analysis/02-statistics-by-domain/example_03_02.md: examples/05-exploratory-analysis/02-statistics-by-domain/example_05_02.md
+        examples/03-exploratory-analysis/03-declustering/example_03_03.md: examples/05-exploratory-analysis/04-declustering/example_05_04.md
+        examples/03-exploratory-analysis/04-weight-declustering/example_03_04.md: examples/05-exploratory-analysis/05-weight-declustering/example_05_05.md
+        examples/03-exploratory-analysis/05-top-cuts/example_03_05.md: examples/05-exploratory-analysis/06-top-cuts/example_05_06.md
+        examples/03-exploratory-analysis/06-despiking/example_03_06.md: examples/05-exploratory-analysis/07-despiking/example_05_07.md
+        examples/03-exploratory-analysis/07-contacts/example_03_07.md: examples/08-domains-and-geology/05-contacts/example_08_05.md
+        examples/03-exploratory-analysis/08-soft-boundary-statistics/example_03_08.md: examples/08-domains-and-geology/06-soft-boundary-statistics/example_08_06.md
+        examples/03-exploratory-analysis/09-swaths/example_03_09.md: examples/05-exploratory-analysis/08-swaths/example_05_08.md
+        examples/03-exploratory-analysis/10-data-spacing/example_03_10.md: examples/02-drillholes-and-samples/12-data-spacing/example_02_12.md
+        examples/03-exploratory-analysis/11-correlations/example_03_11.md: examples/05-exploratory-analysis/09-correlations/example_05_09.md
+        examples/03-exploratory-analysis/12-spatial-bootstrap/example_03_12.md: examples/05-exploratory-analysis/10-spatial-bootstrap/example_05_10.md
+        examples/03-exploratory-analysis/13-reference-distributions/example_03_13.md: examples/05-exploratory-analysis/11-reference-distributions/example_05_11.md
+        examples/03-exploratory-analysis/14-cleaning-steps/example_03_14.md: examples/05-exploratory-analysis/03-cleaning-steps/example_05_03.md
+        examples/04-transforms/01-normal-score/example_04_01.md: examples/06-transforms/01-normal-score/example_06_01.md
+        examples/04-transforms/02-censored-normal-score/example_04_02.md: examples/06-transforms/02-censored-normal-score/example_06_02.md
+        examples/04-transforms/03-capping-transform/example_04_03.md: examples/06-transforms/03-capping-transform/example_06_03.md
+        examples/04-transforms/04-compositional/example_04_04.md: examples/06-transforms/04-compositional/example_06_04.md
+        examples/04-transforms/05-multivariate-transforms/example_04_05.md: examples/06-transforms/05-multivariate-transforms/example_06_05.md
+        examples/04-transforms/06-imputation/example_04_06.md: examples/06-transforms/06-imputation/example_06_06.md
+        examples/04-transforms/07-spatial-imputation/example_04_07.md: examples/06-transforms/07-spatial-imputation/example_06_07.md
+        examples/04-transforms/08-smooth-trend/example_04_08.md: examples/06-transforms/08-smooth-trend/example_06_08.md
+        examples/04-transforms/09-unfolding/example_04_09.md: examples/06-transforms/09-unfolding/example_06_09.md
+        examples/04-transforms/10-target-distribution-correction/example_04_10.md: examples/06-transforms/10-target-distribution-correction/example_06_10.md
+        examples/04-transforms/11-pipeline/example_04_11.md: examples/06-transforms/11-pipeline/example_06_11.md
+        examples/05-spatial-continuity/01-experimental-variograms/example_05_01.md: examples/07-variography/01-experimental-variograms/example_07_01.md
+        examples/05-spatial-continuity/02-variogram-fitting/example_05_02.md: examples/07-variography/02-variogram-fitting/example_07_02.md
+        examples/05-spatial-continuity/03-variogram-sets/example_05_03.md: examples/07-variography/03-variogram-sets/example_07_03.md
+        examples/05-spatial-continuity/04-variogram-volume/example_05_04.md: examples/07-variography/04-variogram-volume/example_07_04.md
+        examples/05-spatial-continuity/05-downhole-nugget/example_05_05.md: examples/07-variography/05-downhole-nugget/example_07_05.md
+        examples/05-spatial-continuity/06-madogram/example_05_06.md: examples/07-variography/06-madogram/example_07_06.md
+        examples/05-spatial-continuity/07-coregionalization/example_05_07.md: examples/07-variography/07-coregionalization/example_07_07.md
+        examples/05-spatial-continuity/08-intrinsic-coregionalization/example_05_08.md: examples/07-variography/08-intrinsic-coregionalization/example_07_08.md
+        examples/05-spatial-continuity/09-local-variogram-parameters/example_05_09.md: examples/07-variography/09-local-variogram-parameters/example_07_09.md
+        examples/05-spatial-continuity/10-search-plans/example_05_10.md: examples/07-variography/10-search-plans/example_07_10.md
+        examples/05-spatial-continuity/11-nugget-inference/example_05_11.md: examples/07-variography/11-nugget-inference/example_07_11.md
+        examples/06-kriging/01-ordinary-kriging/example_06_01.md: examples/09-estimation/01-ordinary-kriging/example_09_01.md
+        examples/06-kriging/02-simple-estimators/example_06_02.md: examples/09-estimation/02-simple-estimators/example_09_02.md
+        examples/06-kriging/03-universal-kriging/example_06_03.md: examples/09-estimation/03-universal-kriging/example_09_03.md
+        examples/06-kriging/04-external-drift-kriging/example_06_04.md: examples/09-estimation/04-external-drift-kriging/example_09_04.md
+        examples/06-kriging/05-block-kriging/example_06_05.md: examples/09-estimation/05-block-kriging/example_09_05.md
+        examples/06-kriging/06-search/example_06_06.md: examples/09-estimation/06-search/example_09_06.md
+        examples/06-kriging/07-search-calibration/example_06_07.md: examples/09-estimation/07-search-calibration/example_09_07.md
+        examples/06-kriging/08-high-grade-restriction/example_06_08.md: examples/09-estimation/08-high-grade-restriction/example_09_08.md
+        examples/06-kriging/09-cokriging/example_06_09.md: examples/09-estimation/09-cokriging/example_09_09.md
+        examples/06-kriging/10-indicator-kriging/example_06_10.md: examples/09-estimation/10-indicator-kriging/example_09_10.md
+        examples/06-kriging/11-multiple-indicator-kriging/example_06_11.md: examples/09-estimation/11-multiple-indicator-kriging/example_09_11.md
+        examples/06-kriging/12-multigaussian-kriging/example_06_12.md: examples/09-estimation/12-multigaussian-kriging/example_09_12.md
+        examples/06-kriging/13-soft-boundaries/example_06_13.md: examples/09-estimation/13-soft-boundaries/example_09_13.md
+        examples/06-kriging/14-local-anisotropy/example_06_14.md: examples/09-estimation/14-local-anisotropy/example_09_14.md
+        examples/07-categories-and-domains/01-categories/example_07_01.md: examples/08-domains-and-geology/01-categories/example_08_01.md
+        examples/07-categories-and-domains/02-domain-change-tables/example_07_02.md: examples/08-domains-and-geology/02-domain-change-tables/example_08_02.md
+        examples/07-categories-and-domains/03-transition-matrix-mds/example_07_03.md: examples/08-domains-and-geology/03-transition-matrix-mds/example_08_03.md
+        examples/07-categories-and-domains/04-local-proportions/example_07_04.md: examples/08-domains-and-geology/04-local-proportions/example_08_04.md
+        examples/07-categories-and-domains/05-categorical-indicator-kriging/example_07_05.md: examples/09-estimation/15-categorical-indicator-kriging/example_09_15.md
+        examples/07-categories-and-domains/06-sis/example_07_06.md: examples/10-simulation/09-sis/example_10_09.md
+        examples/07-categories-and-domains/07-plurigaussian/example_07_07.md: examples/10-simulation/10-plurigaussian/example_10_10.md
+        examples/07-categories-and-domains/08-grades-in-simulated-rocks/example_07_08.md: examples/10-simulation/11-grades-in-simulated-rocks/example_10_11.md
+        examples/07-categories-and-domains/09-ensemble-domains/example_07_09.md: examples/08-domains-and-geology/07-ensemble-domains/example_08_07.md
+        examples/08-stochastic-simulation/01-sgs/example_08_01.md: examples/10-simulation/01-sgs/example_10_01.md
+        examples/08-stochastic-simulation/02-sgs-shared-path/example_08_02.md: examples/10-simulation/02-sgs-shared-path/example_10_02.md
+        examples/08-stochastic-simulation/03-simulation-at-block-support/example_08_03.md: examples/10-simulation/03-simulation-at-block-support/example_10_03.md
+        examples/08-stochastic-simulation/04-turning-bands/example_08_04.md: examples/10-simulation/04-turning-bands/example_10_04.md
+        examples/08-stochastic-simulation/05-simulation-with-trend/example_08_05.md: examples/10-simulation/05-simulation-with-trend/example_10_05.md
+        examples/08-stochastic-simulation/06-multivariate-simulation/example_08_06.md: examples/10-simulation/06-multivariate-simulation/example_10_06.md
+        examples/08-stochastic-simulation/07-collocated-cosimulation/example_08_07.md: examples/10-simulation/07-collocated-cosimulation/example_10_07.md
+        examples/08-stochastic-simulation/08-direct-sequential-simulation/example_08_08.md: examples/10-simulation/08-direct-sequential-simulation/example_10_08.md
+        examples/09-recoverable-resources/01-discrete-gaussian-model/example_09_01.md: examples/09-estimation/16-discrete-gaussian-model/example_09_16.md
+        examples/09-recoverable-resources/02-uniform-conditioning/example_09_02.md: examples/09-estimation/17-uniform-conditioning/example_09_17.md
+        examples/09-recoverable-resources/03-mik-localization/example_09_03.md: examples/09-estimation/18-mik-localization/example_09_18.md
+        examples/09-recoverable-resources/04-disjunctive-kriging/example_09_04.md: examples/09-estimation/19-disjunctive-kriging/example_09_19.md
+        examples/10-checking-models/01-model-checks/example_10_01.md: examples/11-validation-and-reporting/01-model-checks/example_11_01.md
+        examples/10-checking-models/02-cross-validation/example_10_02.md: examples/11-validation-and-reporting/02-cross-validation/example_11_02.md
+        examples/10-checking-models/03-kriging-diagnostics/example_10_03.md: examples/11-validation-and-reporting/03-kriging-diagnostics/example_11_03.md
+        examples/10-checking-models/04-realization-checks/example_10_04.md: examples/11-validation-and-reporting/04-realization-checks/example_11_04.md
+        examples/10-checking-models/05-classification/example_10_05.md: examples/11-validation-and-reporting/05-classification/example_11_05.md
+        examples/10-checking-models/06-result-plots/example_10_06.md: examples/11-validation-and-reporting/06-result-plots/example_11_06.md
+        examples/10-checking-models/07-section-validation-plates/example_10_07.md: examples/11-validation-and-reporting/07-section-validation-plates/example_11_07.md
+        examples/11-geological-modeling/01-grade-shells/example_11_01.md: examples/08-domains-and-geology/08-grade-shells/example_08_08.md
+        examples/11-geological-modeling/02-contact-surfaces/example_11_02.md: examples/08-domains-and-geology/09-contact-surfaces/example_08_09.md
+        examples/11-geological-modeling/03-structural-data/example_11_03.md: examples/08-domains-and-geology/10-structural-data/example_08_10.md
+        examples/11-geological-modeling/04-layered-surfaces/example_11_04.md: examples/08-domains-and-geology/11-layered-surfaces/example_08_11.md
+        examples/11-geological-modeling/05-large-implicit-models/example_11_05.md: examples/08-domains-and-geology/12-large-implicit-models/example_08_12.md
+        examples/13-multiple-point-statistics/01-snesim-multigrid/example_13_01.md: examples/10-simulation/12-snesim-multigrid/example_10_12.md
+        examples/13-multiple-point-statistics/02-snesim-conditioning/example_13_02.md: examples/10-simulation/13-snesim-conditioning/example_10_13.md
+        examples/13-multiple-point-statistics/03-snesim-continuous/example_13_03.md: examples/10-simulation/14-snesim-continuous/example_10_14.md
+        examples/13-multiple-point-statistics/04-snesim-rotation-affinity/example_13_04.md: examples/10-simulation/15-snesim-rotation-affinity/example_10_15.md
+        examples/13-multiple-point-statistics/05-snesim-training-images-by-zone/example_13_05.md: examples/10-simulation/16-snesim-training-images-by-zone/example_10_16.md
+        examples/13-multiple-point-statistics/06-snesim-soft-data/example_13_06.md: examples/10-simulation/17-snesim-soft-data/example_10_17.md
+        examples/13-multiple-point-statistics/07-training-images/example_13_07.md: examples/10-simulation/18-training-images/example_10_18.md
+        examples/13-multiple-point-statistics/08-image-quilting/example_13_08.md: examples/10-simulation/19-image-quilting/example_10_19.md
+        examples/13-multiple-point-statistics/09-image-quilting-continuous/example_13_09.md: examples/10-simulation/20-image-quilting-continuous/example_10_20.md
+        examples/13-multiple-point-statistics/10-seismic-volumes/example_13_10.md: examples/10-simulation/21-seismic-volumes/example_10_21.md
+        examples/14-workflows/01-solid-proportions/example_14_01.md: examples/03-geometry-and-block-models/06-solid-proportions/example_03_06.md
+        examples/14-workflows/02-sub-blocks-from-solids/example_14_02.md: examples/03-geometry-and-block-models/07-sub-blocks-from-solids/example_03_07.md
+        examples/14-workflows/03-degenerate-solids/example_14_03.md: examples/03-geometry-and-block-models/08-degenerate-solids/example_03_08.md
+        examples/14-workflows/04-drillhole-audit/example_14_04.md: examples/02-drillholes-and-samples/02-drillhole-audit/example_02_02.md
+        examples/14-workflows/05-compare-two-estimates/example_14_05.md: examples/11-validation-and-reporting/08-compare-two-estimates/example_11_08.md
+        examples/14-workflows/06-grade-tonnage-and-metal/example_14_06.md: examples/11-validation-and-reporting/09-grade-tonnage-and-metal/example_11_09.md
+        examples/14-workflows/07-drillhole-spacing-virtual-grids/example_14_07.md: examples/02-drillholes-and-samples/13-drillhole-spacing-virtual-grids/example_02_13.md
+        examples/14-workflows/08-drillhole-spacing-learning-curve/example_14_08.md: examples/02-drillholes-and-samples/14-drillhole-spacing-learning-curve/example_02_14.md
+        examples/01-first-steps/index.md: examples/01-getting-started/index.md
+        examples/02-data-and-geometry/index.md: examples/03-geometry-and-block-models/index.md
+        examples/03-exploratory-analysis/index.md: examples/05-exploratory-analysis/index.md
+        examples/04-transforms/index.md: examples/06-transforms/index.md
+        examples/05-spatial-continuity/index.md: examples/07-variography/index.md
+        examples/06-kriging/index.md: examples/09-estimation/index.md
+        examples/07-categories-and-domains/index.md: examples/08-domains-and-geology/index.md
+        examples/08-stochastic-simulation/index.md: examples/10-simulation/index.md
+        examples/09-recoverable-resources/index.md: examples/09-estimation/index.md
+        examples/10-checking-models/index.md: examples/11-validation-and-reporting/index.md
+        examples/11-geological-modeling/index.md: examples/08-domains-and-geology/index.md
+        examples/13-multiple-point-statistics/index.md: examples/10-simulation/index.md
+        examples/14-workflows/index.md: examples/02-drillholes-and-samples/index.md
   - mkdocstrings:
       handlers:
         python:
@@ -130,6 +277,7 @@ nav:
   - Home: index.md
   - Install: install.md
   - Learn: learn
+  - Case studies: examples/12-case-studies
   - Guide:
       - How boitatá is organized: guide/organization.md
       - Containers and Arrow: guide/containers.md
@@ -138,18 +286,15 @@ nav:
       - Which page do I need?: guide/finder.md
       - Glossary: guide/glossary.md
   - Examples:
-      - First steps: examples/01-first-steps
-      - Data and geometry: examples/02-data-and-geometry
-      - Exploratory analysis: examples/03-exploratory-analysis
-      - Transforms: examples/04-transforms
-      - Spatial continuity: examples/05-spatial-continuity
-      - Kriging: examples/06-kriging
-      - Categories and domains: examples/07-categories-and-domains
-      - Stochastic simulation: examples/08-stochastic-simulation
-      - Recoverable resources: examples/09-recoverable-resources
-      - Checking models: examples/10-checking-models
-      - Geological modeling: examples/11-geological-modeling
-      - Case studies: examples/12-case-studies
-      - Multiple-point statistics: examples/13-multiple-point-statistics
-      - Workflows: examples/14-workflows
+      - Getting started: examples/01-getting-started
+      - Drill holes and samples: examples/02-drillholes-and-samples
+      - Geometry and block models: examples/03-geometry-and-block-models
+      - Viewing: examples/04-viewing
+      - Exploratory analysis: examples/05-exploratory-analysis
+      - Transforms: examples/06-transforms
+      - Variography: examples/07-variography
+      - Domains and geology: examples/08-domains-and-geology
+      - Estimation: examples/09-estimation
+      - Simulation: examples/10-simulation
+      - Validation and reporting: examples/11-validation-and-reporting
   - API: []

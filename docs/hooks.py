@@ -171,10 +171,10 @@ def trail(chapters, number):
 
 
 def script_pages(root):
-    """(page path under docs/, title, source) for each Learn and example script: Learn, then Workflows, then the rest."""
+    """(page path under docs/, title, source) for each Learn and example script: Learn, then case studies, then the rest."""
     scripts = sorted(root.glob("learn/*/learn_*.py"))
-    workflows = sorted(root.glob("examples/14-*/*/example_*.py"))
-    scripts += workflows + [p for p in sorted(root.glob("examples/*/*/example_*.py")) if p not in workflows]
+    cases = sorted(root.glob("examples/12-case-studies/*/example_*.py"))
+    scripts += cases + [p for p in sorted(root.glob("examples/*/*/example_*.py")) if p not in cases]
     for path in scripts:
         text = path.read_text("utf-8")
         title = DOC_TITLE.match(text)

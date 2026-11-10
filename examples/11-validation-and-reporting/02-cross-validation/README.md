@@ -1,0 +1,74 @@
+# Cross-validation
+
+Ordinary kriging of the metal survey `V` re-estimates each sample from the others, with the same variogram and search:
+leave-one-out, then k-fold with fewer and fewer folds.
+
+<details><summary>Python</summary>
+
+```python
+import boitata as bt
+import matplotlib.pyplot as plt
+import numpy as np
+from common import save
+
+samples = bt.datasets.clustered_metal_survey()
+xy, v = samples.coords, samples["V"]
+azimuths = np.arange(0, 180, 22.5)
+directional = [bt.experimental_variogram(xy, v, 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
+    directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
+)
+search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+kriging = bt.OrdinaryKriging(model, search).fit(xy, v)
+```
+
+</details>
+
+Leave-one-out removes one sample at a time. K-fold removes a whole fold, sample `i` going to fold `i % k`, so each
+estimate sees data a fraction `1/k` sparser. The slope comes from the regression of actual on estimated values and
+is 1 without conditional bias. The standardized squared error is the mean of error² over kriging variance, 1 when
+the kriging variance is calibrated.
+
+<details><summary>Python</summary>
+
+```python
+results = {}
+for folds in (None, 10, 5, 2):
+    name = "leave-one-out" if folds is None else f"{folds}-fold"
+    cv = results[name] = kriging.cross_validate(folds=folds)
+    print(
+        f"{name:>13}: RMSE {cv.rmse:5.1f} ppm, correlation {cv.correlation:.2f}, slope {cv.slope:.2f}, "
+        f"standardized squared error {cv.standardized_squared_error:.2f}"
+    )
+```
+
+</details>
+
+```text
+leave-one-out: RMSE 153.5 ppm, correlation 0.84, slope 1.04, standardized squared error 0.72
+      10-fold: RMSE 156.5 ppm, correlation 0.83, slope 1.03, standardized squared error 0.73
+       5-fold: RMSE 158.2 ppm, correlation 0.82, slope 1.04, standardized squared error 0.72
+       2-fold: RMSE 164.3 ppm, correlation 0.81, slope 1.06, standardized squared error 0.72
+```
+
+Errors grow as folds get fewer. Leave-one-out judges the model at the sample spacing, which in the clustered areas
+is finer than most blocks see. A slope above 1 and a standardized squared error below 1 hold at each k: high
+estimates understate the samples a little, and the kriging variance is too large. `bt.plot.cross_validation`
+([result plots](../../11-validation-and-reporting/06-result-plots/README.md)) draws a result as actual against estimate, with the regression line and these statistics:
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(1, 2, figsize=(9, 4.2))
+for ax, name in zip(axes, ("leave-one-out", "2-fold"), strict=True):
+    bt.plot.cross_validation(results[name], ax=ax)
+    ax.set_title(name.capitalize())
+fig.tight_layout()
+save(fig, "cross_validation")
+```
+
+</details>
+
+![cross_validation](cross_validation.png)
+
+Full script: [`example_11_02.py`](example_11_02.py)
