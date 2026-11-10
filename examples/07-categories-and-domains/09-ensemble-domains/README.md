@@ -106,9 +106,9 @@ for r, name in enumerate(rocks.names):
 
 ```text
          D1    D2    D3      n
-OB      63%   37%    0%     30
-HWS     74%   26%    0%    202
-VCL     58%   40%    3%   3789
+OB      61%   39%    0%     23
+HWS     73%   27%    0%    210
+VCL     58%   40%    3%   3788
 SUL      0%   18%   82%   1008
 FWV     34%   65%    1%   1454
 DYK     26%   68%    5%     19

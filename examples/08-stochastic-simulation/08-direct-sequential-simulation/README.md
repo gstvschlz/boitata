@@ -55,8 +55,8 @@ print(f"normal scores: {gaussian}\ngrades:        {raw}")
 </details>
 
 ```text
-normal scores: Variogram(nugget=0.08618178903417904, structures=[Structure("spherical", sill=0.913818210965821, range=124.0562547366332)], rotation=(170.0, 0.0, 0.0), ratios=(0.4095872533818296, 1.0))
-grades:        Variogram(nugget=0.21560080761689654, structures=[Structure("spherical", sill=0.7843991923831034, range=102.90381954293758)], rotation=(170.0, 0.0, 0.0), ratios=(0.4598890787188343, 1.0))
+normal scores: Variogram([('spherical', 0.913818210965821, 124.0562547366332)], nugget=0.08618178903417904, rotation=(170.0, 0.0, 0.0), ratios=(0.4095872533818296, 1.0))
+grades:        Variogram([('spherical', 0.7843991923831034, 102.90381954293758)], nugget=0.21560080761689654, rotation=(170.0, 0.0, 0.0), ratios=(0.4598890787188343, 1.0))
 ```
 
 DSS simple kriges each node with the declustered mean and draws it from the declustered histogram, as the

@@ -21,7 +21,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
     - What makes a triangle mesh a valid solid, and the defects that break it.
     - How to read the `MeshReport` from `Mesh.validate`: a summary of counts and one row per problem.
     - What `Mesh.repair` fixes, and how to fix a hole or a stray triangle it leaves.
-    - Why a closed mesh can still give a wrong volume.
+    - Why a closed mesh can still give a wrong inside test.
 
     Prerequisites: [solids](../../02-data-and-geometry/05-solids/README.md) and [mesh files](../../02-data-and-geometry/07-mesh-files/README.md), which repairs a mesh read as loose triangles.
 
@@ -129,8 +129,8 @@ volume: invalid geometry: volume needs a closed mesh
 contains: mesh is not closed; this needs a solid
 ```
 
-The flipped patch alone leaves the mesh closed, so neither call raises. Its volume is wrong, and so is the inside
-test near the patch. Twenty thousand random points in the lens's bounding box show it:
+The flipped patch alone leaves the mesh closed. `volume` still raises, because it checks the winding, but the
+inside test runs and is wrong near the patch. Twenty thousand random points in the lens's bounding box show it:
 
 <details><summary>Python</summary>
 
@@ -143,10 +143,10 @@ low, high = np.array(lens.bounds)
 points = low + rng.random((20_000, 3)) * (high - low)
 truth = lens.contains(points)
 print(f"closed: {closed_but_wrong.is_closed}")
-print(
-    f"volume {closed_but_wrong.volume:,.0f} m3 against {lens.volume:,.0f} m3 "
-    f"({closed_but_wrong.volume / lens.volume - 1:+.1%})"
-)
+try:
+    print(f"volume {closed_but_wrong.volume:,.0f} m3")
+except ValueError as error:
+    print(f"volume: {error}")
 wrong = closed_but_wrong.contains(points) != truth
 print(f"{truth.sum()} points inside, {wrong.sum()} classified wrong")
 ```
@@ -155,13 +155,13 @@ print(f"{truth.sum()} points inside, {wrong.sum()} classified wrong")
 
 ```text
 closed: True
-volume 1,750,809 m3 against 1,907,872 m3 (-8.2%)
+volume: invalid geometry: volume needs a consistently wound mesh; call repair() first
 611 points inside, 36 classified wrong
 ```
 
 !!! pitfall "Pitfall"
-    `is_closed` checks only the edges. A closed mesh with a flipped patch passes it and gives a volume
-    that looks plausible. Read `inconsistent_edges` and `inward_shells` in the report before trusting a volume.
+    `is_closed` checks only the edges. A closed mesh with a flipped patch passes it, and `contains` answers
+    without an error. Read `inconsistent_edges` and `inward_shells` in the report before trusting an inside test.
 
 !!! step "Step 1: Validate"
     `validate` counts each kind of problem in `summary` and lists them in `problems`, a table with one row per

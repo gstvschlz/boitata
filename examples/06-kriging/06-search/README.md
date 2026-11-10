@@ -89,8 +89,8 @@ save(fig, "shapes")
           search  RMSE  samples  mean distance  cross-validation RMSE
           circle  144.7   22.1       31.0 m         153.2
          ellipse  144.7   23.6       29.2 m         153.5
-ellipse, octants  144.5   20.9       29.3 m         153.3
-ellipse, 6 sectors  144.0   19.5       27.8 m         153.5
+ellipse, octants  144.5   20.9       29.3 m         153.7
+ellipse, 6 sectors  144.0   19.5       27.8 m         153.6
 ```
 
 ![shapes](shapes.png)
@@ -206,7 +206,7 @@ print(
 9% of the samples are above 800 ppm
 591 nodes lowered by over 5 ppm; their mean error goes from +12 ppm to -11 ppm
 53 nodes raised by over 5 ppm; their mean error goes from -17 ppm to -9 ppm
-cross-validation mean error +6.6 ppm without the restriction, +1.1 with
+cross-validation mean error +7.2 ppm without the restriction, +1.7 with
 ```
 
 <details><summary>Python</summary>
