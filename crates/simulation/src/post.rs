@@ -450,6 +450,44 @@ pub fn continuous_batched(
     Ok(acc.finish())
 }
 
+/// As [`continuous`] over `targets` targets taken `part` at a time:
+/// `simulate(range)` returns every realization at the targets `range`, in
+/// order. The summary does not depend on `part`.
+pub fn continuous_in_parts(
+    n: usize,
+    targets: usize,
+    options: &ContinuousOptions,
+    part: usize,
+    mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<Vec<Vec<f64>>>,
+) -> Result<ContinuousSummary> {
+    if n == 0 {
+        return Err(SimError::InvalidParameters(
+            "need at least one realization".into(),
+        ));
+    }
+    let mut acc = Accumulator::new(n, options)?;
+    acc.targets = Some(targets);
+    let mut start = 0;
+    loop {
+        let end = (start + part.max(1)).min(targets);
+        let done = simulate(start..end)?;
+        if done.len() != n || done.iter().any(|v| v.len() != end - start) {
+            return Err(SimError::InvalidParameters(format!(
+                "{n} realizations of {} targets needed",
+                end - start
+            )));
+        }
+        for (k, values) in done.iter().enumerate() {
+            acc.add_part(k, start, values)?;
+        }
+        start = end;
+        if start >= targets {
+            break;
+        }
+    }
+    Ok(acc.finish())
+}
+
 /// As [`continuous`], simulating realizations `batch` at a time:
 /// `simulate(range)` prepares a batch and `realization(&batch, i)` returns
 /// its `i`-th realization; realizations reach the summary in order, one at a
@@ -559,12 +597,18 @@ pub fn continuous_many_batched(
 struct Accumulator<'a> {
     options: &'a ContinuousOptions,
     targets: Option<usize>,
-    k: f64,
+    /// Realizations begun: one past the highest index added.
+    realized: usize,
     mean: Vec<f64>,
     m2: Vec<f64>,
     above: Vec<Vec<u32>>,
     sum_above: Vec<Vec<f64>>,
     stored: Vec<f64>,
+    /// Per realization, the running sum of its values, its count at or
+    /// above each cutoff and its tonnes and metal `[group][cutoff]`.
+    sums: Vec<f64>,
+    counts: Vec<Vec<usize>>,
+    tonnes: Vec<Vec<Vec<(f64, f64)>>>,
     out: ContinuousSummary,
 }
 
@@ -632,12 +676,15 @@ impl<'a> Accumulator<'a> {
         Ok(Self {
             options,
             targets: None,
-            k: 0.0,
+            realized: 0,
             mean: vec![],
             m2: vec![],
             above: vec![vec![]; nc],
             sum_above: vec![vec![]; nc],
             stored: vec![],
+            sums: vec![],
+            counts: vec![],
+            tonnes: vec![],
             out: ContinuousSummary {
                 n,
                 mean: vec![],
@@ -665,41 +712,68 @@ impl<'a> Accumulator<'a> {
                 "realizations differ in length".into(),
             ));
         }
-        let index = self.out.realization_mean.len();
-        let nc = self.options.cutoffs.len();
-        if self.k == 0.0 {
+        self.add_part(self.realized, 0, &values)
+    }
+
+    /// Adds realization `k` at targets `offset..offset + values.len()` of
+    /// [`Self::targets`]; each target takes its realizations in order.
+    fn add_part(&mut self, k: usize, offset: usize, values: &[f64]) -> Result<()> {
+        let m = self.targets.expect("set before the first part");
+        let (n, nc) = (self.out.n, self.options.cutoffs.len());
+        if self.sums.is_empty() {
             (self.mean, self.m2) = (vec![0.0; m], vec![0.0; m]);
             self.above = vec![vec![0u32; m]; nc];
             self.sum_above = vec![vec![0.0; m]; nc];
+            // The start of `Iterator::sum`, so a realization sums as one slice would.
+            self.sums = vec![std::iter::empty::<f64>().sum(); n];
+            self.counts = vec![vec![0; nc]; n];
+            if let Some(out) = &self.out.grade_tonnage {
+                self.tonnes = vec![vec![vec![(0.0, 0.0); out.cutoffs.len()]; out.groups.len()]; n];
+            }
+            if self.options.stores() {
+                self.stored = vec![0.0; n * m];
+            }
+            self.out.realizations = vec![vec![0.0; m]; self.out.kept.len()];
         }
-        self.k += 1.0;
-        for (i, &v) in values.iter().enumerate() {
-            let delta = v - self.mean[i];
-            self.mean[i] += delta / self.k;
-            self.m2[i] += delta * (v - self.mean[i]);
+        if let Some(t) = &self.options.tonnage
+            && t.tonnes.len() != m
+        {
+            return Err(SimError::InvalidParameters(format!(
+                "{} tonnes for {m} targets",
+                t.tonnes.len()
+            )));
+        }
+        let end = offset + values.len();
+        if k >= n || end > m {
+            return Err(SimError::InvalidParameters(format!(
+                "realization {k} at targets {offset}..{end} outside {n} realizations of {m} targets"
+            )));
+        }
+        self.realized = self.realized.max(k + 1);
+        let count = (k + 1) as f64;
+        let (mean, m2) = (&mut self.mean[offset..end], &mut self.m2[offset..end]);
+        for ((&v, mean), m2) in values.iter().zip(mean).zip(m2) {
+            let delta = v - *mean;
+            *mean += delta / count;
+            *m2 += delta * (v - *mean);
         }
         for (c, &cut) in self.options.cutoffs.iter().enumerate() {
-            let mut count = 0usize;
-            for (i, &v) in values.iter().enumerate() {
+            let (above, sum_above) = (
+                &mut self.above[c][offset..end],
+                &mut self.sum_above[c][offset..end],
+            );
+            for ((&v, above), sum) in values.iter().zip(above).zip(sum_above) {
                 if v >= cut {
-                    self.above[c][i] += 1;
-                    self.sum_above[c][i] += v;
-                    count += 1;
+                    *above += 1;
+                    *sum += v;
+                    self.counts[k][c] += 1;
                 }
             }
-            self.out.realization_above[c].push(count as f64 / m.max(1) as f64);
         }
-        if let (Some(t), Some(out)) = (&self.options.tonnage, &mut self.out.grade_tonnage) {
-            if t.tonnes.len() != m {
-                return Err(SimError::InvalidParameters(format!(
-                    "{} tonnes for {m} targets",
-                    t.tonnes.len()
-                )));
-            }
-            let nc = t.cutoffs.len();
+        if let (Some(t), Some(out)) = (&self.options.tonnage, &self.out.grade_tonnage) {
             let all = out.groups.len() - 1;
-            let mut sums = vec![vec![(0.0, 0.0); nc]; out.groups.len()];
-            for (i, &v) in values.iter().enumerate() {
+            let sums = &mut self.tonnes[k];
+            for (i, &v) in (offset..end).zip(values) {
                 let group = t.categories.as_ref().and_then(|c| c[i]).map(|code| {
                     out.groups[..all]
                         .binary_search(&Some(code))
@@ -712,21 +786,13 @@ impl<'a> Accumulator<'a> {
                     }
                 }
             }
-            for (g, row) in sums.iter().enumerate() {
-                for (c, &(tonnes, metal)) in row.iter().enumerate() {
-                    out.tonnage[g][c].push(tonnes);
-                    out.metal[g][c].push(metal);
-                }
-            }
         }
-        self.out
-            .realization_mean
-            .push(values.iter().sum::<f64>() / m.max(1) as f64);
+        self.sums[k] = values.iter().fold(self.sums[k], |s, &v| s + v);
         if self.options.stores() {
-            self.stored.extend_from_slice(&values);
+            self.stored[k * m + offset..k * m + end].copy_from_slice(values);
         }
-        if self.options.keep.keeps(index) {
-            self.out.realizations.push(values);
+        if let Ok(p) = self.out.kept.binary_search(&k) {
+            self.out.realizations[p][offset..end].copy_from_slice(values);
         }
         Ok(())
     }
@@ -735,15 +801,33 @@ impl<'a> Accumulator<'a> {
         let Self {
             options,
             targets,
-            k,
+            realized,
             mean,
             m2,
             above,
             sum_above,
             stored,
+            sums,
+            counts,
+            tonnes,
             mut out,
         } = self;
         let (m, n) = (targets.unwrap_or(0), out.n);
+        let k = realized as f64;
+        for r in 0..realized {
+            out.realization_mean.push(sums[r] / m.max(1) as f64);
+            for (c, above) in out.realization_above.iter_mut().enumerate() {
+                above.push(counts[r][c] as f64 / m.max(1) as f64);
+            }
+            if let Some(gt) = &mut out.grade_tonnage {
+                for (g, row) in tonnes[r].iter().enumerate() {
+                    for (c, &(t, metal)) in row.iter().enumerate() {
+                        gt.tonnage[g][c].push(t);
+                        gt.metal[g][c].push(metal);
+                    }
+                }
+            }
+        }
         out.variance = m2.iter().map(|s| s / k).collect();
         out.mean = mean;
         out.probability_above = above
@@ -1880,6 +1964,38 @@ mod tests {
             assert_eq!(s.realizations, whole.realizations);
         }
         assert!(continuous_batched(3, &options, 4, |_| Ok(vec![])).is_err());
+    }
+
+    #[test]
+    fn summary_in_parts_does_not_depend_on_the_part() {
+        let options = ContinuousOptions {
+            cutoffs: vec![2.0, 7.0, 99.0],
+            quantiles: vec![0.1, 0.5],
+            keep: Keep::Indices(vec![9, 2]),
+            tonnage: Some(TonnageOptions {
+                cutoffs: vec![1.0, 6.0],
+                tonnes: vec![1.0, 2.5, 0.5, 3.0, 1.0],
+                categories: Some(vec![Some(1), None, Some(0), Some(1), Some(0)]),
+                names: vec!["a".into(), "b".into()],
+            }),
+            tolerances: vec![0.3],
+        };
+        let whole = format!("{:?}", continuous(23, &options, fake).unwrap());
+        for part in [1, 2, 5, 9] {
+            let s = continuous_in_parts(23, 5, &options, part, |range| {
+                (0..23)
+                    .map(|k| Ok(fake(k)?[range.clone()].to_vec()))
+                    .collect()
+            })
+            .unwrap();
+            assert_eq!(format!("{s:?}"), whole, "part {part}");
+        }
+        let empty = ContinuousOptions::default();
+        let none = continuous_in_parts(3, 0, &empty, 4, |_| Ok(vec![vec![]; 3])).unwrap();
+        assert_eq!(none.realization_mean.len(), 3);
+        assert!(continuous_in_parts(3, 5, &empty, 2, |r| Ok(vec![vec![0.0; r.len()]; 2])).is_err());
+        assert!(continuous_in_parts(3, 5, &empty, 2, |_| Ok(vec![vec![0.0]; 3])).is_err());
+        assert!(continuous_in_parts(0, 5, &empty, 2, |_| Ok(vec![])).is_err());
     }
 
     fn model3(index: Option<Vec<u64>>) -> BlockModel {
