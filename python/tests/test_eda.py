@@ -533,3 +533,23 @@ def test_capping_warns_when_the_metal_target_is_out_of_reach():
     with pytest.warns(UserWarning, match="out of reach"):
         capping = bt.Capping(metal_removed=0.9).fit(values)
     assert capping.metal_removed_ == pytest.approx(1 / 3)
+
+
+def test_grade_tonnage_categories_normalise_labels():
+    t = bt.grade_tonnage(np.array([0.5, 1.5, 2.5, 3.0]), [1.0], categories=np.array([1, 2, np.nan, 1.0]))
+    assert list(t["category"]) == ["1", "2", "all"]
+    assert list(t["tonnage"]) == [1.0, 1.0, 3.0]
+    d = bt.describe_by(np.array([1.0, 2.0, 3.0]), np.array(["a", None, "a"], dtype=object))
+    assert list(d["category"]) == ["a", "all"] and list(d["n"]) == [2, 3]
+
+
+def test_validate_model_pairs_int_and_float_domains():
+    v = rng.lognormal(0, 1, 20)
+    blocks = bt.BlockModel(
+        (0, 0, 0), (10, 10, 10), (20, 1, 1), attributes={"g": v, "rock": np.arange(20) % 2}
+    )
+    rock = (np.arange(20) % 2).astype(float)
+    rock[0] = np.nan
+    samples = bt.PointSet(blocks.coords, {"v": v, "rock": rock})
+    t = bt.validate_model(blocks, "g", samples, "v", domain_column="rock")
+    assert sorted(set(t["domain"])) == ["0", "1", "all"]
