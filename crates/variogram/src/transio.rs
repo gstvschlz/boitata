@@ -40,9 +40,14 @@ impl Transiogram {
         if proportions.is_empty() {
             return Err(VarioError::InvalidParameters("no categories".into()));
         }
-        if range <= 0.0 {
+        if !(range > 0.0 && range.is_finite()) {
             return Err(VarioError::InvalidParameters(
-                "range must be positive".into(),
+                "range must be finite and > 0".into(),
+            ));
+        }
+        if !proportions.iter().all(|p| (0.0..=1.0).contains(p)) {
+            return Err(VarioError::InvalidParameters(
+                "proportions must be in [0, 1]".into(),
             ));
         }
         let sum: f64 = proportions.iter().sum();
@@ -58,9 +63,9 @@ impl Transiogram {
         self.proportions.len()
     }
 
-    /// Transition probability `t_ij(h)`.
+    /// Transition probability `t_ij(h)`, symmetric in `h`.
     pub fn transition(&self, i: usize, j: usize, h: f64) -> f64 {
-        let decay = (-h / self.range).exp();
+        let decay = (-h.abs() / self.range).exp();
         if i == j {
             self.proportions[i] + (1.0 - self.proportions[i]) * decay
         } else {
@@ -102,9 +107,12 @@ pub fn empirical_transiogram(
             "locations and categories length mismatch".into(),
         ));
     }
-    if n_categories == 0 || lag_width <= 0.0 || max_lag <= 0.0 {
+    if n_categories == 0 {
+        return Err(VarioError::InvalidParameters("no categories".into()));
+    }
+    if !(lag_width > 0.0 && lag_width.is_finite() && max_lag > 0.0 && max_lag.is_finite()) {
         return Err(VarioError::InvalidParameters(
-            "invalid transiogram parameters".into(),
+            "lag_width and max_lag must be finite and > 0".into(),
         ));
     }
     for &c in categories {
@@ -222,5 +230,35 @@ mod tests {
                 assert!((s - 1.0).abs() < 1e-9 || s == 0.0);
             }
         }
+    }
+
+    #[test]
+    fn invalid_inputs_are_rejected() {
+        assert!(Transiogram::new(vec![1.5, -0.5], 10.0).is_err());
+        assert!(Transiogram::new(vec![f64::NAN, 1.0], 10.0).is_err());
+        assert!(Transiogram::new(vec![0.5, 0.5], f64::NAN).is_err());
+        assert!(Transiogram::new(vec![0.5, 0.5], f64::INFINITY).is_err());
+        let locs: Vec<_> = (0..50)
+            .map(|i| {
+                let t = i as f64;
+                ((t * 37.3) % 50.0, (t * 17.9) % 50.0, 0.0)
+            })
+            .collect();
+        let cats: Vec<usize> = (0..50).map(|i| i % 2).collect();
+        assert!(empirical_transiogram(&locs, &cats, 2, 50.0, f64::NAN).is_err());
+        assert!(empirical_transiogram(&locs, &cats, 2, f64::NAN, 10.0).is_err());
+        assert!(empirical_transiogram(&locs, &cats, 2, f64::INFINITY, 10.0).is_err());
+    }
+
+    #[test]
+    fn negative_lag_is_symmetric() {
+        let t = Transiogram::new(vec![0.5, 0.5], 10.0).unwrap();
+        assert_eq!(t.matrix(-20.0), t.matrix(20.0));
+        assert!(
+            t.matrix(-20.0)
+                .iter()
+                .flatten()
+                .all(|p| (0.0..=1.0).contains(p))
+        );
     }
 }

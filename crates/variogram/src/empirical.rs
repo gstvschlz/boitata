@@ -52,6 +52,27 @@ impl Direction {
         let cosd = dip.cos();
         (cosd * az.sin(), cosd * az.cos(), -dip.sin())
     }
+
+    /// Finite angles, a tolerance in [0, 90] degrees and a finite positive
+    /// bandwidth when one is given.
+    pub fn validate(&self) -> Result<()> {
+        if !(self.azimuth.is_finite() && self.dip.is_finite()) {
+            return Err(VarioError::InvalidParameters(
+                "direction azimuth and dip must be finite".into(),
+            ));
+        }
+        if !(0.0..=90.0).contains(&self.tolerance) {
+            return Err(VarioError::InvalidParameters(
+                "direction tolerance must be in [0, 90] degrees".into(),
+            ));
+        }
+        if self.bandwidth.is_some_and(|b| !(b > 0.0 && b.is_finite())) {
+            return Err(VarioError::InvalidParameters(
+                "direction bandwidth must be finite and > 0".into(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 /// Where the values sit.
@@ -134,6 +155,7 @@ pub fn experimental<'a>(
 ) -> Result<Experimental> {
     let locations = locations.into();
     check(locations, values, bins)?;
+    direction.map(Direction::validate).transpose()?;
     let scale = scale(values, estimator, standardize)?;
     let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, _| {
         both_ways(values[i], values[j])
@@ -186,6 +208,7 @@ pub fn experimental_local(
     standardize: bool,
 ) -> Result<Experimental> {
     check(Support::Points(locations), values, bins)?;
+    direction.map(Direction::validate).transpose()?;
     if rotations.len() != locations.len() {
         return Err(VarioError::InvalidParameters(
             "one rotation per location".into(),
@@ -234,6 +257,7 @@ pub fn cross_experimental<'a>(
 ) -> Result<Experimental> {
     let locations = locations.into();
     check(locations, values, bins)?;
+    direction.map(Direction::validate).transpose()?;
     if !matches!(estimator, Estimator::Matheron | Estimator::Covariance) {
         return Err(VarioError::InvalidParameters(
             "cross-variograms take the matheron or covariance estimator".into(),
@@ -406,6 +430,7 @@ pub fn downhole(
     standardize: bool,
 ) -> Result<Experimental> {
     check(Support::Points(locations), values, bins)?;
+    direction.map(Direction::validate).transpose()?;
     if holes.len() != values.len() {
         return Err(VarioError::InsufficientData(
             "holes must have one id per location".into(),
@@ -1556,5 +1581,45 @@ mod tests {
         let heads = centers(&geometry, &cells);
         let c = Estimator::Covariance;
         assert!(cross_experimental(on, &a, Some(&heads), &a, &bins, c, None, false).is_err());
+    }
+
+    #[test]
+    fn bad_direction_is_rejected() {
+        let p: Vec<_> = (0..50)
+            .map(|i| {
+                let t = i as f64;
+                ((t * 37.3) % 50.0, (t * 17.9) % 50.0, 0.0)
+            })
+            .collect();
+        let v: Vec<f64> = (0..50).map(|i| (i as f64 * 0.7).sin()).collect();
+        let bins = LagBins {
+            max_lag: 50.0,
+            lag_width: 10.0,
+        };
+        let cone = |azimuth, tolerance, bandwidth| Direction {
+            azimuth,
+            dip: 0.0,
+            tolerance,
+            bandwidth,
+        };
+        let m = Estimator::Matheron;
+        for d in [
+            cone(0.0, f64::NAN, None),
+            cone(0.0, -1.0, None),
+            cone(0.0, 91.0, None),
+            cone(f64::NAN, 22.5, None),
+            cone(0.0, 22.5, Some(-1.0)),
+            cone(0.0, 22.5, Some(0.0)),
+            cone(0.0, 22.5, Some(f64::NAN)),
+        ] {
+            assert!(
+                experimental(&p[..], &v, &bins, m, Some(&d), false).is_err(),
+                "{d:?}"
+            );
+            assert!(downhole(&p, &v, &[0; 50], &bins, m, Some(&d), false).is_err());
+            assert!(cross_experimental(&p[..], &v, None, &v, &bins, m, Some(&d), false).is_err());
+        }
+        let ok = cone(0.0, 22.5, Some(5.0));
+        assert!(experimental(&p[..], &v, &bins, m, Some(&ok), false).is_ok());
     }
 }

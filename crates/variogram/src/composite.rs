@@ -1,6 +1,7 @@
 //! Composite variogram: nugget + nested structures, with optional anisotropy.
 
 use crate::aniso::{Anisotropy, euclidean};
+use crate::error::{Result, VarioError};
 use crate::model::{Model, Structure};
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +31,19 @@ impl Variogram {
     pub fn with_anisotropy(mut self, aniso: Anisotropy) -> Self {
         self.anisotropy = Some(aniso);
         self
+    }
+
+    /// A finite nugget >= 0 and valid structures and anisotropy.
+    pub fn validate(&self) -> Result<()> {
+        if !(self.nugget >= 0.0 && self.nugget.is_finite()) {
+            return Err(VarioError::InvalidParameters(
+                "nugget must be finite and >= 0".into(),
+            ));
+        }
+        self.structures.iter().try_for_each(Structure::validate)?;
+        self.anisotropy
+            .as_ref()
+            .map_or(Ok(()), |a| a.angles.validate())
     }
 
     /// Total sill `C(0) = nugget + Σ partial sills`.
@@ -214,5 +228,42 @@ mod tests {
         assert!((v.total_sill() - 1.0).abs() < 1e-12);
         let g = v.gamma(50.0);
         assert!(g > 0.1 && g < 1.0);
+    }
+
+    #[test]
+    fn validate_rejects_non_finite_parameters() {
+        let ok = Variogram {
+            nugget: 0.1,
+            structures: vec![Structure::new(Model::Spherical, 1.0, 50.0)],
+            anisotropy: None,
+        };
+        assert!(ok.validate().is_ok());
+        for nugget in [f64::NAN, -0.1, f64::INFINITY] {
+            assert!(
+                Variogram {
+                    nugget,
+                    ..ok.clone()
+                }
+                .validate()
+                .is_err()
+            );
+        }
+        for (sill, range) in [
+            (f64::NAN, 50.0),
+            (-1.0, 50.0),
+            (1.0, f64::NAN),
+            (1.0, 0.0),
+            (1.0, f64::INFINITY),
+        ] {
+            let structures = vec![Structure::new(Model::Spherical, sill, range)];
+            assert!(
+                Variogram {
+                    structures,
+                    ..ok.clone()
+                }
+                .validate()
+                .is_err()
+            );
+        }
     }
 }

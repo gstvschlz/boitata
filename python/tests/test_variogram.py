@@ -504,3 +504,46 @@ def test_covariance_does_not_depend_on_row_order(estimator):
     sorted_rows = run(np.argsort(xy[:, 0]))
     assert run(r.permutation(40)) == pytest.approx(sorted_rows)
     assert run(np.arange(40)) == pytest.approx(sorted_rows)
+
+
+@pytest.mark.parametrize(
+    "kw", [{"nugget": np.nan}, {"ratios": (np.nan, 1.0)}, {"rotation": (np.nan, 0.0, 0.0)}]
+)
+def test_variogram_rejects_nan_parameters(kw):
+    with pytest.raises(bt.InvalidInput):
+        bt.Variogram([("spherical", 1.0, 50.0)], **kw)
+
+
+@pytest.mark.parametrize("sill, range_", [(np.nan, 50.0), (1.0, np.nan), (1.0, np.inf)])
+def test_structure_rejects_non_finite(sill, range_):
+    with pytest.raises(bt.InvalidInput):
+        bt.Structure("spherical", sill, range_)
+
+
+@pytest.mark.parametrize("range_", [-50.0, 0.0, np.nan])
+def test_coregionalization_rejects_bad_range(range_):
+    with pytest.raises(bt.InvalidInput):
+        bt.Coregionalization([[0, 0], [0, 0]], structures=[("spherical", range_, [[1, 0.5], [0.5, 1]])])
+
+
+@pytest.mark.parametrize("kw", [{"tolerance": np.nan}, {"tolerance": 91.0}, {"bandwidth": -1.0}])
+def test_experimental_variogram_rejects_bad_direction(kw):
+    t = np.arange(50.0)
+    xy = np.column_stack([(t * 37.3) % 50, (t * 17.9) % 50])
+    with pytest.raises(bt.InvalidInput):
+        bt.experimental_variogram(xy, np.sin(t * 0.7), 10.0, 50.0, azimuth=0.0, **kw)
+
+
+def test_transiogram_validation():
+    with pytest.raises(bt.InvalidInput):
+        bt.Transiogram([1.5, -0.5], 10.0)
+    with pytest.raises(bt.InvalidInput):
+        bt.Transiogram([0.5, 0.5], np.nan)
+    t = bt.Transiogram([0.5, 0.5], 10.0)
+    np.testing.assert_array_equal(t.matrix(-20.0), t.matrix(20.0))
+    with pytest.raises(bt.InvalidInput):
+        t.matrix(np.nan)
+    x = np.arange(50.0)
+    xy = np.column_stack([(x * 37.3) % 50, (x * 17.9) % 50])
+    with pytest.raises(bt.InvalidInput):
+        bt.experimental_transiogram(xy, np.arange(50) % 2, np.nan, 50.0)
