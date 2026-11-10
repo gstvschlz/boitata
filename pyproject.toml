@@ -36,10 +36,10 @@ export = ["playwright>=1.45"]
 all = ["matplotlib>=3.8", "pandas>=2.2", "polars>=1.4", "pyarrow>=16", "anywidget>=0.9"]
 
 [project.urls]
-Homepage = "https://gitlab.com/scholzegustavo/boitata"
-Documentation = "https://scholzegustavo.gitlab.io/boitata/"
-Repository = "https://gitlab.com/scholzegustavo/boitata"
-Issues = "https://gitlab.com/scholzegustavo/boitata/-/issues"
+Homepage = "https://github.com/gstvschlz/boitata"
+Documentation = "https://gstvschlz.github.io/boitata/"
+Repository = "https://github.com/gstvschlz/boitata"
+Issues = "https://github.com/gstvschlz/boitata/issues"
 
 [dependency-groups]
 dev = [
