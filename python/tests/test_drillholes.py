@@ -125,6 +125,25 @@ def test_categories_take_the_length_weighted_majority():
     assert list(np.array(comps.attributes["ROCK"])) == ["fresh", "ox"]
 
 
+def test_category_ties_do_not_depend_on_row_order():
+    rows = [(0.0, 1.0, "ox"), (1.0, 2.0, "fr")]
+    out = []
+    for order in (rows, rows[::-1]):
+        iv = {
+            "HOLE_ID": np.ones(2),
+            "FROM": np.array([r[0] for r in order]),
+            "TO": np.array([r[1] for r in order]),
+            "AU": np.ones(2),
+            "LITH": np.array([r[2] for r in order]),
+        }
+        for kw in ({}, {"intervals": {"HOLE_ID": [1.0], "FROM": [0.0], "TO": [2.0]}}):
+            comps = bt.Drillholes(collar, survey, iv).composite(
+                None if kw else 2.0, ["AU"], categories=["LITH"], **kw
+            )
+            out.append(list(np.array(comps.attributes["LITH"])))
+    assert out == [["fr"]] * 4
+
+
 def test_sampled_length_balances_metal_in_every_mode():
     dh = bt.Drillholes(collar, survey, intervals)
     total = 1 * 2 + 2 * 3 + 3 * 4 + 5 * 4
