@@ -623,3 +623,58 @@ def test_minimum_curvature_follows_the_arc_between_stations():
         assert y == pytest.approx(0.0, abs=1e-9)
         assert z == pytest.approx(100 - 100 * np.sin(theta), abs=0.05)
     np.testing.assert_allclose(holes.at(["A"], [length]), [[100.0, 0.0, 0.0]], atol=1e-9)
+
+
+@pytest.mark.parametrize(
+    "column, value",
+    [("DEPTH", np.nan), ("DEPTH", -10.0), ("AZIMUTH", np.nan), ("DIP", np.inf)],
+)
+def test_bad_survey_station_raises_invalid_input(column, value):
+    # Through pyarrow, so NaN stays a value instead of becoming a null row.
+    pa = pytest.importorskip("pyarrow")
+    s = {"HOLE_ID": ["A"] * 3, "DEPTH": [0.0, 20.0, 50.0], "AZIMUTH": [0.0] * 3, "DIP": [90.0] * 3}
+    s[column] = [s[column][0], value, s[column][2]]
+    s = pa.table({k: pa.array(np.array(v)) for k, v in s.items()})
+    with pytest.raises(bt.InvalidInput, match="survey station"):
+        bt.Drillholes(pa.table({"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}), s)
+
+
+def test_nan_collar_and_conflicting_stations_raise_invalid_input():
+    s = {
+        "HOLE_ID": ["A", "A", "A"],
+        "DEPTH": [0.0, 50.0, 50.0],
+        "AZIMUTH": [0.0, 0.0, 90.0],
+        "DIP": [90.0, 45.0, 45.0],
+    }
+    c = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [100.0]}
+    with pytest.raises(bt.InvalidInput, match="different directions"):
+        bt.Drillholes(c, s)
+    pa = pytest.importorskip("pyarrow")
+    with pytest.raises(bt.InvalidInput, match="collar"):
+        bt.Drillholes(
+            pa.table({**c, "X": pa.array(np.array([np.nan]))}),
+            {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]},
+        )
+
+
+@pytest.mark.parametrize("step", [1e-300, 0.0, -1.0, np.nan, np.inf])
+def test_mesh_intervals_bad_step_raises_invalid_input(step):
+    c = {"HOLE_ID": ["A"], "X": [5.0], "Y": [5.0], "Z": [15.0]}
+    s = {"HOLE_ID": ["A", "A"], "DEPTH": [0.0, 25.0], "AZIMUTH": [0.0, 0.0], "DIP": [90.0, 90.0]}
+    with pytest.raises(bt.InvalidInput, match="step"):
+        bt.Drillholes(c, s).mesh_intervals(box, step=step)
+
+
+def test_composite_length_below_depth_resolution_raises_invalid_input():
+    c = {"HOLE_ID": ["A"], "X": [0.0], "Y": [0.0], "Z": [0.0]}
+    s = {"HOLE_ID": ["A"], "DEPTH": [0.0], "AZIMUTH": [0.0], "DIP": [90.0]}
+    assays = {"HOLE_ID": ["A"], "FROM": [1000.0], "TO": [1001.0], "AU": [1.0]}
+    with pytest.raises(bt.InvalidInput, match="composite length"):
+        bt.Drillholes(c, s, assays).composite(1e-14, ["AU"])
+
+
+@pytest.mark.parametrize("name", ["tolerance", "max_deviation"])
+@pytest.mark.parametrize("value", [np.nan, -1.0])
+def test_check_drillholes_bad_tolerance_raises_invalid_input(name, value):
+    with pytest.raises(bt.InvalidInput, match=name):
+        bt.check_drillholes(collar, survey, {"assay": intervals}, **{name: value})
