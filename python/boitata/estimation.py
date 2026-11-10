@@ -410,7 +410,13 @@ class OrdinaryKriging(_Base):
 
 
 class SimpleKriging(_Base):
-    """Kriging with a known global `mean`."""
+    """Kriging with a known global `mean`.
+
+    Raises
+    ------
+    InvalidInput
+        If `variogram` has a structure without a sill (power), which simple kriging cannot use.
+    """
 
     def __init__(self, variogram: Variogram, search: Searches, *, mean: float = 0.0):
         super().__init__("simple", search, variogram, mean=mean)

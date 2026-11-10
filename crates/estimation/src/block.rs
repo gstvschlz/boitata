@@ -5,6 +5,7 @@
 //! conditional bias relative to estimating at the block centroid).
 
 use crate::Sample;
+use crate::coincident::Clusters;
 use crate::error::{EstimError, Result};
 use crate::krige::{Estimate, Kind};
 use boitata_core::{Geometry, block_frame};
@@ -136,6 +137,11 @@ pub fn block_krige_points(
         return Err(EstimError::InvalidParameters(
             "block discretization needs at least one point, all with finite coordinates".into(),
         ));
+    }
+    crate::krige::check_simple(kind, vg)?;
+    if let Some(c) = Clusters::find(samples) {
+        let e = block_krige_points(kind, pts, &c.merge(samples, vg), vg)?;
+        return Ok(c.spread(e, |w| crate::krige::value(kind, w, samples)));
     }
     let ordinary = !matches!(kind, Kind::Simple { .. });
     let dim = if ordinary { n + 1 } else { n };
