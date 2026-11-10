@@ -333,6 +333,19 @@ mod tests {
     }
 
     #[test]
+    fn leave_one_out_takes_any_max_samples() {
+        let samples = samples();
+        let search = Search {
+            min_samples: 1,
+            max_samples: usize::MAX,
+            radius: 30.0,
+            ..Default::default()
+        };
+        let got = leave_one_out_many(&samples, &search, None, |_, s| Ok(s.len()));
+        assert!(got.iter().flatten().any(|&n| n > 1));
+    }
+
+    #[test]
     fn k_fold_with_one_sample_per_fold_is_leave_one_out() {
         let samples = samples();
         let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
