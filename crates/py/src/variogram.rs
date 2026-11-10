@@ -231,13 +231,22 @@ impl Structure {
         self.0.range
     }
 
-    fn __repr__(&self) -> String {
-        format!(
-            "Structure({:?}, sill={}, range={})",
-            self.model(),
-            self.0.sill,
-            self.0.range
-        )
+    /// Order of a Matérn structure; None for the other models.
+    #[getter]
+    fn order(&self) -> Option<f64> {
+        match self.0.model {
+            Model::Matern { order } => Some(order),
+            _ => None,
+        }
+    }
+
+    /// Exponent of a power structure; None for the other models.
+    #[getter]
+    fn exponent(&self) -> Option<f64> {
+        match self.0.model {
+            Model::Power { exponent } => Some(exponent),
+            _ => None,
+        }
     }
 }
 
@@ -560,17 +569,6 @@ impl Variogram {
     fn from_json(text: &str) -> PyResult<Self> {
         crate::persist::from_json(text)
     }
-
-    fn __repr__(&self) -> String {
-        let parts: Vec<String> = self.structures().iter().map(|s| s.__repr__()).collect();
-        format!(
-            "Variogram(nugget={}, structures=[{}], rotation={:?}, ratios={:?})",
-            self.0.nugget,
-            parts.join(", "),
-            self.rotation(),
-            self.ratios()
-        )
-    }
 }
 
 /// Lag centers, semivariances and pair counts; ``covariances`` holds C(h)
@@ -644,10 +642,6 @@ impl ExperimentalVariogram {
     #[pyo3(signature = (*, lags=3))]
     fn nugget(&self, lags: usize) -> PyResult<f64> {
         extrapolated_nugget(&self.0, lags).map_err(err)
-    }
-
-    fn __repr__(&self) -> String {
-        format!("ExperimentalVariogram({} lags)", self.0.lags.len())
     }
 }
 
@@ -997,14 +991,6 @@ impl VariogramSet {
         }
         let list = entry.iter().map(wrap).collect::<PyResult<Vec<_>>>()?;
         Ok(PyList::new(py, list)?.into_any())
-    }
-
-    fn __repr__(&self) -> String {
-        let dirs = match &self.directions {
-            None => "omnidirectional".into(),
-            Some(d) => format!("{} directions", d.len()),
-        };
-        format!("VariogramSet({} variables, {dirs})", self.nvar())
     }
 }
 

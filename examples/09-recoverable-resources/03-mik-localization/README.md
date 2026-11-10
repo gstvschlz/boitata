@@ -44,7 +44,13 @@ print(grade)
 </details>
 
 ```text
-Variogram(nugget=11558.10092732776, structures=[Structure("spherical", sill=8962.09782891368, range=10.622550182295146), Structure("spherical", sill=57876.09523498103, range=99.00105173141803)], rotation=(170.0, 0.0, 0.0), ratios=(0.4316396545722994, 1.0))
+Variogram  sill 78396.3, 2 structures
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.4316, minor/major 1
+  structure     sill  major   semi  minor
+  nugget     11558.1
+  spherical   8962.1  10.62  4.585  10.62
+  spherical  57876.1     99  42.73     99
 ```
 
 The 50 × 50 m panels over the western 250 m hold 25 blocks of 10 m each, ranked by their ordinary block kriging.

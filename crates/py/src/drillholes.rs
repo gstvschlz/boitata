@@ -220,6 +220,12 @@ impl Drillholes {
         Some((h.clone(), f.clone(), t.clone()))
     }
 
+    /// The interval table as given, for display.
+    #[getter]
+    fn _intervals(&self) -> Option<Table> {
+        self.intervals.as_ref().map(|i| Table(i.0.clone()))
+    }
+
     /// Desurveyed stations: hole (named as in the constructor), depth, x, y, z.
     fn paths(&self) -> PyResult<Table> {
         let rows: Vec<(&String, &WellborePoint)> = self
@@ -729,16 +735,6 @@ impl Drillholes {
 
     fn __len__(&self) -> usize {
         self.paths.len()
-    }
-
-    fn __repr__(&self) -> String {
-        let (n, columns) = self.intervals.as_ref().map_or((0, String::new()), |i| {
-            (i.0.num_rows(), crate::table::describe(&i.0))
-        });
-        format!(
-            "Drillholes({} holes, {n} intervals){columns}",
-            self.paths.len()
-        )
     }
 }
 

@@ -143,7 +143,7 @@ flip = rng.random(len(loose)) < 0.5
 loose[flip] = loose[flip, ::-1]
 broken = bt.Mesh(corners.reshape(-1, 3), loose)
 edges = np.linalg.norm(corners - np.roll(corners, 1, axis=1), axis=2)
-print(broken, broken.validate().summary)
+print(f"{broken} {broken.validate().summary}")
 print(f"shortest edge {edges.min() * 1000:.1f} mm")
 for tolerance in (1e-6, 1e-4, 5e-3):
     attempt = broken.repair(tolerance=tolerance)

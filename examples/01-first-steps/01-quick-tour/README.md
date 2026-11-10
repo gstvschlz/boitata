@@ -20,11 +20,13 @@ print(samples)
 </details>
 
 ```text
-PointSet(470 points, crs: none)
-  ID: Float64
-  V: Float64
-  U: Float64
-  T: Float64
+PointSet  470 points
+  bounds  x 8 to 252, y 8 to 292, z 0 to 0
+  column  type     unit  nulls  min   mean     max
+  ID      float64            0    1  235.5     470
+  V       float64            0    0  427.7  1547.1
+  U       float64          195  2.5  883.2    8839
+  T       float64            0    1  1.819       2
 ```
 
 `bt.datasets` generates a dataset on the call. The samples load as a `PointSet`: coordinates, plus one column
@@ -139,7 +141,13 @@ save(fig, "variogram")
 </details>
 
 ```text
-Variogram(nugget=5178.543570579452, structures=[Structure("spherical", sill=17712.642951077363, range=12.736250302929486), Structure("spherical", sill=51337.374627785335, range=115)], rotation=(1.8023577284324404, 0.0, 0.0), ratios=(0.3797524218624346, 1.0))
+Variogram  sill 74228.6, 2 structures
+  rotation  azimuth 1.802°, dip 0°, rake 0°
+  ratios    semi/major 0.3798, minor/major 1
+  structure     sill  major   semi  minor
+  nugget      5178.5
+  spherical  17712.6  12.74  4.837  12.74
+  spherical  51337.4    115  43.67    115
 ```
 
 ![variogram](variogram.png)
@@ -179,9 +187,14 @@ save(fig, "estimate")
 </details>
 
 ```text
-BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0], rotation [0.0, 0.0, 0.0])
-  estimate: Float64
-  truth: Float64
+BlockModel  regular, 3,120 blocks
+  count   52 × 60 × 1
+  size    5 × 5 × 1
+  origin  3, 3, 0
+  bounds  x 3 to 263, y 3 to 303, z 0 to 1
+  column    type     unit  nulls     min   mean     max
+  estimate  float64            0  -6.249  280.7   990.6
+  truth     float64            0       0  278.3  1542.9
 ```
 
 ![estimate](estimate.png)

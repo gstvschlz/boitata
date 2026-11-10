@@ -37,7 +37,12 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.13142396427109918, structures=[Structure("spherical", sill=0.7667951113063376, range=103.06084513552106)], rotation=(170.0, 0.0, 0.0), ratios=(0.4626805674523921, 1.0))
+Variogram  sill 0.8982, 1 structure
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.4627, minor/major 1
+  structure    sill  major   semi  minor
+  nugget     0.1314
+  spherical  0.7668  103.1  47.68  103.1
 ```
 
 `predict_tonnage` gives P(V > cutoff) on a 5 m grid. Binned against the truth, a calibrated estimate would sit on the

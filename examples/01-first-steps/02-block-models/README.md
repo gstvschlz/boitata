@@ -44,7 +44,11 @@ print("first centroid:", model.coords[0])
 </details>
 
 ```text
-BlockModel(regular, 60 of 60 cells, count [5, 4, 3], size [10.0, 10.0, 5.0], rotation [0.0, 0.0, 0.0])
+BlockModel  regular, 60 blocks
+  count   5 × 4 × 3
+  size    10 × 10 × 5
+  origin  1000, 2000, 300
+  bounds  x 1000 to 1050, y 2000 to 2040, z 300 to 315
 first corner:   [1000. 2000.  300.]
 first centroid: [1005.  2005.   302.5]
 ```
@@ -220,7 +224,11 @@ print(
 </details>
 
 ```text
-BlockModel(masked, 159 of 320 cells, count [20, 16, 1], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
+BlockModel  masked, 159 of 320 blocks
+  count   20 × 16 × 1
+  size    10 × 10 × 1
+  origin  0, 0, 0
+  bounds  x 30 to 190, y 10 to 150, z 0 to 1
 first rows hold cells [33, 34, 46, 47, 48]
 rows [28, -1] -> cell 86 | in the full grid: [86, 0]
 ```
@@ -233,7 +241,7 @@ returns row 0. `to_regular` puts every cell back and leaves the dropped ones nul
 ```python
 domain = domain.with_column("cu", np.random.default_rng(7).gamma(4, 0.25, len(domain)))
 full = domain.to_regular()
-print(full, "| null cells:", np.isnan(full["cu"]).sum())
+print(full)
 
 fig, ax = plt.subplots(figsize=(5.6, 4.6), layout="constrained")
 draw(ax, grid)
@@ -248,8 +256,13 @@ save(fig, "masked")
 </details>
 
 ```text
-BlockModel(regular, 320 of 320 cells, count [20, 16, 1], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
-  cu: Float64 | null cells: 161
+BlockModel  regular, 320 blocks
+  count   20 × 16 × 1
+  size    10 × 10 × 1
+  origin  0, 0, 0
+  bounds  x 0 to 200, y 0 to 160, z 0 to 1
+  column  type     unit  nulls     min    mean    max
+  cu      float64          161  0.2153  0.9104  2.466
 ```
 
 ![masked](masked.png)
@@ -297,8 +310,13 @@ save(fig, "subblocks")
 </details>
 
 ```text
-BlockModel(sub-blocked, 6 sub-blocks in 6 cells, count [3, 2, 1], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
-  cu: Float64
+BlockModel  sub-blocked, 6 sub-blocks in 6 blocks
+  count   3 × 2 × 1
+  size    10 × 10 × 1
+  origin  0, 0, 0
+  bounds  x 0 to 20, y 0 to 12.5, z 0 to 1
+  column  type     unit  nulls  min    mean  max
+  cu      float64            0  0.3  0.8833    2
 areas: [100.0, 25.0, 25.0, 25.0, 25.0, 25.0]
 per parent: [0.4, 0.72, nan, nan, 2.0, nan]
 ```
@@ -338,8 +356,13 @@ print("origin", rebuilt.origin, "count", rebuilt.count)
 </details>
 
 ```text
-BlockModel(masked, 159 of 224 cells, count [16, 14, 1], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
-  cu: Float64
+BlockModel  masked, 159 of 224 blocks
+  count   16 × 14 × 1
+  size    10 × 10 × 1
+  origin  30, 10, 0
+  bounds  x 30 to 190, y 10 to 150, z 0 to 1
+  column  type     unit  nulls     min    mean    max
+  cu      float64            0  0.2153  0.9104  2.466
 origin [30.0, 10.0, 0.0] count [16, 14, 1]
 ```
 
@@ -387,8 +410,14 @@ print(
 </details>
 
 ```text
-BlockModel(masked, 20 of 60 cells, count [5, 4, 3], size [10.0, 10.0, 5.0], rotation [30.0, 0.0, 0.0])
-  cu: Float64
+BlockModel  masked, 20 of 60 blocks
+  count     5 × 4 × 3
+  size      10 × 10 × 5
+  origin    1000, 2000, 300
+  rotation  azimuth 30°, dip 0°, rake 0°
+  bounds    x 1000 to 1063.3, y 1975 to 2034.6, z 305 to 310
+  column  type     unit  nulls    min  mean    max
+  cu      float64            0  1.083  1.55  2.017
 origin [1000.0, 2000.0, 300.0] rotation [30.0, 0.0, 0.0]
 same cells: True | same cu: True
 ```

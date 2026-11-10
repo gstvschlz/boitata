@@ -33,9 +33,16 @@ points = bt.PointSet(coords, attributes={"distance": vein.distance(coords)})
 </details>
 
 ```text
-Mesh(19602 vertices, 39200 triangles, closed)
-  elevation: Float64
-  dip: Float64
+Mesh  19,602 vertices, 39,200 triangles, closed
+  area    815881.2
+  volume  661982.2
+  bounds  x 7949.8 to 8185.3, y 14598.7 to 15440.1, z 394.4 to 858
+  vertex columns
+  column     type     unit  nulls    min   mean  max
+  elevation  float64          393  394.4  625.8  858
+  face columns
+  column  type     unit  nulls  min   mean  max
+  dip     float64            0   20  69.81   90
 ```
 
 Point and cell data become columns. VTK has no nulls, so a column with nulls is written with NaN in their place
@@ -118,8 +125,14 @@ print(f"nodes of the grid: {len(nodes)}")
 </details>
 
 ```text
-BlockModel(masked, 13827 of 158865 cells, count [35, 89, 51], size [10.0, 10.0, 10.0], rotation [-15.0, 0.0, 0.0])
-  distance: Float64
+BlockModel  masked, 13,827 of 158,865 blocks
+  count     35 × 89 × 51
+  size      10 × 10 × 10
+  origin    8013.6, 14546.4, 374.4
+  rotation  azimuth -15°, dip 0°, rake 0°
+  bounds    x 7930.7 to 8204.2, y 14578 to 15457.3, z 384.4 to 874.4
+  column    type     unit  nulls       min   mean  max
+  distance  float64            0  0.001431  7.331   15
 shell.vti:   1589 kB, 13827 blocks, same: True
 shell.vtu:   3776 kB, 13827 blocks, same: True
 nodes of the grid: 168480

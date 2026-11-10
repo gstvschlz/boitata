@@ -246,6 +246,12 @@ impl Mesh {
         self.mesh.is_closed()
     }
 
+    /// Edges of one triangle only, for display.
+    #[getter]
+    fn _boundary_edges(&self) -> usize {
+        self.mesh.boundary_edges()
+    }
+
     /// Everything that keeps the mesh from being a clean closed solid.
     ///
     /// Parameters
@@ -664,21 +670,6 @@ impl Mesh {
     /// Number of vertices.
     fn __len__(&self) -> usize {
         self.mesh.vertices().len()
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Mesh({} vertices, {} triangles, {}){}{}",
-            self.mesh.vertices().len(),
-            self.mesh.triangles().len(),
-            if self.mesh.is_closed() {
-                "closed".to_string()
-            } else {
-                format!("open, {} boundary edges", self.mesh.boundary_edges())
-            },
-            crate::table::describe(self.mesh.vertex_attributes()),
-            crate::table::describe(self.mesh.face_attributes())
-        )
     }
 }
 

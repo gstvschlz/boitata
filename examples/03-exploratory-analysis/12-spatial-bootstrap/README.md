@@ -55,7 +55,10 @@ print(f"        σ/√n: {sd / np.sqrt(len(holes)):.3f} m")
 </details>
 
 ```text
-Variogram(nugget=0.20261889315270679, structures=[Structure("spherical", sill=0.7973811068472932, range=8545.79884269509)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram  sill 1, 1 structure
+  structure    sill   range
+  nugget     0.2026
+  spherical  0.7974  8545.8
 independent: standard deviation of the mean 0.039 m
     spatial: standard deviation of the mean 0.372 m
         σ/√n: 0.038 m

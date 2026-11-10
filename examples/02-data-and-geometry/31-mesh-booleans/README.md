@@ -44,8 +44,13 @@ print(f"block {block.volume:,.0f} m3, wound outward: {block.volume > 0}")
 </details>
 
 ```text
-Mesh(16200 vertices, 32396 triangles, closed)
-  source: Utf8
+Mesh  16,200 vertices, 32,396 triangles, closed
+  area    374189.4
+  volume  2878257.1
+  bounds  x 11921.8 to 12235.2, y 29546.3 to 30139.5, z 20.54 to 327.2
+  face columns
+  column  type  unit  nulls  values
+  source  str             0  1 unique: lens
 block 9,600,000 m3, wound outward: True
 ```
 

@@ -49,7 +49,11 @@ print(variogram)
 
 ```text
 cap: 1004 ppm | declustered mean: 284.9 ppm
-Variogram(nugget=0.21620453152825336, structures=[Structure("spherical", sill=0.02458756578790813, range=13.51462901377918), Structure("spherical", sill=0.7329031679722345, range=72.72082684056754)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram  sill 0.9737, 2 structures
+  structure     sill  range
+  nugget      0.2162
+  spherical  0.02459  13.51
+  spherical   0.7329  72.72
 ```
 
 ## Saving

@@ -54,7 +54,10 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=346.167829450032, structures=[Structure("spherical", sill=1186.505429847702, range=1189.5837958608056)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram  sill 1532.7, 1 structure
+  structure    sill   range
+  nugget      346.2
+  spherical  1186.5  1189.6
 ```
 
 `ExternalDriftKriging` takes the drift column names at `fit` (read off `samples`) and again at `predict` (read off

@@ -31,7 +31,11 @@ print(parents)
 </details>
 
 ```text
-BlockModel(regular, 10846 of 10846 cells, count [17, 22, 29], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
+BlockModel  regular, 10,846 blocks
+  count   17 × 22 × 29
+  size    40 × 40 × 20
+  origin  11880, 29480, -240
+  bounds  x 11880 to 12560, y 29480 to 30360, z -240 to 340
 ```
 
 `subblock` takes `(mesh, rule, label)` domains in priority order and a sub-grid of `n` cells per parent edge.
@@ -75,8 +79,13 @@ lenses: 6,451,401 m3
 sub-grid 1:   208 sub-blocks, 6,656,000 m3, 6,667,401 m3 misplaced
 sub-grid 2:  1149 sub-blocks, 6,408,000 m3, 3,562,401 m3 misplaced
 sub-grid 4:  5429 sub-blocks, 6,406,000 m3, 1,290,026 m3 misplaced
-BlockModel(sub-blocked, 5429 sub-blocks in 10846 cells, count [17, 22, 29], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
-  domain: Utf8
+BlockModel  sub-blocked, 5,429 sub-blocks in 10,846 blocks
+  count   17 × 22 × 29
+  size    40 × 40 × 20
+  origin  11880, 29480, -240
+  bounds  x 11920 to 12530, y 29520 to 30320, z -225 to 325
+  column  type  unit  nulls  values
+  domain  str             0  3 unique: lens 3, lens 2, lens 1
 whole parents: 0
 ```
 
@@ -148,8 +157,13 @@ print(f"    total: {domain_model.volumes.sum():>13,.0f} m3 = grid {np.prod(size)
 </details>
 
 ```text
-BlockModel(sub-blocked, 26337 sub-blocks in 12342 cells, count [17, 22, 33], size [40.0, 40.0, 20.0], rotation [0.0, 0.0, 0.0])
-  domain: Utf8
+BlockModel  sub-blocked, 26,337 sub-blocks in 12,342 blocks
+  count   17 × 22 × 33
+  size    40 × 40 × 20
+  origin  11880, 29480, -240
+  bounds  x 11880 to 12560, y 29480 to 30360, z -240 to 420
+  column  type  unit  nulls  values
+  domain  str             0  5 unique: host rock, lens 3, lens 2, …
    lens 1:     2,862,500 m3
    lens 2:     1,905,000 m3
    lens 3:     1,638,500 m3

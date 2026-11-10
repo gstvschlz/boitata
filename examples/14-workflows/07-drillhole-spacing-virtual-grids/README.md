@@ -71,7 +71,12 @@ print(f"{len(nodes.coords)} nodes, {inside(40).sum()} quarterly and {inside(80).
 </details>
 
 ```text
-Variogram(nugget=0.11060343270425142, structures=[Structure("spherical", sill=0.8893965672957486, range=104.50278028080879)], rotation=(170.0, 0.0, 0.0), ratios=(0.48446742261870374, 1.0))
+Variogram  sill 1, 1 structure
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.4845, minor/major 1
+  structure    sill  major   semi  minor
+  nugget     0.1106
+  spherical  0.8894  104.5  50.63  104.5
 19500 nodes, 924 quarterly and 168 yearly windows inside
 ```
 

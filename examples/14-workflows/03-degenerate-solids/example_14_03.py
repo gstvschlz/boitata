@@ -51,7 +51,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
 data = bt.datasets.stacked_sulphide_lenses()
 lens = data["lens_2"]
 report = lens.validate()
-print(lens, report)
+print(f"{lens} {report}")
 print(f"volume {lens.volume:,.0f} m3")
 
 # %% [markdown]
@@ -216,7 +216,7 @@ fixed = bt.Mesh(
     np.vstack([without_fin.coords, without_fin.coords[start].mean(axis=0)]), np.vstack([tri, cap])
 )
 print(f"hole rim: {len(rim)} edges, closed with {len(cap)} triangles")
-print(fixed, fixed.validate())
+print(f"{fixed} {fixed.validate()}")
 
 # %% [markdown]
 # !!! check "Check before you move on"

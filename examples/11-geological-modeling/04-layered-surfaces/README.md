@@ -54,9 +54,16 @@ save(fig, "topography")
 </details>
 
 ```text
-BlockModel(regular, 46031 of 46031 cells, count [241, 191, 1], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
-  Z: Float64
-Mesh(46031 vertices, 91200 triangles, open, 860 boundary edges)
+BlockModel  regular, 46,031 blocks
+  count   241 × 191 × 1
+  size    10 × 10 × 1
+  origin  59795, 22045, 0
+  bounds  x 59795 to 62205, y 22045 to 23955, z 0 to 1
+  column  type     unit  nulls     min    mean     max
+  Z       float64            0  1082.8  1165.8  1260.4
+Mesh  46,031 vertices, 91,200 triangles, open, 860 boundary edges
+  area    4607472.8
+  bounds  x 59800 to 62200, y 22050 to 23950, z 1082.8 to 1260.4
 collar minus topography: -0.06 to +0.06 m
 ```
 
@@ -201,8 +208,13 @@ for name in [*LAYERS, "ROCK"]:
 </details>
 
 ```text
-BlockModel(sub-blocked, 254048 sub-blocks in 144000 cells, count [80, 60, 30], size [25.0, 25.0, 10.0], rotation [0.0, 0.0, 0.0])
-  domain: Utf8
+BlockModel  sub-blocked, 254,048 sub-blocks in 144,000 blocks
+  count   80 × 60 × 30
+  size    25 × 25 × 10
+  origin  60000, 22250, 950
+  bounds  x 60000 to 62000, y 22250 to 23750, z 950 to 1239
+  column  type  unit  nulls  values
+  domain  str             0  5 unique: ROCK, SAP, OXI, …
 SOIL:    9.62 Mm3 from the bottom,    9.69 Mm3 from the top
  ALU:   63.02 Mm3 from the bottom,   63.02 Mm3 from the top
  OXI:   86.59 Mm3 from the bottom,   86.59 Mm3 from the top

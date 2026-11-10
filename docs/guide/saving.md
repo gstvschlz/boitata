@@ -72,8 +72,14 @@ print(back.crs, back.size, back.count)
 ```
 
 ```text
-BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0], rotation [0.0, 0.0, 0.0])
-  V: Float64
+BlockModel  regular, 3,120 blocks
+  count   52 × 60 × 1
+  size    5 × 5 × 1
+  origin  2.5, 2.5, 0
+  crs     EPSG:32611
+  bounds  x 2.5 to 262.5, y 2.5 to 302.5, z 0 to 1
+  column  type     unit  nulls  min    mean   max
+  V       float64            0    0  1559.5  3119
 EPSG:32611 [5.0, 5.0, 1.0] [52, 60, 1]
 ```
 

@@ -49,9 +49,20 @@ print(single, along, minor.fit(["spherical", "spherical"], weighting=weighting),
 </details>
 
 ```text
-Variogram(nugget=17596.783329370064, structures=[Structure("spherical", sill=61236.80113379768, range=100.931914377686)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-Variogram(nugget=14667.329985383412, structures=[Structure("spherical", sill=13171.692420945388, range=46.19317141256036), Structure("spherical", sill=52056.84023112825, range=114.890137768014)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-Variogram(nugget=5473.124866857719, structures=[Structure("spherical", sill=38981.90859995324, range=9.505380001012696), Structure("spherical", sill=33587.35470149484, range=59.81931771837044)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram  sill 78833.6, 1 structure
+  structure     sill  range
+  nugget     17596.8
+  spherical  61236.8  100.9
+Variogram  sill 79895.9, 2 structures
+  structure     sill  range
+  nugget     14667.3
+  spherical  13171.7  46.19
+  spherical  52056.8  114.9
+Variogram  sill 78042.4, 2 structures
+  structure     sill  range
+  nugget      5473.1
+  spherical  38981.9  9.505
+  spherical  33587.4  59.82
 ```
 
 Along the major axis γ climbs to half of the sill within 25 m, then rises slowly to about 105 m: two scales of
@@ -78,8 +89,18 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=14667.329985383412, structures=[Structure("spherical", sill=13171.692420945388, range=2.5), Structure("spherical", sill=52056.84023112825, range=45.594501224592)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-Variogram(nugget=14667.329985383412, structures=[Structure("spherical", sill=13171.692420945388, range=46.19317141256036), Structure("spherical", sill=52056.84023112825, range=114.890137768014)], rotation=(175.0, 0.0, 0.0), ratios=(0.39685304683554606, 1.0))
+Variogram  sill 79895.9, 2 structures
+  structure     sill  range
+  nugget     14667.3
+  spherical  13171.7    2.5
+  spherical  52056.8  45.59
+Variogram  sill 79895.9, 2 structures
+  rotation  azimuth 175°, dip 0°, rake 0°
+  ratios    semi/major 0.3969, minor/major 1
+  structure     sill  major   semi  minor
+  nugget     14667.3
+  spherical  13171.7  46.19  18.33  46.19
+  spherical  52056.8  114.9  45.59  114.9
 ```
 
 The ellipse on the map is the model range in each direction:
@@ -149,7 +170,13 @@ print(joint)
 </details>
 
 ```text
-Variogram(nugget=4206.6877423721735, structures=[Structure("spherical", sill=22196.35970010272, range=13.985603587057282), Structure("spherical", sill=51357.03331809465, range=115)], rotation=(0.49145436900599293, 0.0, 0.0), ratios=(0.3430416888351493, 1.0))
+Variogram  sill 77760.1, 2 structures
+  rotation  azimuth 0.4915°, dip 0°, rake 0°
+  ratios    semi/major 0.343, minor/major 1
+  structure     sill  major   semi  minor
+  nugget      4206.7
+  spherical  22196.4  13.99  4.798  13.99
+  spherical    51357    115  39.45    115
 ```
 
 The joint fit puts the major axis at N0°, five degrees off the map's pick, with the same one-third ratio. Its long

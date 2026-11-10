@@ -38,7 +38,8 @@ for i, j in zip(last, station):
 </details>
 
 ```text
-Drillholes(289 holes, 0 intervals)
+Drillholes  289 holes
+  bounds  x 11748.7 to 12947.7, y 29206.5 to 30522.9, z -275.4 to 394.8
    0.0 m  dip 48.23  azimuth 302.90  ->  x  12840.6  y  29563.8  z  377.6
   30.0 m  dip 47.56  azimuth 303.12  ->  x  12823.7  y  29574.8  z  355.3
  840.0 m  dip 36.31  azimuth 308.06  ->  x  12336.3  y  29919.5  z -190.2

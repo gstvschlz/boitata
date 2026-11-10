@@ -32,7 +32,8 @@ print(f"Cd × Zn: {len(vs['Cd', 'Zn'].lags)} lags, {int(vs['Cd', 'Zn'].counts.su
 </details>
 
 ```text
-VariogramSet(7 variables, omnidirectional)
+VariogramSet  7 variables, omnidirectional
+  variables  Cd, Co, Cr, Cu, Ni, Pb, Zn
 Cd × Zn: 15 lags, 9,807 pairs
 ```
 

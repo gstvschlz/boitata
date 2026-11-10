@@ -45,7 +45,11 @@ print(f"veins: {solid_volume:,.0f} m3")
 </details>
 
 ```text
-BlockModel(regular, 139128 of 139128 cells, count [31, 88, 51], size [10.0, 10.0, 10.0], rotation [0.0, 0.0, 0.0])
+BlockModel  regular, 139,128 blocks
+  count   31 × 88 × 51
+  size    10 × 10 × 10
+  origin  7900, 14580, 380
+  bounds  x 7900 to 8210, y 14580 to 15460, z 380 to 890
 veins: 1,039,265 m3
 ```
 
