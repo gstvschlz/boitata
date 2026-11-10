@@ -100,6 +100,20 @@ impl Variogram {
         }
     }
 
+    /// Mean covariance `C̄(V, V)` between the discretization points `pts` of
+    /// a block, the nugget left out as in [`Variogram::block_cov_points`]. A
+    /// single point is point support, where `C̄(V, V) = C(0)` nugget included.
+    pub fn block_mean_cov(&self, pts: &[(f64, f64, f64)]) -> f64 {
+        if pts.len() == 1 {
+            return self.total_sill();
+        }
+        let total: f64 = pts
+            .iter()
+            .map(|p| pts.iter().map(|q| self.block_cov_points(p, q)).sum::<f64>())
+            .sum();
+        total / (pts.len() * pts.len()) as f64
+    }
+
     /// `dγ/dh` at scalar lag `h`, summed over the structures.
     ///
     /// The nugget is deliberately absent. It is a discontinuity at the origin,
@@ -199,6 +213,18 @@ mod tests {
             assert!((v.cov(h) - (v.total_sill() - v.gamma(h))).abs() < 1e-12);
         }
         assert!((v.cov(0.0) - v.total_sill()).abs() < 1e-12);
+    }
+
+    #[test]
+    fn one_point_block_keeps_the_nugget() {
+        let v = Variogram {
+            nugget: 0.3,
+            structures: vec![Structure::new(Model::Spherical, 0.7, 100.0)],
+            anisotropy: None,
+        };
+        assert_eq!(v.block_mean_cov(&[(5.0, 1.0, 2.0)]), v.total_sill());
+        let two = [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0)];
+        assert!((v.block_mean_cov(&two) - (0.7 + v.cov(10.0)) / 2.0).abs() < 1e-12);
     }
 
     #[test]

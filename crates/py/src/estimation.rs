@@ -1351,8 +1351,22 @@ impl Estimator {
                     .extract()?;
                 let (nx, ny, nz): (usize, usize, usize) =
                     get("discretization")?.map_or(Ok((4, 4, 1)), |v| v.extract())?;
+                if nx == 0 || ny == 0 || nz == 0 {
+                    return Err(invalid(format!(
+                        "discretization must be at least 1 per axis, got ({nx}, {ny}, {nz})"
+                    )));
+                }
+                let size = triple(size, 1.0, "size")?;
+                if ![size.0, size.1, size.2]
+                    .iter()
+                    .all(|v| v.is_finite() && *v > 0.0)
+                {
+                    return Err(invalid(format!(
+                        "size must be finite and > 0, got {size:?}"
+                    )));
+                }
                 Method::Block {
-                    size: triple(size, 1.0, "size")?,
+                    size,
                     disc: Discretization { nx, ny, nz },
                     rotation: [0.0; 3],
                 }
