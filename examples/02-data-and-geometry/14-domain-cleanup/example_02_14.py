@@ -39,7 +39,7 @@ scheme = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
     mapping={"MS": "SUL", "SMS": "SUL", "STR": "SUL"},
     other="DYK",
-    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#c05a28", "#1f4e79", "#e0c080"],
+    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#d55e00", "#0072b2", "#e0c080"],
 )
 weights = bt.cell_declustering(composites, scheme.encode(composites["LITH"]), cell_size=50.0).weights
 layers = (23.0, 55.0, 0.0)
@@ -134,7 +134,7 @@ save(fig, "distances")
 # %%
 sulphide = np.where(section["clean"] == scheme.names.index("SUL"), "SUL", "host")
 zone = bt.buffer_domains(section, sulphide, distance=15.0, target="SUL")
-zones = bt.Categories(["host", "contact", "SUL"], colors=["#d9d9d9", "#e0c080", "#c05a28"])
+zones = bt.Categories(["host", "contact", "SUL"], colors=["#d9d9d9", "#e0c080", "#d55e00"])
 section = section.with_columns({"zone": zones.encode(zone)})
 for name in ("SUL", "host"):
     print(f"{name} cells in the buffer: {np.sum((zone == 'contact') & (sulphide == name))}")

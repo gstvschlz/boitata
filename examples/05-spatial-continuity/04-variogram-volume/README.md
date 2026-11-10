@@ -95,7 +95,7 @@ print(f"minor axis to lens pole: {angle:.1f} degrees")
 ```text
 rotation (azimuth, dip, rake): [171.5  36.1 136.2]
 ranges (major, semi, minor):   [237. 219.  31.]
-ratios:                        [0.93 0.13]
+ratios:                        [0.92 0.13]
      major axis: azimuth 171.5, dip 36.1
 semi-major axis: azimuth 052.0, dip 34.0
      minor axis: azimuth 293.1, dip 35.7

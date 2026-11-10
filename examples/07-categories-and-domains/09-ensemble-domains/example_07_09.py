@@ -42,7 +42,7 @@ rocks = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
     mapping={"MS": "SUL", "SMS": "SUL", "STR": "SUL"},
     other="DYK",
-    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#c05a28", "#1f4e79", "#e0c080"],
+    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#d55e00", "#0072b2", "#e0c080"],
 )
 rock = rocks.encode(composites["LITH"])
 print(f"{len(composites):,} composites in {len(drillholes)} holes")
@@ -57,7 +57,7 @@ print(f"{len(composites):,} composites in {len(drillholes)} holes")
 # %%
 found = bt.domains(composites, list(logs), 3, seed=7)
 print(found)
-domains = bt.Categories(found.scheme.names, colors=["#a9bfd3", "#1f4e79", "#c05a28"])
+domains = bt.Categories(found.scheme.names, colors=["#a9bfd3", "#0072b2", "#d55e00"])
 composites = composites.with_columns({"domain": found.labels, "agreement": found.agreement})
 print(f"{'':<4}{'n':>6}{'Zn %':>7}{'Pb %':>7}{'Cu %':>7}{'Ag g/t':>8}")
 for c, name in enumerate(domains.names):

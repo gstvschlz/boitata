@@ -130,7 +130,7 @@ print(
 </details>
 
 ```text
-28,900 nodes; correlation data 0.11, realizations 0.09 to 0.16
+28,900 nodes; correlation data 0.11, realizations 0.05 to 0.15
 ```
 
 The realizations reproduce both declustered histograms and the correlation, and miss the variograms. The factors

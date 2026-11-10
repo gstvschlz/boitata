@@ -95,7 +95,7 @@ gauss = np.column_stack([gaussian[b] for b in balances])
 </details>
 
 ```text
-round trip max error 1.91e-11 %
+round trip max error 2.16e-11 %
 ```
 
 Correlations at each stage:

@@ -96,9 +96,9 @@ print(f"SIS is unsure whether {unsure.mean():.0%} of the nodes are Argovian")
 ```text
 Co (ppm)                                   true rock types  SIS rock types
 mean                                                  8.31            8.27
-mean on true Argovian                                 5.50            7.04
-std where SIS is unsure of Argovian                   2.57            3.38
-std elsewhere                                         2.46            2.63
+mean on true Argovian                                 5.52            7.05
+std where SIS is unsure of Argovian                   2.61            3.41
+std elsewhere                                         2.49            2.67
 SIS is unsure whether 55% of the nodes are Argovian
 ```
 

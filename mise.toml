@@ -1,5 +1,6 @@
 [env]
 _.path = ["~/.cargo/bin"]
+UV_PYTHON = "3.13"
 
 [tasks.build]
 run = "cargo build --workspace"

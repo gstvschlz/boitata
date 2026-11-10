@@ -107,8 +107,8 @@ print(f"GP ranges {[round(r) for r in models['GP'].report['lengthscales']]} m")
 Kriging, cubic: 100.0% of coded points on their side, 4.09 Mm3, covers 92% of the solid, 36% outside it
        Kriging: 100.0% of coded points on their side, 3.18 Mm3, covers 99% of the solid, 10% outside it
            RBF: 100.0% of coded points on their side, 3.20 Mm3, covers 100% of the solid, 11% outside it
-            GP:  96.8% of coded points on their side, 19.19 Mm3, covers 97% of the solid, 85% outside it
-GP ranges [1283, 1094, 75] m
+            GP:  96.8% of coded points on their side, 19.21 Mm3, covers 97% of the solid, 85% outside it
+GP ranges [1280, 1092, 75] m
 ```
 
 Kriging with a spherical covariance and the RBF honor each contact and agree with the solid except for a thin rind.

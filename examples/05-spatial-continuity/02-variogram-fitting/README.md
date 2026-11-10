@@ -149,7 +149,7 @@ print(joint)
 </details>
 
 ```text
-Variogram(nugget=4206.687742369014, structures=[Structure("spherical", sill=22196.35970010602, range=13.985603587057282), Structure("spherical", sill=51357.03331809447, range=115)], rotation=(0.49145436900599293, 0.0, 0.0), ratios=(0.3430416888351493, 1.0))
+Variogram(nugget=4206.6877423721735, structures=[Structure("spherical", sill=22196.35970010272, range=13.985603587057282), Structure("spherical", sill=51357.03331809465, range=115)], rotation=(0.49145436900599293, 0.0, 0.0), ratios=(0.3430416888351493, 1.0))
 ```
 
 The joint fit puts the major axis at N0°, five degrees off the map's pick, with the same one-third ratio. Its long

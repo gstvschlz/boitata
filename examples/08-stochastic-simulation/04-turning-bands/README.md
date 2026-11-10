@@ -64,7 +64,7 @@ for name, reals, seconds in (("SGS", by_sgs, sgs_seconds), ("turning bands", by_
 
 ```text
           SGS: 20 realizations in 0.01 s, mean 275 ppm, variance 62852 ppm²
-turning bands: 20 realizations in 0.08 s, mean 275 ppm, variance 61205 ppm²
+turning bands: 20 realizations in 0.14 s, mean 275 ppm, variance 61205 ppm²
 ```
 
 Both follow the same high-grade trends, with the same short-scale scatter:

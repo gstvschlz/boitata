@@ -34,7 +34,7 @@ scheme = bt.Categories(
     ["OB", "HWS", "VCL", "SUL", "FWV"],
     mapping={"MS": "SUL", "SMS": "SUL", "STR": "SUL"},
     other="DYK",
-    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#c05a28", "#1f4e79", "#e0c080"],
+    colors=["#d9d9d9", "#a9bfd3", "#8c8c8c", "#d55e00", "#0072b2", "#e0c080"],
 )
 codes = scheme.encode(composites["LITH"])
 weights = bt.cell_declustering(composites, codes, cell_size=50.0).weights

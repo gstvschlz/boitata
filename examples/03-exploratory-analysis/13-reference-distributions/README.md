@@ -145,7 +145,7 @@ print("proportions", mixture.proportions_.round(2))
 
 ```text
 7213 composites; BIC by number of components:
-  1: 57291, 2: 3673, 3: 2013, 4: 1371, 5: 1039, 6: -7477
+  1: 57280, 2: 3671, 3: 2010, 4: 1372, 5: 1035, 6: -7481
 proportions [0.6  0.1  0.09 0.04 0.13 0.05]
 ```
 
@@ -218,7 +218,7 @@ save(fig, "imputed")
 3627 tennantite values hidden; both above their P80:
   truth 0.068
   one Gaussian 0.047
-  mixture 0.071
+  mixture 0.062
 ```
 
 ![imputed](imputed.png)

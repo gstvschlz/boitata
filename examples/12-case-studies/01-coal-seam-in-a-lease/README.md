@@ -130,7 +130,7 @@ save(fig, "variogram")
 
 ```text
 trend: -0.15 m per km east, +0.05 m per km north
-Variogram(nugget=0.15060548317928024, structures=[Structure("spherical", sill=0.1374775885006841, range=3473.262956247401)], rotation=(53.47257207054628, 0.0, 0.0), ratios=(0.5455824960050881, 1.0))
+Variogram(nugget=0.15060548372841698, structures=[Structure("spherical", sill=0.13747758799394605, range=3473.262974930344)], rotation=(53.47257167518137, 0.0, 0.0), ratios=(0.54558249529661, 1.0))
 ```
 
 ![variogram](variogram.png)
@@ -284,7 +284,7 @@ save(fig, "tonnes")
 </details>
 
 ```text
-Variogram(nugget=0.32246559795714036, structures=[Structure("spherical", sill=0.6775344020428596, range=1521.0260000387461)], rotation=(36.48403111889925, 0.0, 0.0), ratios=(0.3921850057886436, 1.0))
+Variogram(nugget=0.32246559795714036, structures=[Structure("spherical", sill=0.6775344020428596, range=1521.0260000387461)], rotation=(36.484031118899225, 0.0, 0.0), ratios=(0.3921850057886436, 1.0))
 total: P10 174.0 Mt, P50 176.5 Mt, P90 179.2 Mt; kriged 176.8 Mt
 P10-P90 spread ±1.5% of P50
 ```

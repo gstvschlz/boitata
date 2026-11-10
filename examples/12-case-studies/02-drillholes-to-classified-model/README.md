@@ -154,7 +154,7 @@ save(fig, "variogram")
 </details>
 
 ```text
-Zn: nugget 6.02, spherical sill 8.33, range 46 m
+Zn: nugget 6.04, spherical sill 8.33, range 46 m
 normal scores: nugget 0.52, spherical sill 0.48, range 58 m
 ```
 
@@ -231,7 +231,7 @@ print(f"density {np.nanmin(blocks['density']):.2f}-{np.nanmax(blocks['density'])
 
 ```text
 pass 1: 50% of blocks
-pass 2: 49% of blocks
+pass 2: 48% of blocks
 pass 3: 2% of blocks
 density 2.93-4.54 t/m3
 ```
@@ -316,7 +316,7 @@ save(fig, "swath")
 ```text
 lens_1: kriged 4.79 % Zn, declustered composites 5.18 % (-7.5%), nearest neighbor 4.96 % (-3.5%)
 lens_2: kriged 5.75 % Zn, declustered composites 5.84 % (-1.6%), nearest neighbor 5.67 % (+1.4%)
-lens_3: kriged 6.43 % Zn, declustered composites 6.87 % (-6.5%), nearest neighbor 6.27 % (+2.6%)
+lens_3: kriged 6.43 % Zn, declustered composites 6.87 % (-6.5%), nearest neighbor 6.27 % (+2.5%)
 ```
 
 ![swath](swath.png)
@@ -415,22 +415,22 @@ for groups in (block_lens, classes):
 
 ```text
                           kt   Zn %   kt Zn
-lens_1     ≥ 0 % Zn    9709   4.91   476.6
-lens_1     ≥ 5 % Zn    3781   7.07   267.5
-lens_2     ≥ 0 % Zn    6610   5.96   393.6
-lens_2     ≥ 5 % Zn    3788   7.74   293.1
-lens_3     ≥ 0 % Zn    5967   6.57   392.1
-lens_3     ≥ 5 % Zn    4385   7.54   330.4
-all        ≥ 0 % Zn   22286   5.66  1262.4
-all        ≥ 5 % Zn   11954   7.45   891.0
-indicated  ≥ 0 % Zn   10078   5.71   575.6
-indicated  ≥ 5 % Zn    5376   7.59   407.8
-inferred   ≥ 0 % Zn    8314   5.50   457.4
-inferred   ≥ 5 % Zn    4437   7.11   315.7
-measured   ≥ 0 % Zn    3893   5.89   229.4
-measured   ≥ 5 % Zn    2142   7.82   167.5
-all        ≥ 0 % Zn   22286   5.66  1262.4
-all        ≥ 5 % Zn   11954   7.45   891.0
+lens_1     ≥ 0 % Zn    9709   4.91   476.7
+lens_1     ≥ 5 % Zn    3780   7.08   267.5
+lens_2     ≥ 0 % Zn    6609   5.96   393.6
+lens_2     ≥ 5 % Zn    3787   7.74   293.2
+lens_3     ≥ 0 % Zn    5966   6.57   392.0
+lens_3     ≥ 5 % Zn    4384   7.53   330.2
+all        ≥ 0 % Zn   22285   5.66  1262.4
+all        ≥ 5 % Zn   11951   7.45   890.9
+indicated  ≥ 0 % Zn   10076   5.72   576.1
+indicated  ≥ 5 % Zn    5381   7.59   408.5
+inferred   ≥ 0 % Zn    8246   5.50   453.1
+inferred   ≥ 5 % Zn    4395   7.11   312.4
+measured   ≥ 0 % Zn    3963   5.88   233.2
+measured   ≥ 5 % Zn    2175   7.82   170.0
+all        ≥ 0 % Zn   22285   5.66  1262.4
+all        ≥ 5 % Zn   11951   7.45   890.9
 ```
 
 The three lenses hold 22.3 Mt at 5.66 % Zn, 1.26 Mt of zinc, of which 12.0 Mt at 7.45 % lie above 5 % Zn. Lens 1

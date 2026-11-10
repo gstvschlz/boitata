@@ -72,7 +72,7 @@ print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
 ```text
  grid.parquet: 1.04 MB
  rich.parquet: 0.16 MB
-     grid.csv: 4.04 MB
+     grid.csv: 4.05 MB
 BlockModel(masked, 11361 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
   estimate: Float64
   variance: Float64
