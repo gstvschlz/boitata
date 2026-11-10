@@ -77,33 +77,43 @@ pub fn block_krige(
     disc: &Discretization,
     vg: &Variogram,
 ) -> Result<Estimate> {
+    if disc.count() == 0 {
+        return Err(EstimError::InvalidParameters(format!(
+            "block discretization must be at least 1 per axis, got {}x{}x{}",
+            disc.nx, disc.ny, disc.nz
+        )));
+    }
+    if ![size.0, size.1, size.2]
+        .iter()
+        .all(|v| v.is_finite() && *v >= 0.0)
+    {
+        return Err(EstimError::InvalidParameters(format!(
+            "block size must be finite and >= 0, got {size:?}"
+        )));
+    }
     block_krige_points(Kind::Ordinary, &disc.points(center, size), samples, vg)
 }
 
 /// Covariance of each sample with the block discretized by `pts`, and the
-/// block's own C(B, B).
+/// block's own C(B, B). One point is point support: the nugget stays in both.
 pub fn block_covariances(
     pts: &[(f64, f64, f64)],
     samples: &[Sample],
     vg: &Variogram,
 ) -> (Vec<f64>, f64) {
     let np = pts.len() as f64;
+    let cov = |p: &(f64, f64, f64), q: &(f64, f64, f64)| {
+        if pts.len() == 1 {
+            vg.cov_points(p, q)
+        } else {
+            vg.block_cov_points(p, q)
+        }
+    };
     let rhs = samples
         .iter()
-        .map(|s| {
-            pts.iter()
-                .map(|p| vg.block_cov_points(&s.loc, p))
-                .sum::<f64>()
-                / np
-        })
+        .map(|s| pts.iter().map(|p| cov(&s.loc, p)).sum::<f64>() / np)
         .collect();
-    let mut cbb = 0.0;
-    for p in pts {
-        for q in pts {
-            cbb += vg.block_cov_points(p, q);
-        }
-    }
-    (rhs, cbb / (np * np))
+    (rhs, vg.block_mean_cov(pts))
 }
 
 /// Kriging of the mean over the block discretized by `pts`, in the form of
@@ -117,6 +127,15 @@ pub fn block_krige_points(
     let n = samples.len();
     if n == 0 {
         return Err(EstimError::InsufficientData("no samples".into()));
+    }
+    if pts.is_empty()
+        || !pts
+            .iter()
+            .all(|p| p.0.is_finite() && p.1.is_finite() && p.2.is_finite())
+    {
+        return Err(EstimError::InvalidParameters(
+            "block discretization needs at least one point, all with finite coordinates".into(),
+        ));
     }
     let ordinary = !matches!(kind, Kind::Simple { .. });
     let dim = if ordinary { n + 1 } else { n };
@@ -279,6 +298,55 @@ mod tests {
         let (on, off) = (block(0.0), block(1e-9));
         assert!((on.weights[0] - off.weights[0]).abs() < 1e-9);
         assert!((on.variance - off.variance).abs() < 1e-9);
+    }
+
+    #[test]
+    fn one_point_block_is_point_kriging() {
+        let vg = Variogram {
+            nugget: 0.3,
+            ..Variogram::single(Model::Spherical, 0.7, 100.0)
+        };
+        let one = Discretization {
+            nx: 1,
+            ny: 1,
+            nz: 1,
+        };
+        let c = (0.0, 0.0, 0.0);
+        let s = [sample((50.0, 0.0, 0.0), 1.0)];
+        let point = crate::krige::krige(Kind::Ordinary, &c, &s, &vg).unwrap();
+        let block = block_krige(&c, &(10.0, 10.0, 10.0), &s, &one, &vg).unwrap();
+        assert!((point.variance - 2.0 * vg.gamma(50.0)).abs() < 1e-9);
+        assert!((block.variance - point.variance).abs() < 1e-9);
+        assert_eq!(block.support_variance, vg.total_sill());
+
+        let s = [sample(c, 1.0), sample((40.0, 25.0, 0.0), 3.0)];
+        let point = crate::krige::krige(Kind::Ordinary, &c, &s, &vg).unwrap();
+        let block = block_krige(&c, &(10.0, 10.0, 10.0), &s, &one, &vg).unwrap();
+        assert!((block.weights[0] - point.weights[0]).abs() < 1e-9);
+        assert!((block.variance - point.variance).abs() < 1e-9);
+    }
+
+    #[test]
+    fn bad_discretization_or_size_is_rejected() {
+        let vg = Variogram::single(Model::Spherical, 1.0, 100.0);
+        let s = [sample((5.0, 0.0, 0.0), 1.0), sample((-5.0, 3.0, 0.0), 2.0)];
+        let c = (0.0, 0.0, 0.0);
+        let disc = |nx| Discretization { nx, ny: 4, nz: 1 };
+        let r = block_krige(&c, &(10.0, 10.0, 10.0), &s, &disc(0), &vg);
+        assert!(matches!(r, Err(EstimError::InvalidParameters(_))), "{r:?}");
+        for size in [
+            (f64::NAN, 10.0, 10.0),
+            (10.0, -1.0, 10.0),
+            (10.0, 10.0, f64::INFINITY),
+        ] {
+            let r = block_krige(&c, &size, &s, &disc(4), &vg);
+            assert!(
+                matches!(r, Err(EstimError::InvalidParameters(_))),
+                "{size:?}"
+            );
+        }
+        let r = block_krige_points(Kind::Ordinary, &[], &s, &vg);
+        assert!(matches!(r, Err(EstimError::InvalidParameters(_))), "{r:?}");
     }
 
     #[test]

@@ -69,15 +69,7 @@ pub fn block_average_correlation(
     disc: &BlockDiscretization,
 ) -> f64 {
     let pts = disc.points(center, size);
-    let np = pts.len() as f64;
-    let sill = vg_y.total_sill();
-    let mut acc = 0.0;
-    for p in &pts {
-        for q in &pts {
-            acc += vg_y.block_cov_points(p, q);
-        }
-    }
-    (acc / (np * np) / sill).clamp(0.0, 1.0)
+    (vg_y.block_mean_cov(&pts) / vg_y.total_sill()).clamp(0.0, 1.0)
 }
 
 /// Solve the change-of-support coefficient `r ∈ (0, 1]` from the block-averaged
@@ -206,6 +198,21 @@ mod tests {
             &BlockDiscretization::default(),
         );
         assert!(b > 0.0 && b <= 1.0, "b {b}");
+    }
+
+    #[test]
+    fn one_point_block_is_point_support() {
+        let vg = Variogram {
+            nugget: 0.3,
+            ..Variogram::single(Model::Spherical, 0.7, 100.0)
+        };
+        let disc = BlockDiscretization {
+            nx: 1,
+            ny: 1,
+            nz: 1,
+        };
+        let b = block_average_correlation(&vg, (0.0, 0.0, 0.0), (20.0, 20.0, 5.0), &disc);
+        assert_eq!(b, 1.0);
     }
 
     #[test]

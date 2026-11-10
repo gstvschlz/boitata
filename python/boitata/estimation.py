@@ -470,7 +470,9 @@ class BlockKriging(_Base):
     """Ordinary kriging of block averages; targets are block centers of `size`.
 
     `size` runs along the axes of a rotated BlockModel given as targets, and
-    along the world axes for coordinates.
+    along the world axes for coordinates. Each size must be finite and > 0,
+    and `discretization` at least 1 per axis, or InvalidInput is raised; a
+    ``(1, 1, 1)`` discretization is point support, nugget included.
     """
 
     def __init__(self, variogram: Variogram, search: Searches, size, *, discretization=(4, 4, 1)):

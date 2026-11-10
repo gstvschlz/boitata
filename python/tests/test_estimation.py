@@ -930,6 +930,34 @@ def gaussian_field(n=300, seed=11):
 blocks = bt.BlockModel(origin=(5.0, 5.0), size=(10, 10), count=(20, 20))
 
 
+def test_block_kriging_with_one_node_is_point_kriging():
+    vg = bt.Variogram([("spherical", 0.7, 100.0)], nugget=0.3)
+    one = bt.Search(radius=1e4, max_samples=1)
+    at, z = [[50.0, 0.0]], [1.0]
+    point = bt.OrdinaryKriging(vg, one).fit(at, z).predict([[0.0, 0.0]], diagnostics=True)
+    block = (
+        bt.BlockKriging(vg, one, size=(10, 10, 10), discretization=(1, 1, 1))
+        .fit(at, z)
+        .predict([[0.0, 0.0]], diagnostics=True)
+    )
+    assert point["variance"][0] == pytest.approx(2 * vg.gamma([50.0])[0], abs=1e-9)
+    assert block["variance"][0] == pytest.approx(point["variance"][0], abs=1e-9)
+
+
+@pytest.mark.parametrize(
+    ("options", "match"),
+    [
+        ({"discretization": (0, 4, 1)}, "discretization"),
+        ({"size": (10, float("nan"))}, "size"),
+        ({"size": (10, 0)}, "size"),
+        ({"size": (10, -1, 5)}, "size"),
+    ],
+)
+def test_block_kriging_rejects_bad_support(options, match):
+    with pytest.raises(bt.InvalidInput, match=match):
+        bt.BlockKriging(model, search, **{"size": (10, 10), **options})
+
+
 def test_calibration_block_variance_excludes_the_nugget():
     one = bt.Search(radius=1e4, max_samples=4)
     nugget = bt.BlockKriging(bt.Variogram([], nugget=1.0), one, size=(10, 10)).fit(coords, values)
