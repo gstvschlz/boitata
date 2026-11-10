@@ -124,7 +124,8 @@ pub fn extrapolated_nugget(exp: &Experimental, lags: usize) -> Result<f64> {
 /// Given the ranges, γ is linear in the nugget and sills, so these are solved
 /// exactly by bounded least squares; the ranges are searched on a geometric grid
 /// and the best starts refined by coordinate descent. Ranges increase in the
-/// listed order. With one unbounded structure and a free nugget this is [`fit`].
+/// listed order, and ranges without bounds stay within 1.5 times the largest
+/// lag. With one unbounded structure and a free nugget this is [`fit`].
 pub fn fit_nested(
     exp: &Experimental,
     spec: &NestedSpec,
@@ -144,6 +145,13 @@ pub fn fit_nested(
         .cloned()
         .filter(|&h| h > 0.0)
         .fold(h_max, f64::min);
+    let ranges: Vec<Bounds> = ranges
+        .into_iter()
+        .map(|(lo, hi)| match hi.is_finite() {
+            true => (lo, hi),
+            false => (lo, (1.5 * h_max).max(lo)),
+        })
+        .collect();
     let ordered = |r: &[f64]| r.windows(2).all(|w| w[0] < w[1]);
     let eval = |r: &[f64]| {
         let v = solve(exp, &exp.lags, spec, &linear, r, weighting);
@@ -1403,6 +1411,28 @@ mod tests {
             assert!((s.sill - 0.9).abs() < 1e-6, "sill {}", s.sill);
             assert!((s.range - 100.0).abs() < 1e-4, "range {}", s.range);
             assert!(r.wsse < 1e-10, "wsse {}", r.wsse);
+        }
+    }
+
+    #[test]
+    fn unbounded_ranges_stay_within_the_lags() {
+        let lags: Vec<f64> = (0..20).map(|i| 5.0 + 10.0 * i as f64).collect();
+        let exp = Experimental {
+            gammas: lags.iter().map(|&h| 0.1 + 0.004 * h).collect(),
+            counts: vec![100; lags.len()],
+            lags,
+            covariances: None,
+        };
+        let one = fit(&exp, Model::Spherical, Weighting::ByCount).unwrap();
+        let two = fit_nested(
+            &exp,
+            &free(&[Model::Spherical, Model::Spherical]),
+            Weighting::ByCount,
+        )
+        .unwrap();
+        for v in [&one.variogram, &two.variogram] {
+            assert!(v.structures.iter().all(|s| s.range <= 1.5 * 195.0), "{v:?}");
+            assert!(v.total_sill() < 2.0, "sill {}", v.total_sill());
         }
     }
 
