@@ -51,6 +51,19 @@ def test_block_proportions():
         cube.proportion(centroids, (10, 10, 10))
 
 
+@pytest.mark.parametrize("size", [(-2, 2, 2), (0, 2, 2), (np.nan, 2, 2), (2, np.inf, 2)])
+def test_block_proportions_reject_a_bad_size(size):
+    with pytest.raises(bt.InvalidInput, match="size"):
+        cube.proportion([[10.0, 5, 5]], size=size)
+
+
+def test_block_proportions_reject_an_overflowing_discretization():
+    model = bt.BlockModel((5, 0, 0), (10, 10, 10), (1, 1, 1))
+    for targets, size in [(model, None), ([[10.0, 5, 5]], (2, 2, 2))]:
+        with pytest.raises(bt.InvalidInput, match="discretization"):
+            cube.proportion(targets, size=size, discretization=(2**22, 2**22, 2**20))
+
+
 def test_domains_and_classes_by_name():
     grid = bt.BlockModel(
         (0, 0, 0), (1, 1, 1), (4, 1, 1), attributes={"c": ["a", "b", "a", "a"], "d": [1, 1, 2, 2]}
@@ -163,6 +176,31 @@ def test_block_shell_of_a_single_block():
     shell = bt.block_shell(model, column="v")
     assert shell.triangles.shape == (12, 3) and np.all(shell.face_attributes["value"] == 2.0)
     assert shell.area == pytest.approx(6)
+
+
+def test_block_shell_of_a_sub_blocked_model_has_no_holes():
+    regular = bt.BlockModel((0, 0, 0), (10, 10, 10), (10, 10, 1))
+    parents = np.r_[np.arange(55), 55, 55, np.arange(56, 100)].astype(np.uint64)
+    extents = np.tile([0, 0, 0, 1, 1, 1.0], (101, 1))
+    extents[55] = [0, 0, 0, 0.4, 1, 1]
+    extents[56] = [0.4, 0, 0, 1, 1, 1]
+    sub = bt.BlockModel.subblocked((0, 0, 0), (10, 10, 10), (10, 10, 1), parents, extents)
+    a, b = bt.block_shell(regular), bt.block_shell(sub)
+    assert b.area == pytest.approx(a.area) and b.bounds == a.bounds
+    assert len(b.triangles) == len(a.triangles) + 4
+
+    extents[56] = [0.4 + np.sqrt(2) / 100, 0, 0, 1, 1, 1]
+    stray = bt.BlockModel.subblocked((0, 0, 0), (10, 10, 10), (10, 10, 1), parents, extents)
+    with pytest.raises(bt.InvalidInput, match="lattice"):
+        bt.block_shell(stray)
+
+    extents = np.tile([0, 0, 0, 1, 1, 1.0], (100, 1))
+    extents[55] = [0.25, 0, 0, 0.75, 1, 1]
+    offset = bt.BlockModel.subblocked(
+        (0, 0, 0), (10, 10, 10), (10, 10, 1), np.arange(100, dtype=np.uint64), extents
+    )
+    with pytest.raises(bt.InvalidInput, match="1 of 100 blocks"):
+        bt.block_shell(offset)
 
 
 def test_mesh_topology():
