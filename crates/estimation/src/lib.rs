@@ -15,6 +15,7 @@
 pub mod batch;
 pub mod block;
 pub mod categorical;
+mod coincident;
 pub mod cokrige;
 pub mod disjunctive;
 pub mod error;
@@ -108,7 +109,7 @@ mod tests {
     use variogram::{Model, Variogram};
 
     #[test]
-    fn dropping_twins_restores_kriging() {
+    fn twins_krige_as_one_sample() {
         let locs = [
             (0.0, 0.0, 0.0),
             (10.0, 0.0, 0.0),
@@ -117,11 +118,21 @@ mod tests {
             (5.0, 5.0, 0.0),
         ];
         let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
-        let samples: Vec<Sample> = locs.iter().map(|&l| Sample::new(l, 1.0)).collect();
+        let samples: Vec<Sample> = locs
+            .iter()
+            .zip([1.0, 2.0, 3.0, 4.0, 6.0])
+            .map(|(&l, v)| Sample::new(l, v))
+            .collect();
         let target = (2.0, 2.0, 0.0);
-        assert!(krige(Kind::Ordinary, &target, &samples, &vg).is_err());
-        let kept: Vec<Sample> = [0, 1, 3].iter().map(|&i| samples[i].clone()).collect();
-        let est = krige(Kind::Ordinary, &target, &kept, &vg).unwrap();
-        assert!((est.value - 1.0).abs() < 1e-9);
+        let est = krige(Kind::Ordinary, &target, &samples, &vg).unwrap();
+        let kept: Vec<Sample> = [(0, 2.0), (1, 2.0), (3, 5.0)]
+            .iter()
+            .map(|&(i, v)| Sample::new(locs[i], v))
+            .collect();
+        let one = krige(Kind::Ordinary, &target, &kept, &vg).unwrap();
+        assert!((est.value - one.value).abs() < 1e-12);
+        assert!((est.variance - one.variance).abs() < 1e-12);
+        assert_eq!(est.weights[0], est.weights[2]);
+        assert_eq!(est.weights[3], est.weights[4]);
     }
 }

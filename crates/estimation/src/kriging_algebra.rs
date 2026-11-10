@@ -22,10 +22,12 @@
 //! is a data change, not a new code path.
 
 use crate::Sample;
+use crate::coincident::Clusters;
 use crate::error::{EstimError, Result};
 use crate::krige::{Estimate, Kind, krige};
 use crate::search::Calibration;
 use nalgebra::{DMatrix, DVector};
+use std::borrow::Cow;
 use variogram::Variogram;
 
 /// Drift design for a single estimate: the basis evaluated at every datum
@@ -213,6 +215,20 @@ pub fn krige_universal(
         ));
     }
     let p = drift.p();
+    if p == 0 {
+        crate::krige::check_simple(Kind::Simple { mean: 0.0 }, vg)?;
+    }
+    if let Some(c) = Clusters::find(samples) {
+        let merged = DriftSpec {
+            data: c.rows(&drift.data),
+            target: drift.target.clone(),
+        };
+        let e = krige_universal(target, &c.merge(samples, vg), &merged, vg, mean)?;
+        return Ok(c.spread(e, |w| match (p, mean) {
+            (0, Some(m)) => crate::krige::value(Kind::Simple { mean: m }, w, samples),
+            _ => crate::krige::value(Kind::Ordinary, w, samples),
+        }));
+    }
     let c0 = vg.total_sill();
 
     if p == 0 {
@@ -432,7 +448,7 @@ pub fn krige_ordinary(
 ///
 /// Build with [`DualKriging::new`], then call [`DualKriging::estimate`].
 pub struct DualKriging<'a> {
-    samples: &'a [Sample],
+    samples: Cow<'a, [Sample]>,
     vg: &'a Variogram,
     /// Dual data coefficients `d` (length `n`).
     d: Vec<f64>,
@@ -444,10 +460,14 @@ pub struct DualKriging<'a> {
 impl<'a> DualKriging<'a> {
     /// Build a dual system with polynomial drift of `degree` (0 = OK).
     pub fn new(samples: &'a [Sample], vg: &'a Variogram, degree: usize) -> Result<Self> {
-        let n = samples.len();
-        if n == 0 {
+        if samples.is_empty() {
             return Err(EstimError::InsufficientData("no samples".into()));
         }
+        let samples: Cow<'a, [Sample]> = match Clusters::find(samples) {
+            Some(c) => Cow::Owned(c.merge(samples, vg)),
+            None => Cow::Borrowed(samples),
+        };
+        let n = samples.len();
         let coords: Vec<(f64, f64, f64)> = samples.iter().map(|s| s.loc).collect();
         let basis = PolyBasis::new(&coords, degree);
         let fdata: Vec<Vec<f64>> = coords.iter().map(|c| basis.eval(c)).collect();
@@ -598,6 +618,15 @@ fn bayesian(
     b0: &DVector<f64>,
     s0_inv: &DMatrix<f64>,
 ) -> Result<Estimate> {
+    if let Some(c) = Clusters::find(samples) {
+        let merged = DriftSpec {
+            data: c.rows(&drift.data),
+            target: drift.target.clone(),
+        };
+        let e = bayesian(target, &c.merge(samples, vg), &merged, vg, b0, s0_inv)?;
+        let value = e.value;
+        return Ok(c.spread(e, |_| value));
+    }
     let n = samples.len();
     let p = drift.p();
 
@@ -678,6 +707,16 @@ pub fn krige_factorial(
     let n = samples.len();
     if n == 0 {
         return Err(EstimError::InsufficientData("no samples".into()));
+    }
+    if let Some(c) = Clusters::find(samples) {
+        let e = krige_factorial(
+            target,
+            &c.merge(samples, vg),
+            vg,
+            keep_nugget,
+            keep_structures,
+        )?;
+        return Ok(c.spread(e, |w| crate::krige::value(Kind::Ordinary, w, samples)));
     }
     let dim = n + 1;
     let mut a = DMatrix::<f64>::zeros(dim, dim);

@@ -35,6 +35,29 @@ def test_simple_kriging_reverts_to_the_mean_far_away():
     assert sk.predict([[400.0, 400.0]])[0] == pytest.approx(7.0)
 
 
+def test_simple_kriging_rejects_a_variogram_without_a_sill():
+    power = bt.Variogram([("power", 1.0, 1.5)])
+    with pytest.raises(bt.InvalidInput, match="simple kriging needs a variogram with a sill"):
+        bt.SimpleKriging(power, bt.Search(radius=1000), mean=1.0)
+    assert np.isfinite(
+        bt.OrdinaryKriging(power, bt.Search(radius=1000)).fit(coords, values).predict([[50.0, 50.0]])[0]
+    )
+
+
+def test_near_duplicate_samples_share_their_weight_whatever_the_neighborhood_size():
+    lattice = np.array([[x, y] for x in range(0, 100, 11) for y in range(0, 100, 11)], float)
+    pair = np.array([[50.5, 50.5], [50.5 + 1e-9, 50.5]])
+    xy = np.vstack([pair, lattice])
+    z = np.r_[1.0, 5.0, np.sin(lattice[:, 0] / 17.0) + 3.0]
+    exact = bt.Variogram([("spherical", 1.0, 50.0)])
+    target = [[52.0, 51.0]]
+    out = [
+        bt.OrdinaryKriging(exact, bt.Search(radius=1e3, max_samples=n)).fit(xy, z).predict(target)[0]
+        for n in (64, 65)
+    ]
+    assert np.all(np.isfinite(out))
+
+
 def test_indicator_kriging_gives_probabilities():
     ik = bt.IndicatorKriging(model, search, threshold=float(np.median(values))).fit(coords, values)
     p = ik.predict(rng.uniform(0, 100, (50, 2)))

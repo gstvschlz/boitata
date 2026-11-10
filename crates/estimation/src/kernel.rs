@@ -238,7 +238,7 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_locations_are_singular() {
+    fn duplicate_locations_are_singular_before_the_guard() {
         let vg = Variogram {
             nugget: 0.0,
             ..variogram()
@@ -250,10 +250,8 @@ mod tests {
             krige(Kind::Ordinary, &target, &samples, &vg),
             Some(Err(EstimError::Singular(_)))
         ));
-        assert!(matches!(
-            crate::krige::krige(Kind::Ordinary, &target, &samples, &vg),
-            Err(EstimError::Singular(_))
-        ));
+        let e = crate::krige::krige(Kind::Ordinary, &target, &samples, &vg).unwrap();
+        assert_eq!(e.weights[0], e.weights[6]);
     }
 
     #[test]
