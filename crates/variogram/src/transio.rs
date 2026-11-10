@@ -5,6 +5,7 @@
 //! category; off-diagonal terms describe cross-transitions. Used by indicator/
 //! multiple-point methods and sequential indicator simulation of facies.
 
+use crate::empirical::{LagBins, MAX_LAG_BINS};
 use crate::error::{Result, VarioError};
 use serde::{Deserialize, Serialize};
 
@@ -102,11 +103,12 @@ pub fn empirical_transiogram(
             "locations and categories length mismatch".into(),
         ));
     }
-    if n_categories == 0 || lag_width <= 0.0 || max_lag <= 0.0 {
+    if n_categories == 0 {
         return Err(VarioError::InvalidParameters(
-            "invalid transiogram parameters".into(),
+            "n_categories must be at least 1".into(),
         ));
     }
+    let n_bins = LagBins { max_lag, lag_width }.count(MAX_LAG_BINS)?;
     for &c in categories {
         if c >= n_categories {
             return Err(VarioError::InvalidParameters(format!(
@@ -115,7 +117,6 @@ pub fn empirical_transiogram(
         }
     }
 
-    let n_bins = (max_lag / lag_width).ceil().max(1.0) as usize;
     // transition_counts[bin][i][j], row_totals[bin][i]
     let mut trans = vec![vec![vec![0usize; n_categories]; n_categories]; n_bins];
     let mut row_totals = vec![vec![0usize; n_categories]; n_bins];
@@ -222,5 +223,18 @@ mod tests {
                 assert!((s - 1.0).abs() < 1e-9 || s == 0.0);
             }
         }
+    }
+
+    #[test]
+    fn unbounded_lag_counts_are_errors_not_panics() {
+        let locs: Vec<_> = (0..20).map(|i| (i as f64, 0.0, 0.0)).collect();
+        let cats: Vec<usize> = (0..20).map(|i| i % 2).collect();
+        for (max_lag, lag) in [(f64::INFINITY, 1.0), (1.0, 1e-300), (f64::NAN, 1.0)] {
+            assert!(matches!(
+                empirical_transiogram(&locs, &cats, 2, max_lag, lag),
+                Err(VarioError::InvalidParameters(_))
+            ));
+        }
+        assert!(empirical_transiogram(&locs, &cats, 2, 10.0, 1.0).is_ok());
     }
 }
