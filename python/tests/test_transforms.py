@@ -602,3 +602,10 @@ def test_spatial_bootstrap_widens_with_correlation():
 def test_normal_score_rejects_negative_weights():
     with pytest.raises(bt.InvalidInput):
         bt.NormalScore().fit([1.0, 2.0, 3.0, 4.0], weights=[1, -1, 1, 1])
+
+
+@pytest.mark.parametrize("cell_size", [np.nan, np.inf])
+def test_cell_declustering_rejects_non_finite_cell_size(cell_size):
+    xy = np.column_stack([np.arange(20.0), np.arange(20.0) % 5])
+    with pytest.raises(bt.InvalidInput):
+        bt.cell_declustering(xy, np.arange(20.0), cell_size=cell_size)

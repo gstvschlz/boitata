@@ -105,11 +105,18 @@ impl Coregionalization {
     ///
     /// # Errors
     /// [`VarioError::InvalidParameters`] when the nugget or a structure's sill
-    /// matrix is not `nvar × nvar`, symmetric and positive semi-definite.
+    /// matrix is not `nvar × nvar`, symmetric and positive semi-definite, or a
+    /// structure's range is not finite and positive.
     pub fn new(nugget: Vec<Vec<f64>>, structures: Vec<CoregStructure>) -> Result<Self> {
         let nvar = nugget.len();
         check_psd("nugget", &nugget, nvar)?;
         for (k, s) in structures.iter().enumerate() {
+            if !(s.range > 0.0 && s.range.is_finite()) {
+                return Err(VarioError::InvalidParameters(format!(
+                    "structure {k} range must be finite and > 0, got {}",
+                    s.range
+                )));
+            }
             check_psd(&format!("structure {k} sills"), &s.sills, nvar)?;
         }
         Ok(Self {
@@ -299,5 +306,20 @@ mod tests {
         let m = model();
         let p = (5.0, 5.0, 5.0);
         assert!((m.cross_cov(0, 0, &p, &p) - m.sill(0, 0)).abs() < 1e-12);
+    }
+
+    #[test]
+    fn non_positive_or_nan_range_is_rejected() {
+        for range in [-50.0, 0.0, f64::NAN, f64::INFINITY] {
+            let s = CoregStructure {
+                model: Model::Spherical,
+                range,
+                sills: vec![vec![1.0, 0.5], vec![0.5, 1.0]],
+            };
+            assert!(
+                Coregionalization::new(vec![vec![0.0; 2]; 2], vec![s]).is_err(),
+                "{range}"
+            );
+        }
     }
 }

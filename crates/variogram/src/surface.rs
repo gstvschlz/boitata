@@ -298,7 +298,7 @@ pub(crate) fn populated(lags: &[f64], curve: &ConeCurve) -> Option<Experimental>
 }
 
 pub(crate) fn check_tolerance(tolerance: f64) -> Result<f64> {
-    if tolerance <= 0.0 || tolerance > 90.0 {
+    if !(tolerance > 0.0 && tolerance <= 90.0) {
         return Err(VarioError::InvalidParameters(
             "tolerance must be in (0, 90] degrees".into(),
         ));
