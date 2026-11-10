@@ -162,6 +162,25 @@ def test_cross_validation_summary():
     assert np.isfinite(cv.standardized_squared_error)
 
 
+@pytest.mark.parametrize(
+    "rule",
+    [
+        bt.Search(radius=50, max_samples=4, octant=True, max_per_sector=1),
+        bt.Search(radius=50, max_samples=6, sectors=6, max_per_sector=1, max_empty_sectors=2),
+        bt.Search(radius=50, max_samples=6, max_per_hole=2, min_holes=3),
+    ],
+)
+def test_cross_validation_searches_as_if_the_sample_were_absent(rule):
+    holes = [f"DH{i // 5}" for i in range(len(coords))]
+    cv = bt.OrdinaryKriging(model, rule).fit(coords, values, holes=holes).cross_validate()
+    for i in range(len(coords)):
+        rest = np.arange(len(coords)) != i
+        ok = bt.OrdinaryKriging(model, rule).fit(
+            coords[rest], values[rest], holes=list(np.array(holes)[rest])
+        )
+        np.testing.assert_allclose(cv.estimate[i], ok.predict(coords[i : i + 1])[0], rtol=1e-9, atol=1e-12)
+
+
 def test_search_passes_fill_what_earlier_passes_left():
     grid = np.column_stack([np.repeat(np.arange(0, 150, 5.0), 30), np.tile(np.arange(0, 150, 5.0), 30)])
     tight, wide = bt.Search(radius=10, min_samples=4), bt.Search(radius=80, min_samples=2)

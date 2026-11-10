@@ -596,14 +596,13 @@ fn select(
 
 /// Ordered candidates with samples of different domains at one location
 /// reduced to one, which takes the place of the first: the one of the
-/// target's `domain` if any, otherwise the first. `kept` is passed through
-/// untouched. Nothing changes without a target domain.
+/// target's `domain` if any, otherwise the first. Nothing changes without a
+/// target domain.
 fn one_per_location(
     ordered: impl IntoIterator<Item = usize>,
     loc: impl Fn(usize) -> Point,
     of: impl Fn(usize) -> Option<u32>,
     domain: Option<u32>,
-    kept: Option<usize>,
 ) -> Vec<usize> {
     let ordered = ordered.into_iter();
     if domain.is_none() {
@@ -616,10 +615,6 @@ fn one_per_location(
     let mut at: HashMap<[u64; 3], usize> = HashMap::new();
     let mut out = Vec::new();
     for i in ordered {
-        if kept == Some(i) {
-            out.push(i);
-            continue;
-        }
         match at.entry(key(i)) {
             Entry::Vacant(e) => {
                 e.insert(out.len());
@@ -675,7 +670,6 @@ pub fn neighbors_in(
         |i| samples[i].loc,
         |i| samples[i].domain,
         domain,
-        None,
     );
     let sectors = Sectors::new(
         aniso,
@@ -848,7 +842,7 @@ impl SearchTree {
             .filter(|&(d, i)| d <= params.radius && self.admits(target, domain, i, d))
             .collect();
         found.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
-        let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain, None);
+        let ordered = self.one_per_location(found.into_iter().map(|f| f.1), domain);
         let sectors = Sectors::new(Some(local), self.sectors.planar, params);
         select(
             target,
@@ -908,9 +902,8 @@ impl SearchTree {
         &self,
         ordered: impl IntoIterator<Item = usize>,
         domain: Option<u32>,
-        kept: Option<usize>,
     ) -> Vec<usize> {
-        one_per_location(ordered, |i| self.locs[i], |i| self.domains[i], domain, kept)
+        one_per_location(ordered, |i| self.locs[i], |i| self.domains[i], domain)
     }
 
     /// `chosen` round-robin over the sectors around `target`, each sector in
@@ -952,14 +945,14 @@ impl SearchTree {
         self.neighbors_around(target, domain, None)
     }
 
-    /// As [`SearchTree::neighbors_in`] for the target at sample `kept`, which
-    /// is selected as usual but leaves its location to samples of other
-    /// domains there; for leave-one-out.
+    /// As [`SearchTree::neighbors_in`] with sample `left_out`, if any, taken
+    /// out of the indexed samples: the selection equals that of a tree built
+    /// without it; for leave-one-out.
     pub fn neighbors_around(
         &self,
         target: &Point,
         domain: Option<u32>,
-        kept: Option<usize>,
+        left_out: Option<usize>,
     ) -> Result<Vec<usize>> {
         let params = &self.params;
         let mut selector = Selector::new(target, params, &self.sectors);
@@ -973,7 +966,7 @@ impl SearchTree {
         self.index
             .nearest(&query, params.radius * params.radius, |d2, i| {
                 if d2 != at && !group.is_empty() {
-                    full = self.offer(&mut group, at, target, domain, kept, &mut selector);
+                    full = self.offer(&mut group, at, target, domain, left_out, &mut selector);
                     if full {
                         return true;
                     }
@@ -983,7 +976,7 @@ impl SearchTree {
                 false
             });
         if !full {
-            self.offer(&mut group, at, target, domain, kept, &mut selector);
+            self.offer(&mut group, at, target, domain, left_out, &mut selector);
         }
         selector.finish()
     }
@@ -996,14 +989,14 @@ impl SearchTree {
         d2: f64,
         target: &Point,
         domain: Option<u32>,
-        kept: Option<usize>,
+        left_out: Option<usize>,
         selector: &mut Selector,
     ) -> bool {
         let admitted: Vec<usize> = group
             .drain(..)
-            .filter(|&i| self.admits(target, domain, i, d2.sqrt()))
+            .filter(|&i| Some(i) != left_out && self.admits(target, domain, i, d2.sqrt()))
             .collect();
-        for i in self.one_per_location(admitted, domain, kept) {
+        for i in self.one_per_location(admitted, domain) {
             if selector.offer(i, &self.locs[i], self.holes[i]) {
                 return true;
             }
