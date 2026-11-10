@@ -1096,8 +1096,8 @@ fn soft_boundary<'py>(
 /// weights : array_like or str, optional
 ///     Declustering weights; default the volumes of a BlockModel `data`, else 1.
 /// caps : array_like, optional
-///     Caps; default the weighted quantiles 0.9, 0.95, 0.975, 0.99, 0.995 and
-///     0.999.
+///     Caps, not NaN; default the weighted quantiles 0.9, 0.95, 0.975, 0.99,
+///     0.995 and 0.999.
 /// data : PointSet, BlockModel, Table or dict, optional
 ///     Where column names are looked up.
 ///

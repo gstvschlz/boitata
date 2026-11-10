@@ -140,6 +140,11 @@ def test_capping_at_maximum_removes_nothing():
     assert len(bt.capping(v)) == 6
 
 
+def test_capping_rejects_nan_cap():
+    with pytest.raises(bt.InvalidInput, match="caps"):
+        bt.capping([1.0, 2.0, 3.0], caps=[np.nan])
+
+
 def test_h_scatter_correlation_decays():
     x = np.arange(300.0)
     coords = np.c_[x, np.zeros(300)]
