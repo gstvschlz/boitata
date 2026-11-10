@@ -1088,6 +1088,10 @@ pub fn samples_from(found: &Found) -> PyResult<Vec<Sample>> {
 }
 
 impl Tabular for Estimator {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(Vec::len)
+    }
+
     fn columns(&self) -> Option<Columns> {
         let mut columns = sample_columns(self.samples.as_deref()?);
         for (j, col) in self.drift_data.iter().enumerate() {
@@ -1109,6 +1113,10 @@ impl Tabular for Estimator {
 }
 
 impl Tabular for Dual {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(Vec::len)
+    }
+
     fn columns(&self) -> Option<Columns> {
         self.samples.as_deref().map(sample_columns)
     }
@@ -1757,6 +1765,10 @@ impl Estimator {
         persist::state("_Estimator", self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta("_Estimator", self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
         persist::from_state("_Estimator", meta, columns)
@@ -1835,6 +1847,10 @@ impl Dual {
 
     fn _state(&self) -> PyResult<(String, Option<Columns>)> {
         persist::state(<Self as PyClass>::NAME, self)
+    }
+
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta(<Self as PyClass>::NAME, self)
     }
 
     #[staticmethod]

@@ -453,6 +453,10 @@ impl MultipleIndicatorKriging {
         persist::state(<Self as pyo3::PyClass>::NAME, self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta(<Self as pyo3::PyClass>::NAME, self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
         persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
@@ -493,6 +497,10 @@ impl MultipleIndicatorKriging {
 }
 
 impl Tabular for MultipleIndicatorKriging {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(|s| s.0.len())
+    }
+
     fn columns(&self) -> Option<Columns> {
         self.samples.as_ref().map(|(samples, weights)| {
             let mut columns = sample_columns(samples);
@@ -535,6 +543,10 @@ impl IndicatorSummary {
 
     fn _state(&self) -> PyResult<(String, Option<Columns>)> {
         persist::state(<Self as pyo3::PyClass>::NAME, self)
+    }
+
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta(<Self as pyo3::PyClass>::NAME, self)
     }
 
     #[staticmethod]
@@ -633,16 +645,6 @@ impl IndicatorSummary {
             self.0.diagnostics.as_ref(),
             &self.0.correction,
         ))
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "IndicatorSummary(targets={}, thresholds={:?}, cutoffs={:?}, quantiles={:?})",
-            self.0.mean.len(),
-            self.0.thresholds,
-            self.0.cutoffs,
-            self.0.quantiles
-        )
     }
 }
 

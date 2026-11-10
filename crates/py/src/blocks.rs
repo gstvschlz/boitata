@@ -736,16 +736,6 @@ impl MeshReport {
         .map(Table)
         .map_err(invalid)
     }
-
-    fn __repr__(&self) -> String {
-        let s = &self.0.summary;
-        format!(
-            "MeshReport({} problems, {} shells, {})",
-            self.0.problems.len(),
-            s.shells,
-            if s.is_closed { "closed" } else { "open" }
-        )
-    }
 }
 
 /// Selects points inside plan-view rings, optionally between `z_min` and

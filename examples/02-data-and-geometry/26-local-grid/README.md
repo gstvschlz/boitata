@@ -48,7 +48,12 @@ print(f"horizontal rms: {np.sqrt(np.mean(np.sum(residuals[:, :2] ** 2, axis=1)))
 </details>
 
 ```text
-LocalGrid(scale=0.9996009652134624, rotation=127.99928275503542, shift=(612349.9600102851, 7731819.9942989545), z_shift=-412.00943985752156, crs=EPSG:32723)
+LocalGrid  mine grid to projected coordinates
+  scale     0.9996
+  rotation  128°
+  shift     612350, 7731820
+  z shift   -412
+  crs       EPSG:32723
 residuals (m):
 [[ 0.022  0.014  0.001]
  [-0.02   0.004 -0.02 ]

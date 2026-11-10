@@ -1397,6 +1397,18 @@ impl Capping {
 
 #[pymethods]
 impl Capping {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "cap": serde_json::to_value(&self.cap).unwrap_or_default(),
+            "quantile": self.quantile,
+            "metal_removed": self.metal_removed,
+            "cv": self.cv,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -2317,15 +2329,6 @@ impl Domains {
     #[getter]
     fn spatial_entropy(&self) -> f64 {
         self.result.spatial_entropy
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Domains(k={}, wcss={:.3}, spatial_entropy={:.3})",
-            self.scheme.0.len(),
-            self.result.wcss,
-            self.result.spatial_entropy
-        )
     }
 }
 

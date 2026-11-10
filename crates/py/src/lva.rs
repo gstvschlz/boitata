@@ -236,6 +236,10 @@ impl LocalAnisotropy {
         persist::state(<Self as pyo3::PyClass>::NAME, self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta(<Self as pyo3::PyClass>::NAME, self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
         persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
@@ -265,10 +269,6 @@ impl LocalAnisotropy {
 
     fn __len__(&self) -> usize {
         self.0.len()
-    }
-
-    fn __repr__(&self) -> String {
-        format!("LocalAnisotropy({} locations)", self.0.len())
     }
 }
 

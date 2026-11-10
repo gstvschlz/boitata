@@ -55,7 +55,7 @@ print(f"volume {lens.volume:,.0f} m3")
 </details>
 
 ```text
-Mesh(16200 vertices, 32396 triangles, closed) MeshReport(0 problems, 1 shells, closed)
+Mesh(16200 vertices, 32396 triangles, closed) MeshReport(0 problems, 1 shell, closed)
 volume 1,907,872 m3
 ```
 
@@ -307,7 +307,7 @@ print(f"{fixed} {fixed.validate()}")
 ```text
 triangles on the non-manifold edge [31690 32040 32347], fin [32347]
 hole rim: 21 edges, closed with 21 triangles
-Mesh(16186 vertices, 32368 triangles, closed) MeshReport(0 problems, 1 shells, closed)
+Mesh(16186 vertices, 32368 triangles, closed) MeshReport(0 problems, 1 shell, closed)
 ```
 
 !!! check "Check before you move on"
