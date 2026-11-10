@@ -96,6 +96,30 @@ pub struct LagBins {
     pub lag_width: f64,
 }
 
+/// Most lag bins a sweep allocates; each bin is a moment row per sweep chunk.
+pub(crate) const MAX_LAG_BINS: usize = 10_000;
+
+impl LagBins {
+    /// `ceil(max_lag / lag_width)`, at least 1, after checking both are finite
+    /// and positive and the count stays within `max`.
+    pub(crate) fn count(&self, max: usize) -> Result<usize> {
+        for (name, v) in [("lag_width", self.lag_width), ("max_lag", self.max_lag)] {
+            if !(v.is_finite() && v > 0.0) {
+                return Err(VarioError::InvalidParameters(format!(
+                    "{name} must be finite and positive, got {v}"
+                )));
+            }
+        }
+        let n = (self.max_lag / self.lag_width).ceil().max(1.0);
+        if n > max as f64 {
+            return Err(VarioError::InvalidParameters(format!(
+                "max_lag / lag_width must be at most {max}, got {n}"
+            )));
+        }
+        Ok(n as usize)
+    }
+}
+
 impl Default for LagBins {
     fn default() -> Self {
         Self {
@@ -133,11 +157,17 @@ pub fn experimental<'a>(
     standardize: bool,
 ) -> Result<Experimental> {
     let locations = locations.into();
-    check(locations, values, bins)?;
+    let n_bins = check(locations, values, bins)?;
     let scale = scale(values, estimator, standardize)?;
-    let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, _| {
-        both_ways(values[i], values[j])
-    });
+    let (sums, counts) = sweep(
+        locations,
+        None,
+        bins,
+        n_bins,
+        direction,
+        false,
+        |i, j, _| both_ways(values[i], values[j]),
+    );
     Ok(collect(bins, &sums, &counts, estimator, scale))
 }
 
@@ -185,7 +215,7 @@ pub fn experimental_local(
     direction: Option<&Direction>,
     standardize: bool,
 ) -> Result<Experimental> {
-    check(Support::Points(locations), values, bins)?;
+    let n_bins = check(Support::Points(locations), values, bins)?;
     if rotations.len() != locations.len() {
         return Err(VarioError::InvalidParameters(
             "one rotation per location".into(),
@@ -194,7 +224,6 @@ pub fn experimental_local(
     let scale = scale(values, estimator, standardize)?;
     let back = boitata_core::rotation_matrix(0.0, 0.0, 0.0).transpose();
     let frames: Vec<Matrix3<f64>> = rotations.iter().map(|r| back * r).collect();
-    let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
     let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
     let (sums, counts) = point_sweep(
         locations,
@@ -233,7 +262,7 @@ pub fn cross_experimental<'a>(
     standardize: bool,
 ) -> Result<Experimental> {
     let locations = locations.into();
-    check(locations, values, bins)?;
+    let n_bins = check(locations, values, bins)?;
     if !matches!(estimator, Estimator::Matheron | Estimator::Covariance) {
         return Err(VarioError::InvalidParameters(
             "cross-variograms take the matheron or covariance estimator".into(),
@@ -270,17 +299,25 @@ pub fn cross_experimental<'a>(
             let (t1, h2) = (values[t], other[h]);
             [d1 * d2, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0, 0.0]
         };
-        let (sums, counts) = sweep(locations, None, bins, direction, false, |i, j, side| {
-            if side > 0.0 {
-                pair(i, j)
-            } else if side < 0.0 {
-                pair(j, i)
-            } else {
-                let mut m = pair(i, j);
-                add(&mut m, &pair(j, i));
-                m.map(|x| x * 0.5)
-            }
-        });
+        let (sums, counts) = sweep(
+            locations,
+            None,
+            bins,
+            n_bins,
+            direction,
+            false,
+            |i, j, side| {
+                if side > 0.0 {
+                    pair(i, j)
+                } else if side < 0.0 {
+                    pair(j, i)
+                } else {
+                    let mut m = pair(i, j);
+                    add(&mut m, &pair(j, i));
+                    m.map(|x| x * 0.5)
+                }
+            },
+        );
         return Ok(collect(bins, &sums, &counts, estimator, scale));
     };
     let Support::Points(locations) = locations else {
@@ -295,10 +332,18 @@ pub fn cross_experimental<'a>(
         ));
     }
     let tails = Support::Points(locations);
-    let (mut sums, mut counts) = sweep(tails, Some(heads), bins, direction, true, |i, j, _| {
-        let (t1, h2) = (values[i], other[j]);
-        [0.0, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0, 0.0]
-    });
+    let (mut sums, mut counts) = sweep(
+        tails,
+        Some(heads),
+        bins,
+        n_bins,
+        direction,
+        true,
+        |i, j, _| {
+            let (t1, h2) = (values[i], other[j]);
+            [0.0, 0.0, t1, h2, t1 * h2, t1 * t1, h2 * h2, 0.0, 0.0]
+        },
+    );
     let (near, n_near) = (sums.pop().unwrap_or_default(), counts.pop().unwrap_or(0));
     let unit = Scale {
         variance: 0.0,
@@ -405,14 +450,13 @@ pub fn downhole(
     direction: Option<&Direction>,
     standardize: bool,
 ) -> Result<Experimental> {
-    check(Support::Points(locations), values, bins)?;
+    let n_bins = check(Support::Points(locations), values, bins)?;
     if holes.len() != values.len() {
         return Err(VarioError::InsufficientData(
             "holes must have one id per location".into(),
         ));
     }
     let scale = scale(values, estimator, standardize)?;
-    let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
     let mut sums = vec![[0.0f64; 9]; n_bins];
     let mut counts = vec![0usize; n_bins];
     let mut distances = vec![0.0; n_bins];
@@ -447,7 +491,7 @@ pub fn downhole(
     Ok(exp)
 }
 
-fn check(locations: Support, values: &[f64], bins: &LagBins) -> Result<()> {
+fn check(locations: Support, values: &[f64], bins: &LagBins) -> Result<usize> {
     if let Support::Grid(geometry, cells) = locations {
         geometry
             .validate()
@@ -471,12 +515,7 @@ fn check(locations: Support, values: &[f64], bins: &LagBins) -> Result<()> {
             "at least 2 samples required".into(),
         ));
     }
-    if bins.lag_width <= 0.0 || bins.max_lag <= 0.0 {
-        return Err(VarioError::InvalidParameters(
-            "lag_width and max_lag must be positive".into(),
-        ));
-    }
-    Ok(())
+    bins.count(MAX_LAG_BINS)
 }
 
 type Cone<'a> = (&'a Direction, (f64, f64, f64), f64);
@@ -492,6 +531,7 @@ fn sweep<F>(
     tails: Support,
     heads: Option<&[(f64, f64, f64)]>,
     bins: &LagBins,
+    n_bins: usize,
     direction: Option<&Direction>,
     near: bool,
     terms: F,
@@ -499,7 +539,6 @@ fn sweep<F>(
 where
     F: Fn(usize, usize, f64) -> Moments + Sync,
 {
-    let n_bins = ((bins.max_lag / bins.lag_width).ceil() as usize).max(1);
     let dir = direction.map(|d| (d, d.unit(), d.tolerance.to_radians().cos()));
     match tails {
         Support::Points(tails) => {
@@ -1556,5 +1595,53 @@ mod tests {
         let heads = centers(&geometry, &cells);
         let c = Estimator::Covariance;
         assert!(cross_experimental(on, &a, Some(&heads), &a, &bins, c, None, false).is_err());
+    }
+
+    #[test]
+    fn unbounded_lag_counts_are_errors_not_panics() {
+        let p: Vec<_> = (0..50)
+            .map(|i| {
+                let t = i as f64;
+                ((t * 37.3) % 50.0, (t * 17.9) % 50.0, 0.0)
+            })
+            .collect();
+        let v: Vec<f64> = (0..50).map(|i| (i as f64 * 0.7).sin()).collect();
+        let holes = vec![0u32; 50];
+        let frames = vec![Matrix3::identity(); 50];
+        let m = Estimator::Matheron;
+        for (max_lag, lag_width) in [
+            (f64::INFINITY, 10.0),
+            (1.0, 1e-300),
+            (f64::NAN, 10.0),
+            (100.0, f64::NAN),
+            (100.0, f64::INFINITY),
+            (1e9, 1.0),
+        ] {
+            let bins = LagBins { max_lag, lag_width };
+            let bad = |r: Result<Experimental>| matches!(r, Err(VarioError::InvalidParameters(ref s)) if s.contains("max_lag") || s.contains("lag_width"));
+            assert!(
+                bad(experimental(&p[..], &v, &bins, m, None, false)),
+                "{bins:?}"
+            );
+            assert!(bad(cross_experimental(
+                &p[..],
+                &v,
+                None,
+                &v,
+                &bins,
+                m,
+                None,
+                false
+            )));
+            assert!(bad(experimental_local(
+                &p, &frames, &v, &bins, m, None, false
+            )));
+            assert!(bad(downhole(&p, &v, &holes, &bins, m, None, false)));
+        }
+        let edge = LagBins {
+            max_lag: MAX_LAG_BINS as f64,
+            lag_width: 1.0,
+        };
+        assert!(experimental(&p[..], &v, &edge, m, None, false).is_ok());
     }
 }

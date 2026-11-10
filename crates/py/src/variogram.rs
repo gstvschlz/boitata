@@ -152,8 +152,8 @@ fn nested(
 }
 
 fn bins(lag: f64, max_lag: f64) -> PyResult<LagBins> {
-    if !(lag > 0.0 && max_lag > lag) {
-        return Err(invalid("need 0 < lag < max_lag"));
+    if !(lag > 0.0 && max_lag > lag && max_lag.is_finite()) {
+        return Err(invalid("need finite 0 < lag < max_lag"));
     }
     Ok(LagBins {
         max_lag,
@@ -719,7 +719,8 @@ fn locations(coords: &Bound<PyAny>, method: Option<&str>) -> PyResult<Locations>
 ///     (of ``other_coords`` when given) and ``holes``.
 /// lag, max_lag : float or str
 ///     Lag-bin width and largest pair distance, in the length unit of
-///     `coords` or as text such as ``"10 m"``.
+///     `coords` or as text such as ``"10 m"``; finite, with
+///     ``0 < lag < max_lag`` and at most 10000 lags, else InvalidInput.
 /// azimuth, dip, tolerance : float
 ///     Direction and cone half-angle in degrees; omnidirectional when
 ///     ``azimuth`` is None.

@@ -504,3 +504,16 @@ def test_covariance_does_not_depend_on_row_order(estimator):
     sorted_rows = run(np.argsort(xy[:, 0]))
     assert run(r.permutation(40)) == pytest.approx(sorted_rows)
     assert run(np.arange(40)) == pytest.approx(sorted_rows)
+
+
+@pytest.mark.parametrize(("lag", "max_lag"), [(10.0, np.inf), (1e-300, 1.0), (np.nan, 10.0), (1.0, 1e9)])
+def test_unbounded_lag_counts_raise_invalid_input(lag, max_lag):
+    xy = rng.uniform(0, 50, (50, 2))
+    z = rng.normal(size=50)
+    cats = np.arange(50) % 2
+    with pytest.raises(bt.errors.InvalidInput):
+        bt.experimental_variogram(xy, z, lag, max_lag)
+    with pytest.raises(bt.errors.InvalidInput):
+        bt.variogram_map(xy, z, lag, max_lag)
+    with pytest.raises(bt.errors.InvalidInput):
+        bt.experimental_transiogram(xy, cats, lag, max_lag)
