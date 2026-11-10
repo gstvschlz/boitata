@@ -96,12 +96,12 @@ print(model)
 </details>
 
 ```text
-Variogram  sill 0.9647, 1 structure
+Variogram  sill 0.9648, 1 structure
   rotation  azimuth 0°, dip 0°, rake 0°
-  ratios    semi/major 1, minor/major 0.148
+  ratios    semi/major 1, minor/major 0.1482
   structure    sill  major   semi  minor
-  nugget     0.2606
-  spherical  0.7041  53.72  53.72   7.95
+  nugget     0.2637
+  spherical  0.7011  53.81  53.81  7.972
 ```
 
 The holes on the 50 m mesh do the estimating; the 25 m infill holes are held out to check it. Three rules share one

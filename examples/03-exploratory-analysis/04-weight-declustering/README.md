@@ -82,7 +82,7 @@ for name, w in weights.items():
 ```text
 nearest neighbor: mean 1.74 m, weights 0.04 to 3.11
 inverse distance: mean 1.78 m, weights 0.32 to 2.08
-ordinary kriging: mean 1.77 m, weights 0.31 to 2.18
+ordinary kriging: mean 1.77 m, weights 0.31 to 2.20
 ```
 
 Nearest neighbor gives each hole the cells closest to it: polygon declustering at the resolution of the grid. Inverse

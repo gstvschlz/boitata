@@ -93,19 +93,20 @@ print(f"minor axis to lens pole: {angle:.1f} degrees")
 </details>
 
 ```text
-rotation (azimuth, dip, rake): [171.5  36.1 136.2]
-ranges (major, semi, minor):   [237. 219.  31.]
-ratios:                        [0.92 0.13]
-     major axis: azimuth 171.5, dip 36.1
-semi-major axis: azimuth 052.0, dip 34.0
-     minor axis: azimuth 293.1, dip 35.7
+rotation (azimuth, dip, rake): [184.7  23.3 129.5]
+ranges (major, semi, minor):   [272. 238.  34.]
+ratios:                        [0.87 0.13]
+     major axis: azimuth 184.7, dip 23.3
+semi-major axis: azimuth 069.1, dip 45.1
+     minor axis: azimuth 292.8, dip 35.8
 plane of the major and semi-major axes: dips 54 towards 113
 mean lens plane:                        dips 55 towards 112
 minor axis to lens pole: 0.9 degrees
 ```
 
-The major axis runs along strike, nearly horizontal; the semi-major axis runs down dip; the minor axis lies within a
-few degrees of the pole of the lenses. The plane of best continuity is the lens plane.
+The major axis plunges 23° toward 185°, close to strike; the semi-major axis runs obliquely down dip; the minor axis
+lies within a degree of the pole of the lenses. The plane of best continuity is the lens plane. Within it the two
+ranges differ by only 13 %, so the direction of the major axis in that plane is the least certain part of the fit.
 
 ## Slices through the principal planes
 
@@ -162,7 +163,7 @@ save(fig, "axes")
 </details>
 
 ```text
-nugget 0.50, sill 1.98, major range 196 m
+nugget 0.36, sill 2.18, major range 204 m
 ```
 
 ![axes](axes.png)

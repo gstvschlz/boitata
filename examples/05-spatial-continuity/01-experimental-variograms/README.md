@@ -36,7 +36,7 @@ print(
 </details>
 
 ```text
-major axis N175°, range 108 m; shortest 40 m
+major axis N175°, range 107 m; shortest 42 m
 ```
 
 Directional variograms keep pairs within `tolerance` (22.5° by default) of an azimuth. Each lag reports its mean

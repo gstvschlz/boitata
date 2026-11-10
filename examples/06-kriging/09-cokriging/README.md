@@ -67,8 +67,8 @@ print(
 </details>
 
 ```text
-validation RMSE: ordinary kriging 0.763, collocated cokriging 0.652 mg/kg
-variance of estimates: ordinary kriging 0.447, cokriging 0.710, true 0.690
+validation RMSE: ordinary kriging 0.764, collocated cokriging 0.652 mg/kg
+variance of estimates: ordinary kriging 0.457, cokriging 0.710, true 0.690
 ```
 
 Using Zn at the target lowers the error and removes the smoothing that flattens ordinary kriging:
@@ -116,7 +116,7 @@ print(
 </details>
 
 ```text
-validation RMSE: collocated cokriging 0.652, with local anisotropy 0.661 mg/kg
+validation RMSE: collocated cokriging 0.652, with local anisotropy 0.662 mg/kg
 ```
 
 Full script: [`example_06_09.py`](example_06_09.py)

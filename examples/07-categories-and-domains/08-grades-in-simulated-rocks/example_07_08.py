@@ -94,7 +94,7 @@ for ax, (image, title, label, top) in zip(axes, panels):
 save(fig, "grades-in-rock-types")
 
 # %% [markdown]
-# Within the true rock types, Co drops at each Argovian contact and averages 5.50 ppm on Argovian. Within the SIS rock
+# Within the true rock types, Co drops at each Argovian contact and averages 5.52 ppm on Argovian. Within the SIS rock
 # types the contacts move from one realization to the next, so the lean Argovian Co spreads over its uncertain margin:
-# the true Argovian averages 7.04 ppm. Where SIS is unsure of Argovian (over half of the nodes), the spread of Co across
-# realizations is 3.38 ppm against 2.57 ppm with the domains fixed.
+# the true Argovian averages 7.11 ppm. Where SIS is unsure of Argovian (over half of the nodes), the spread of Co across
+# realizations is 3.40 ppm against 2.59 ppm with the domains fixed.

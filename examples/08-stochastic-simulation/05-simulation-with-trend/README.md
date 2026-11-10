@@ -66,12 +66,12 @@ by_sgs = plain.simulate(grid, n=20, seed=5, keep=True).realizations
 ```text
 Variogram  sill 1, 1 structure
   structure    sill  range
-  nugget     0.1954
-  spherical  0.8046  21.19
+  nugget     0.4075
+  spherical  0.5925  24.99
 Variogram  sill 1, 1 structure
   structure    sill  range
-  nugget     0.2934
-  spherical  0.7066  71.08
+  nugget     0.2298
+  spherical  0.7702  68.36
 ```
 
 <details><summary>Python</summary>
@@ -94,12 +94,12 @@ for k in range(4):
 </details>
 
 ```text
-correlation with the trend: data 0.64, SGS 0.60, SGS with trend 0.64
+correlation with the trend: data 0.64, SGS 0.61, SGS with trend 0.65
 mean V (ppm) by trend quartile    data   SGS  SGS with trend
-quartile 1                          72    98              82
-quartile 2                         222   230             222
-quartile 3                         309   323             311
-quartile 4                         504   520             520
+quartile 1                          72    93              82
+quartile 2                         222   225             223
+quartile 3                         309   317             312
+quartile 4                         504   516             528
 ```
 
 <details><summary>Python</summary>

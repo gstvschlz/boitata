@@ -106,13 +106,13 @@ for name, (az, dip) in zip(("major", "semi-major", "minor"), volume.axes, strict
 </details>
 
 ```text
-pairs across the lenses in the first three lags: [2453  451  312]
-nugget 2.5 of a sill of 20.5 %²
-rotation (azimuth, dip, rake): [179.3  29.  132. ]
-ranges (major, semi-major, minor): [25. 25.  4.] m
-     major axis: azimuth 179.3°, dip 29.0°
-semi-major axis: azimuth 061.0°, dip 40.5°
-     minor axis: azimuth 292.9°, dip 35.8°
+pairs across the lenses in the first three lags: [2429  440  310]
+nugget 2.5 of a sill of 19.2 %²
+rotation (azimuth, dip, rake): [184.9  23.1 129.4]
+ranges (major, semi-major, minor): [26. 26.  4.] m
+     major axis: azimuth 184.9°, dip 23.1°
+semi-major axis: azimuth 069.4°, dip 45.3°
+     minor axis: azimuth 292.8°, dip 35.7°
 ```
 
 <details><summary>Python</summary>
@@ -139,7 +139,7 @@ save(fig, "variogram")
 
 ![variogram](variogram.png)
 
-Along the major axis, which plunges 28° toward 180°, γ reaches the sill at 25 m; down the dip, at 25 m. An eighth of the
+Along the major axis, which plunges 23° toward 185°, γ reaches the sill at 26 m; down the dip, at 26 m. An eighth of the
 sill is nugget, so even the nearest composite leaves a block uncertain. Down the holes γ climbs to three quarters of the
 sill within 10 m: the holes cross the lens at a steep angle, and Zn changes fast across it. The minor axis of the
 search does not need that range. Its 29 m radius spans the 12 m lens, and the domain boundary stops it at the lens
@@ -269,11 +269,11 @@ for name, search in options.items():
 ```text
 6489 blocks; 3% have three holes inside one range
           first pass  blocks  samples  holes  slope
-              no cap      2%     10.5    4.2   0.81
-          3 per hole      2%     10.6    4.6   0.81
- 3 per hole, octants      1%      9.5    4.4   0.84
-             3 holes      2%     10.8    4.5   0.80
- 3 per hole, 4 holes      1%     11.3    5.1   0.80
+              no cap      2%     10.5    4.2   0.79
+          3 per hole      2%     10.6    4.6   0.78
+ 3 per hole, octants      1%      9.6    4.6   0.82
+             3 holes      2%     10.8    4.4   0.78
+ 3 per hole, 4 holes      1%     11.4    5.1   0.78
 ```
 
 Without a cap the first pass fills 81 % of the blocks, from 2.3 holes on average. The cap brings it down to 39 %,
@@ -316,13 +316,13 @@ for name in lenses:
 </details>
 
 ```text
-pass 1: ranges [25 25  4] m, min_samples 8
-pass 2: ranges [49 49  7] m, min_samples 4
+pass 1: ranges [26 26  4] m, min_samples 8
+pass 2: ranges [52 52  7] m, min_samples 4
 pass  blocks  share  samples  holes  distance  slope
-   1     100     2%     10.6    4.6      14 m   0.81
-   2    5524    85%      8.6    3.2      31 m   0.19
-unestimated: 865 blocks
-lens_1: 3% of 2885 blocks in pass 1
+   1     122     2%     10.6    4.6      15 m   0.78
+   2    5702    88%      9.3    3.5      33 m   0.21
+unestimated: 665 blocks
+lens_1: 4% of 2885 blocks in pass 1
 lens_2: 0% of 1921 blocks in pass 1
 lens_3: 1% of 1683 blocks in pass 1
 ```
@@ -365,7 +365,7 @@ save(fig, "passes")
 ![passes](passes.png)
 
 Lens 1, face on, with its holes as dots. Pass 1 covers the blocks inside groups of holes; pass 2 takes the edges and
-the gaps, from samples 31 m away on average against 14 m, with a slope of regression of 0.19 against 0.81. Lenses 2
+the gaps, from samples 33 m away on average against 15 m, with a slope of regression of 0.21 against 0.78. Lenses 2
 and 3 have sparser drilling and get a fifth to a third of their blocks in pass 1. Pass-2 blocks use more samples than
 pass-1 blocks, because a larger ellipsoid fills its 16 samples from farther out, so the sample count alone ranks the
 blocks the wrong way round. The pass and the distance describe how well a block is informed, and

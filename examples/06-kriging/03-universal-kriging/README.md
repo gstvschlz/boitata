@@ -63,14 +63,14 @@ save(fig, "variograms")
 </details>
 
 ```text
-Variogram  sill 0.5271, 1 structure
+Variogram  sill 0.4958, 1 structure
   structure    sill   range
-  nugget     0.1459
-  spherical  0.3812  6584.4
-Variogram  sill 0.2989, 1 structure
-  structure   sill   range
-  nugget      0.14
-  spherical  0.159  2545.4
+  nugget     0.1377
+  spherical  0.3582  5812.5
+Variogram  sill 0.2991, 1 structure
+  structure    sill   range
+  nugget     0.1428
+  spherical  0.1563  2570.6
 ```
 
 ![variograms](variograms.png)
@@ -96,9 +96,9 @@ for name, estimator in (("ordinary", ordinary), ("universal", universal)):
 </details>
 
 ```text
-inside the lease: mean |UK - OK| 0.020 m
- ordinary cross-validation: ME +0.001  RMSE 0.432  slope 1.02
-universal cross-validation: ME -0.006  RMSE 0.432  slope 1.00
+inside the lease: mean |UK - OK| 0.013 m
+ ordinary cross-validation: ME +0.001  RMSE 0.431  slope 1.01
+universal cross-validation: ME -0.006  RMSE 0.433  slope 1.00
 ```
 
 <details><summary>Python</summary>
@@ -178,8 +178,8 @@ save(fig, "profile")
 ```text
 easternmost hole at 31892 m
 x = 32000: ordinary 1.15 m, universal 1.04 m, trend 0.90 m
-x = 34000: ordinary 1.26 m, universal 0.37 m, trend 0.59 m
-x = 36000: ordinary 1.17 m, universal 0.59 m, trend 0.29 m
+x = 34000: ordinary 1.30 m, universal 0.38 m, trend 0.59 m
+x = 36000: ordinary 1.18 m, universal 0.59 m, trend 0.29 m
 ```
 
 ![profile](profile.png)

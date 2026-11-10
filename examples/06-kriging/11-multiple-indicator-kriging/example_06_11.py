@@ -67,7 +67,7 @@ print(f"validation points inside their 10-90% interval: {inside:.0%}")
 
 # %% [markdown]
 # The E-type estimate, the mean of each distribution, has a lower error than ordinary kriging, and the median-indicator
-# shortcut gives most of that gain back. The distributions also carry the uncertainty: those at the lowest and highest
+# shortcut gives all of that gain back. The distributions also carry the uncertainty: those at the lowest and highest
 # validation estimates sit on either side of the declustered global one:
 
 # %%

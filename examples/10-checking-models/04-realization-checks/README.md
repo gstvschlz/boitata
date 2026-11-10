@@ -64,10 +64,10 @@ for name in ["mean", "std", "P50", "P90"]:
 </details>
 
 ```text
-mean  data    285   realizations    260 to    298
-std   data    253   realizations    239 to    261
-P50   data    234   realizations    192 to    255
-P90   data    676   realizations    605 to    701
+mean  data    285   realizations    260 to    297
+std   data    253   realizations    238 to    261
+P50   data    234   realizations    191 to    253
+P90   data    676   realizations    602 to    701
 ```
 
 The realizations' distributions straddle the declustered data's in grades and in normal scores, except for the step
@@ -130,7 +130,7 @@ print(
 </details>
 
 ```text
-28,900 nodes; correlation data 0.11, realizations 0.04 to 0.21
+28,900 nodes; correlation data 0.11, realizations 0.04 to 0.20
 ```
 
 The realizations reproduce both declustered histograms and the correlation, and miss the variograms. The factors

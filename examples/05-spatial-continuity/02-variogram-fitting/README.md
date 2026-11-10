@@ -49,10 +49,10 @@ print(single, along, minor.fit(["spherical", "spherical"], weighting=weighting),
 </details>
 
 ```text
-Variogram  sill 78833.6, 1 structure
+Variogram  sill 78743.5, 1 structure
   structure     sill  range
-  nugget     17596.8
-  spherical  61236.8  100.9
+  nugget       17467
+  spherical  61276.5    101
 Variogram  sill 79895.9, 2 structures
   structure     sill  range
   nugget     14667.3

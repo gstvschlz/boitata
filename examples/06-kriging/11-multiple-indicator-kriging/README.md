@@ -64,14 +64,14 @@ print(f"validation points inside their 10-90% interval: {inside:.0%}")
 </details>
 
 ```text
-ordinary kriging: RMSE 0.763 mg/kg
-per-threshold variograms: E-type RMSE 0.748 mg/kg, mean P(Cd > 0.8) 0.75 where true exceedance, 0.61 elsewhere, mean correction 0.062
-median indicator: E-type RMSE 0.757 mg/kg, mean P(Cd > 0.8) 0.76 where true exceedance, 0.60 elsewhere, mean correction 0.001
+ordinary kriging: RMSE 0.764 mg/kg
+per-threshold variograms: E-type RMSE 0.744 mg/kg, mean P(Cd > 0.8) 0.75 where true exceedance, 0.61 elsewhere, mean correction 0.079
+median indicator: E-type RMSE 0.765 mg/kg, mean P(Cd > 0.8) 0.75 where true exceedance, 0.63 elsewhere, mean correction 0.000
 validation points inside their 10-90% interval: 80%
 ```
 
 The E-type estimate, the mean of each distribution, has a lower error than ordinary kriging, and the median-indicator
-shortcut gives most of that gain back. The distributions also carry the uncertainty: those at the lowest and highest
+shortcut gives all of that gain back. The distributions also carry the uncertainty: those at the lowest and highest
 validation estimates sit on either side of the declustered global one:
 
 <details><summary>Python</summary>
@@ -132,9 +132,9 @@ save(fig, "accuracy")
 </details>
 
 ```text
-per-threshold: E-type RMSE 0.967 mg/kg, slope 1.04, goodness 0.920, Brier 0.159
-median indicator: E-type RMSE 0.972 mg/kg, slope 1.15, goodness 0.935, Brier 0.161
-validation targets with order-relation violations: 92%
+per-threshold: E-type RMSE 0.967 mg/kg, slope 1.06, goodness 0.948, Brier 0.157
+median indicator: E-type RMSE 0.993 mg/kg, slope 1.18, goodness 0.966, Brier 0.162
+validation targets with order-relation violations: 91%
 ```
 
 ![accuracy](accuracy.png)
@@ -163,8 +163,8 @@ print(f"mean |panel - centroid| probability {shift:.3f}")
 </details>
 
 ```text
-centroids: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0126
-1 km panels: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0107
+centroids: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0137
+1 km panels: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0110
 mean |panel - centroid| probability 0.000
 ```
 

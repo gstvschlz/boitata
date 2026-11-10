@@ -114,7 +114,7 @@ ax.legend(loc="lower right")
 save(fig, "variogram")
 
 # %% [markdown]
-# Along the major axis, which plunges 28° toward 180°, γ reaches the sill at 25 m; down the dip, at 25 m. An eighth of the
+# Along the major axis, which plunges 23° toward 185°, γ reaches the sill at 26 m; down the dip, at 26 m. An eighth of the
 # sill is nugget, so even the nearest composite leaves a block uncertain. Down the holes γ climbs to three quarters of the
 # sill within 10 m: the holes cross the lens at a steep angle, and Zn changes fast across it. The minor axis of the
 # search does not need that range. Its 29 m radius spans the 12 m lens, and the domain boundary stops it at the lens
@@ -297,7 +297,7 @@ save(fig, "passes")
 
 # %% [markdown]
 # Lens 1, face on, with its holes as dots. Pass 1 covers the blocks inside groups of holes; pass 2 takes the edges and
-# the gaps, from samples 31 m away on average against 14 m, with a slope of regression of 0.19 against 0.81. Lenses 2
+# the gaps, from samples 33 m away on average against 15 m, with a slope of regression of 0.21 against 0.78. Lenses 2
 # and 3 have sparser drilling and get a fifth to a third of their blocks in pass 1. Pass-2 blocks use more samples than
 # pass-1 blocks, because a larger ellipsoid fills its 16 samples from farther out, so the sample count alone ranks the
 # blocks the wrong way round. The pass and the distance describe how well a block is informed, and
