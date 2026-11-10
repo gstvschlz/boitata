@@ -34,7 +34,12 @@ print(f"factor correlation {np.corrcoef(factors['U'], factors['V'])[0, 1]:.3f}")
 </details>
 
 ```text
-Pipeline([('cap', 'Capping', 'V'), ('ns_u', 'NormalScore', 'U'), ('ns_v', 'NormalScore', 'V'), ('ppmt', 'PPMT', ['U', 'V'])])
+Pipeline  4 steps, fitted
+  step  transform                       columns
+  cap   Capping(fitted, quantile=0.99)  V
+  ns_u  NormalScore(fitted)             U
+  ns_v  NormalScore(fitted)             V
+  ppmt  PPMT(fitted, seed=7)            U, V
 factor correlation 0.002
 ```
 

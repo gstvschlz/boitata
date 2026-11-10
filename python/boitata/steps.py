@@ -50,9 +50,6 @@ class _Step:
         vars(step).update(meta)
         return step
 
-    def __repr__(self):
-        return f"{type(self).__name__}({', '.join(f'{k}={v!r}' for k, v in vars(self).items())})"
-
     def _targets(self, data, numeric=None):
         """The step's columns, or every column (of the given kind when `numeric` is set)."""
         if self.columns is not None:

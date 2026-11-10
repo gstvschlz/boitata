@@ -189,14 +189,6 @@ impl Categories {
     fn __len__(&self) -> usize {
         self.0.len()
     }
-
-    fn __repr__(&self) -> String {
-        let other = self
-            .0
-            .other()
-            .map_or(String::new(), |o| format!(", other={o:?}"));
-        format!("Categories({:?}{other})", self.0.names())
-    }
 }
 
 /// Names and per-row codes, None for null, of `labels`: encoded by `scheme`,

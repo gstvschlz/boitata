@@ -4,6 +4,7 @@ from boitata import (  # noqa: F401
     _boitata,
     _containers,
     _display,
+    _display_models,
     datasets,
     plot,
     plot3d,

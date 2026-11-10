@@ -74,7 +74,13 @@ for c, name in enumerate(domains.names):
 </details>
 
 ```text
-Domains(k=3, wcss=0.886, spatial_entropy=0.518)
+Domains  3 domains, 6,502 samples
+  wcss             0.8862
+  spatial entropy  0.5179
+  domain  samples
+  D1        2,855
+  D2        2,699
+  D3          948
          n   Zn %   Pb %   Cu %  Ag g/t
 D1    2855   0.03   0.01   0.01     0.6
 D2    2699   0.09   0.04   0.06     2.1

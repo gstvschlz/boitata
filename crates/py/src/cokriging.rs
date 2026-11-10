@@ -61,6 +61,10 @@ impl Cokriging {
         crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        crate::persist::meta(<Self as pyo3::PyClass>::NAME, self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
         crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
@@ -297,6 +301,10 @@ impl Disjunctive {
         crate::persist::state(<Self as pyo3::PyClass>::NAME, self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        crate::persist::meta(<Self as pyo3::PyClass>::NAME, self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
         crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
@@ -384,6 +392,10 @@ impl Disjunctive {
 }
 
 impl Tabular for Cokriging {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(|s| s.0.len())
+    }
+
     fn columns(&self) -> Option<Columns> {
         let (plain, co) = self.samples.as_ref()?;
         let mut columns = sample_columns(plain);
@@ -409,6 +421,10 @@ impl Tabular for Cokriging {
 }
 
 impl Tabular for Disjunctive {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(|s| s.0.len())
+    }
+
     fn columns(&self) -> Option<Columns> {
         Some(sample_columns(&self.samples.as_ref()?.0))
     }

@@ -352,6 +352,10 @@ impl ImplicitModel {
         persist::state(<Self as pyo3::PyClass>::NAME, self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta(<Self as pyo3::PyClass>::NAME, self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
         let model: Self = persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)?;

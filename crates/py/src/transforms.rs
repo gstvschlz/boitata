@@ -200,6 +200,20 @@ impl NormalScore {
 
 #[pymethods]
 impl NormalScore {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        let reference = self.reference.as_ref().map(|r| match r {
+            Reference::KernelDensity(_) => "KernelDensity",
+            Reference::GaussianMixture(_) => "GaussianMixture",
+        });
+        serde_json::json!({
+            "tails": self.tails.map(|(a, b)| [a, b]),
+            "reference": reference,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -370,6 +384,15 @@ impl Anamorphosis {
 
 #[pymethods]
 impl Anamorphosis {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "degree": self.degree,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -500,6 +523,15 @@ pub struct BoxCox {
 
 #[pymethods]
 impl BoxCox {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "lambda_": self.requested,
+            "fitted": self.lambda.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -603,6 +635,18 @@ impl Ppmt {
 
 #[pymethods]
 impl Ppmt {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "iterations": self.params.iterations,
+            "candidates": self.params.candidates,
+            "seed": self.params.seed,
+            "marginal": self.params.marginal,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -766,6 +810,18 @@ impl GaussianImputer {
 
 #[pymethods]
 impl GaussianImputer {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "components": self.components,
+            "seed": self.seed,
+            "spatial": self.spatial.is_some(),
+            "neighbors": self.neighbors,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -948,6 +1004,23 @@ impl KernelDensity {
 
 #[pymethods]
 impl KernelDensity {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        let bandwidth = match self.bandwidth {
+            transforms::Bandwidth::Silverman => serde_json::json!("silverman"),
+            transforms::Bandwidth::Scott => serde_json::json!("scott"),
+            transforms::Bandwidth::Given(width) => serde_json::json!(width),
+        };
+        serde_json::json!({
+            "bandwidth": bandwidth,
+            "lower": self.lower,
+            "upper": self.upper,
+            "log": self.log,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -1106,6 +1179,17 @@ impl GaussianMixture {
 
 #[pymethods]
 impl GaussianMixture {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "components": self.components,
+            "max_components": self.max_components,
+            "seed": self.seed,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -1279,6 +1363,15 @@ impl Pca {
 
 #[pymethods]
 impl Pca {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "standardize": self.standardize,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -1384,6 +1477,16 @@ impl Maf {
 
 #[pymethods]
 impl Maf {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "lag": self.lag,
+            "tolerance": self.tolerance,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -1476,6 +1579,15 @@ impl StepwiseConditional {
 
 #[pymethods]
 impl StepwiseConditional {
+    /// Parameters and whether it is fitted, as JSON, for display.
+    fn _meta(&self) -> String {
+        serde_json::json!({
+            "classes": self.classes,
+            "fitted": self.fitted.is_some(),
+        })
+        .to_string()
+    }
+
     /// JSON of the parameters and, once fitted, the fitted state.
     fn to_json(&self) -> PyResult<String> {
         crate::persist::to_json(self)
@@ -2138,15 +2250,6 @@ impl Declustering {
     #[getter]
     fn means<'py>(&self, py: Python<'py>) -> Bound<'py, PyAny> {
         array1(py, self.means.clone()).into_any()
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Declustering(mean={:.6}, cell_size={}, n={})",
-            self.mean,
-            self.cell_size,
-            self.weights.len()
-        )
     }
 }
 

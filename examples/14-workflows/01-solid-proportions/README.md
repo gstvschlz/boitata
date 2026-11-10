@@ -45,10 +45,10 @@ for name, vein in zip(names, veins):
 </details>
 
 ```text
-V1: MeshReport(0 problems, 1 shells, closed),   661,982 m3, mean thickness 1.6 m
-V2: MeshReport(0 problems, 1 shells, closed),   142,575 m3, mean thickness 0.8 m
-V3: MeshReport(0 problems, 1 shells, closed),   179,334 m3, mean thickness 0.8 m
-V4: MeshReport(0 problems, 1 shells, closed),    55,373 m3, mean thickness 0.6 m
+V1: MeshReport(0 problems, 1 shell, closed),   661,982 m3, mean thickness 1.6 m
+V2: MeshReport(0 problems, 1 shell, closed),   142,575 m3, mean thickness 0.8 m
+V3: MeshReport(0 problems, 1 shell, closed),   179,334 m3, mean thickness 0.8 m
+V4: MeshReport(0 problems, 1 shell, closed),    55,373 m3, mean thickness 0.6 m
 ```
 
 !!! step "Step 1: Build the block model"
