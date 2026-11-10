@@ -33,21 +33,34 @@ Published on PyPI and imported as `boitata`. Wheels for Linux, macOS and Windows
 Extras: `plot` (Matplotlib), `3d` (the notebook widget of `bt.plot3d`), `export` (headless screenshots), `all` (`plot`, `3d`, Polars, pandas, PyArrow).
 See the [install page](https://scholzegustavo.gitlab.io/boitata/install/) for uv, Poetry, conda, pixi and offline installs.
 
-## Claude plugin
+## Agent plugin
 
-Without help, Claude guesses at boitatá's calls. The plugin gives it the library's rules and tells it to read each
-signature from the installed package, so the code it writes matches your version.
+Without help, a coding agent guesses at boitatá's calls. The plugin gives it the library's rules and tells it to
+read each signature from the installed package, so the code it writes matches your version. One plugin serves
+Claude, Codex, ChatGPT and Antigravity.
 
 In [Claude Code](https://claude.com/claude-code):
 
 ```text
-/plugin marketplace add https://gitlab.com/scholzegustavo/boitata.git
+/plugin marketplace add gstvschlz/boitata
 /plugin install boitata@boitata
 ```
 
-In the Claude apps, open **Customize > Plugins**, choose **Add > Add marketplace**, paste the same URL and install
-`boitata`. The [install page](https://scholzegustavo.gitlab.io/boitata/install/#claude-plugin) says what the plugin
-holds and how to update it.
+In [Codex](https://developers.openai.com/codex), and from there in the ChatGPT desktop app:
+
+```sh
+codex plugin marketplace add gstvschlz/boitata
+codex plugin add boitata@boitata
+```
+
+In [Antigravity](https://antigravity.google):
+
+```sh
+agy plugin install https://github.com/gstvschlz/boitata/tree/main/packaging/plugin
+```
+
+The [install page](https://gstvschlz.github.io/boitata/install/#agent-plugin) covers the Claude apps, ChatGPT
+workspaces and other agents, and says what the plugin holds and how to update it.
 
 ## Examples
 

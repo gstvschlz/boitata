@@ -39,13 +39,14 @@ Whole problems, from the question to the decision.
 </li>
 </ol>
 
-## With Claude
+## With a coding agent
 
-Install the [boitatá plugin](install.md#claude-plugin) in Claude Code or the Claude apps, and Claude stops guessing
-at the calls: it follows the library's rules and reads each signature from the package you installed.
+Install the [boitatá plugin](install.md#agent-plugin) in Claude, Codex, ChatGPT or Antigravity, and the agent stops
+guessing at the calls: it follows the library's rules and reads each signature from the package you installed.
+In Claude Code:
 
 ```text
-/plugin marketplace add https://gitlab.com/scholzegustavo/boitata.git
+/plugin marketplace add gstvschlz/boitata
 /plugin install boitata@boitata
 ```
 

@@ -107,21 +107,23 @@ pip download "boitata[all]" -d wheels                                 # connecte
 pip install --no-index --find-links wheels "boitata[all]"             # offline machine
 ```
 
-## Claude plugin
+## Agent plugin
 
-Without help, Claude guesses at boitatá's calls from whatever it remembers. The plugin holds one skill, a short
-page Claude reads when your code imports `boitata` or you ask for geostatistics work. It gives the kinds of object
-and the calls each one takes, the rules every call follows (keyword-only options, containers that never change in
-place, the `(azimuth, dip, rake)` rotation), how missing values and errors behave, and how to save each object.
-It also tells Claude to read each signature from the stub and the docstrings of the boitatá you installed, so the
-code matches your version.
+Without help, a coding agent guesses at boitatá's calls from whatever it remembers. The plugin holds one skill, a
+short page the agent reads when your code imports `boitata` or you ask for geostatistics work. It gives the kinds
+of object and the calls each one takes, the rules every call follows (keyword-only options, containers that never
+change in place, the `(azimuth, dip, rake)` rotation), how missing values and errors behave, and how to save each
+object. It also tells the agent to read each signature from the stub and the docstrings of the boitatá you
+installed, so the code matches your version.
+
+The same plugin installs in Claude, Codex, ChatGPT and Antigravity. Start a new session after you install it.
 
 ### Claude Code
 
 Add this repository as a marketplace, then install the plugin from it:
 
 ```text
-/plugin marketplace add https://gitlab.com/scholzegustavo/boitata.git
+/plugin marketplace add gstvschlz/boitata
 /plugin install boitata@boitata
 ```
 
@@ -134,12 +136,48 @@ installs for your user by default; add `--scope project` to the second command t
 ### Claude apps
 
 In Claude on the web or the desktop, open **Customize > Plugins**, choose **Add > Add marketplace** and paste
-`https://gitlab.com/scholzegustavo/boitata.git`. Then install `boitata` from the list. Claude runs code in its own
+`https://github.com/gstvschlz/boitata`. Then install `boitata` from the list. Claude runs code in its own
 sandbox there, so ask it to `pip install "boitata[all]"` first.
 
+### Codex
+
+From a shell:
+
+```sh
+codex plugin marketplace add gstvschlz/boitata
+codex plugin add boitata@boitata
+```
+
+Inside a session, `/plugins` lists the marketplace and installs from it. `codex plugin marketplace upgrade boitata`
+fetches the current skill after a new release.
+
+### ChatGPT
+
+ChatGPT takes the same plugin as Codex. In the desktop app, add the marketplace with the first Codex command above
+and restart the app: `boitatá` then shows as a source in **Plugins**, where the plus button installs it. In a
+workspace, an admin imports `gstvschlz/boitata` as a GitHub marketplace and the plugin appears in **Plugins** for
+the team, on the web as well. A chat runs code in its own sandbox, so ask it to `pip install "boitata[all]"`
+first.
+
+### Antigravity
+
+```sh
+agy plugin install https://github.com/gstvschlz/boitata/tree/main/packaging/plugin
+```
+
+`agy plugin list` shows it, and the same command installs the current skill after a new release. The app reads
+the same folder, so the plugin also shows under **Customizations**.
+
+### Any other agent
+
+The skill follows the [Agent Skills](https://agentskills.io) format, so an agent that reads skills takes the
+folder as it is. Copy
+[`packaging/plugin/skills/boitata`](https://github.com/gstvschlz/boitata/tree/main/packaging/plugin/skills/boitata)
+into the skills folder the agent reads, which is `.agents/skills/` in a project for most of them.
+
 The plugin adds no tools and sends nothing anywhere: it is the text in
-[`packaging/claude/skills/boitata/SKILL.md`](https://gitlab.com/scholzegustavo/boitata/-/blob/main/packaging/claude/skills/boitata/SKILL.md),
-which you can read before you install it.
+[`SKILL.md`](https://github.com/gstvschlz/boitata/blob/main/packaging/plugin/skills/boitata/SKILL.md), which you
+can read before you install it.
 
 ## Contributors
 
