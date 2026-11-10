@@ -60,12 +60,17 @@ impl DriftSpec {
     /// so this leaves the estimator unchanged while keeping the saddle-point
     /// system well conditioned even for far targets.
     ///
-    /// `degree` 0 = constant (≡ OK), 1 = linear, 2 = quadratic.
-    pub fn polynomial(coords: &[(f64, f64, f64)], target: &(f64, f64, f64), degree: usize) -> Self {
-        let basis = PolyBasis::new(coords, degree);
+    /// `degree` 0 = constant (≡ OK), 1 = linear, 2 = quadratic; higher
+    /// degrees are an error.
+    pub fn polynomial(
+        coords: &[(f64, f64, f64)],
+        target: &(f64, f64, f64),
+        degree: usize,
+    ) -> Result<Self> {
+        let basis = PolyBasis::new(coords, degree)?;
         let data = coords.iter().map(|c| basis.eval(c)).collect();
         let tgt = basis.eval(target);
-        Self { data, target: tgt }
+        Ok(Self { data, target: tgt })
     }
 
     /// Append external-drift columns (KED): one extra column per external
@@ -95,8 +100,19 @@ struct PolyBasis {
     degree: usize,
 }
 
+/// An error unless `degree` is a polynomial drift degree: 0, 1 or 2.
+pub fn check_degree(degree: usize) -> Result<()> {
+    if degree > 2 {
+        return Err(EstimError::InvalidParameters(format!(
+            "degree must be 0, 1 or 2; got {degree}"
+        )));
+    }
+    Ok(())
+}
+
 impl PolyBasis {
-    fn new(coords: &[(f64, f64, f64)], degree: usize) -> Self {
+    fn new(coords: &[(f64, f64, f64)], degree: usize) -> Result<Self> {
+        check_degree(degree)?;
         let n = coords.len().max(1) as f64;
         let origin = (
             coords.iter().map(|c| c.0).sum::<f64>() / n,
@@ -115,12 +131,12 @@ impl PolyBasis {
             if active[1] { sy } else { 1.0 },
             if active[2] { sz } else { 1.0 },
         );
-        Self {
+        Ok(Self {
             origin,
             scale,
             active,
             degree,
-        }
+        })
     }
 
     /// `T` with `f(x)·β = g(x)·(Tβ)`, `f` the `world` monomials in world
@@ -449,7 +465,7 @@ impl<'a> DualKriging<'a> {
             return Err(EstimError::InsufficientData("no samples".into()));
         }
         let coords: Vec<(f64, f64, f64)> = samples.iter().map(|s| s.loc).collect();
-        let basis = PolyBasis::new(&coords, degree);
+        let basis = PolyBasis::new(&coords, degree)?;
         let fdata: Vec<Vec<f64>> = coords.iter().map(|c| basis.eval(c)).collect();
         let p = fdata[0].len();
         let dim = n + p;
@@ -518,6 +534,7 @@ pub fn krige_bayesian(
             "Bayesian kriging needs a prior of the drift dimension".into(),
         ));
     }
+    check_prior_values(prior_mean, prior_var)?;
     let b0 = DVector::from_row_slice(prior_mean);
     let s0_inv =
         DMatrix::from_diagonal(&DVector::from_fn(p, |l, _| 1.0 / prior_var[l].max(1e-300)));
@@ -543,7 +560,8 @@ pub fn krige_bayesian_polynomial(
     }
     let coords: Vec<(f64, f64, f64)> = samples.iter().map(|s| s.loc).collect();
     let prior_axes = check_bayesian_prior(&coords, degree, prior_mean.len(), prior_var.len())?;
-    let basis = PolyBasis::new(&coords, degree);
+    check_prior_values(prior_mean, prior_var)?;
+    let basis = PolyBasis::new(&coords, degree)?;
     let t = basis.world_to_basis(&monomials(&prior_axes, degree));
     let b0 = &t * DVector::from_row_slice(prior_mean);
     let var = DVector::from_fn(prior_var.len(), |l, _| prior_var[l].max(1e-300));
@@ -571,6 +589,7 @@ pub fn check_bayesian_prior(
     n_mean: usize,
     n_var: usize,
 ) -> Result<Vec<usize>> {
+    check_degree(degree)?;
     let axes = (0..=3)
         .map(|d| (0..d).collect::<Vec<usize>>())
         .find(|axes| monomials(axes, degree).len() == n_mean && n_var == n_mean)
@@ -579,13 +598,32 @@ pub fn check_bayesian_prior(
                 "a degree-{degree} Bayesian prior has one mean and variance per monomial; got {n_mean} and {n_var}"
             ))
         })?;
-    if degree > 0 && (axes.len()..3).any(|a| PolyBasis::new(coords, degree).active[a]) {
-        return Err(EstimError::InvalidParameters(format!(
-            "the data span more axes than the {} of the Bayesian prior",
-            axes.len()
-        )));
+    if degree > 0 {
+        let active = PolyBasis::new(coords, degree)?.active;
+        if (axes.len()..3).any(|a| active[a]) {
+            return Err(EstimError::InvalidParameters(format!(
+                "the data span more axes than the {} of the Bayesian prior",
+                axes.len()
+            )));
+        }
     }
     Ok(axes)
+}
+
+/// An error unless every prior mean is finite and every prior variance is
+/// finite and non-negative; a variance of 0 fixes its coefficient at the mean.
+pub fn check_prior_values(prior_mean: &[f64], prior_var: &[f64]) -> Result<()> {
+    if let Some(m) = prior_mean.iter().find(|m| !m.is_finite()) {
+        return Err(EstimError::InvalidParameters(format!(
+            "prior_mean must be finite; got {m}"
+        )));
+    }
+    if let Some(v) = prior_var.iter().find(|v| !(v.is_finite() && **v >= 0.0)) {
+        return Err(EstimError::InvalidParameters(format!(
+            "prior_variance must be finite and >= 0; got {v}"
+        )));
+    }
+    Ok(())
 }
 
 /// The posterior of `β` from its prior mean `b0` and precision `s0_inv` in
@@ -675,6 +713,7 @@ pub fn krige_factorial(
     keep_nugget: bool,
     keep_structures: &[usize],
 ) -> Result<Estimate> {
+    check_factorial(vg, keep_nugget, keep_structures)?;
     let n = samples.len();
     if n == 0 {
         return Err(EstimError::InsufficientData("no samples".into()));
@@ -711,6 +750,31 @@ pub fn krige_factorial(
         lagrange: f64::NAN,
         support_variance: f64::NAN,
     })
+}
+
+/// An error unless `keep_structures` are distinct indices into
+/// `vg.structures` and, with `keep_nugget`, select at least one component.
+pub fn check_factorial(vg: &Variogram, keep_nugget: bool, keep_structures: &[usize]) -> Result<()> {
+    let n = vg.structures.len();
+    for (i, &s) in keep_structures.iter().enumerate() {
+        if s >= n {
+            return Err(EstimError::InvalidParameters(format!(
+                "structures must index the {n} variogram structures (0 to {}); got {s}",
+                n as isize - 1
+            )));
+        }
+        if keep_structures[..i].contains(&s) {
+            return Err(EstimError::InvalidParameters(format!(
+                "structures must be distinct; got {s} twice"
+            )));
+        }
+    }
+    if !keep_nugget && keep_structures.is_empty() {
+        return Err(EstimError::InvalidParameters(
+            "factorial kriging needs at least one structure or the nugget".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Covariance contribution of a chosen subset of structures (+ optional nugget).
@@ -819,7 +883,7 @@ mod tests {
         let vg = Variogram::single(Model::Spherical, 1.0, 30.0); // short range → far target
         let t = (300.0, 300.0, 0.0);
         let cvec: Vec<(f64, f64, f64)> = coords.iter().map(|&(x, y)| (x, y, 0.0)).collect();
-        let drift = DriftSpec::polynomial(&cvec, &t, 1);
+        let drift = DriftSpec::polynomial(&cvec, &t, 1).unwrap();
         let est = krige_universal(&t, &samples, &drift, &vg, None).unwrap();
         assert!(
             (est.value - f(300.0, 300.0)).abs() < 1e-6,
@@ -852,7 +916,7 @@ mod tests {
         let t = (35.0, 10.0, 0.0);
 
         let cvec: Vec<(f64, f64, f64)> = coords.iter().map(|&(x, y)| (x, y, 0.0)).collect();
-        let uk_drift = DriftSpec::polynomial(&cvec, &t, 1);
+        let uk_drift = DriftSpec::polynomial(&cvec, &t, 1).unwrap();
         let uk = krige_universal(&t, &samples, &uk_drift, &vg, None).unwrap();
 
         let data_ext: Vec<Vec<f64>> = coords.iter().map(|&(x, _)| vec![x]).collect();
@@ -901,7 +965,7 @@ mod tests {
         let d = data();
         let t = (20.0, 30.0, 0.0);
         let coords: Vec<(f64, f64, f64)> = d.iter().map(|s| s.loc).collect();
-        let drift = DriftSpec::polynomial(&coords, &t, 0); // constant drift (mean)
+        let drift = DriftSpec::polynomial(&coords, &t, 0).unwrap(); // constant drift (mean)
 
         // Large prior variance → approaches OK.
         let ok = krige_ordinary(&t, &d, &vg).unwrap();
@@ -1019,7 +1083,7 @@ mod tests {
         let sill = vg.total_sill();
         let ordinary = prefix_quality(&s, &vg, &rhs, &DriftSpec::ordinary(24), sill);
         let simple = prefix_quality(&s, &vg, &rhs, &DriftSpec::simple(24), sill);
-        let linear = DriftSpec::polynomial(&locs, &t, 1);
+        let linear = DriftSpec::polynomial(&locs, &t, 1).unwrap();
         let universal = prefix_quality(&s, &vg, &rhs, &linear, sill);
         let disc = crate::Discretization {
             nx: 3,
@@ -1043,7 +1107,7 @@ mod tests {
             if n < 6 {
                 continue;
             }
-            let uk_drift = DriftSpec::polynomial(&locs[..n], &t, 1);
+            let uk_drift = DriftSpec::polynomial(&locs[..n], &t, 1).unwrap();
             let uk = krige_universal(&t, p, &uk_drift, &vg, None).unwrap();
             let q = universal[n - 1].unwrap();
             assert!(close(q.slope, uk.slope()), "{n} {} {}", q.slope, uk.slope());
@@ -1094,5 +1158,67 @@ mod tests {
         let by_efficiency = Calibration::Efficiency(0.1);
         let (e, _) = krige_calibrated(simple, &t, &d, &vg, by_efficiency, 1).unwrap();
         assert!(e.efficiency() >= 0.1);
+    }
+
+    #[test]
+    fn drift_degree_above_two_is_rejected() {
+        let d = data();
+        let locs: Vec<_> = d.iter().map(|s| s.loc).collect();
+        let t = (20.0, 30.0, 0.0);
+        let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
+        assert!(DriftSpec::polynomial(&locs, &t, 2).is_ok());
+        let err = DriftSpec::polynomial(&locs, &t, 3).unwrap_err();
+        assert!(
+            err.to_string().contains("degree must be 0, 1 or 2"),
+            "{err}"
+        );
+        assert!(DualKriging::new(&d, &vg, 3).is_err());
+        assert!(krige_bayesian_polynomial(&t, &d, 3, &vg, &[0.0; 10], &[1.0; 10]).is_err());
+        assert!(check_bayesian_prior(&locs, 3, 10, 10).is_err());
+    }
+
+    #[test]
+    fn bayesian_prior_must_be_finite_with_non_negative_variance() {
+        let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
+        let s = vec![
+            samp(0.0, 0.0, 5.0),
+            samp(10.0, 0.0, 6.0),
+            samp(0.0, 12.0, 7.0),
+        ];
+        let t = (4.0, 4.0, 0.0);
+        for (mean, var) in [
+            (100.0, -5.0),
+            (100.0, f64::NAN),
+            (100.0, f64::INFINITY),
+            (f64::NAN, 1.0),
+        ] {
+            let err = krige_bayesian_polynomial(&t, &s, 0, &vg, &[mean], &[var]).unwrap_err();
+            assert!(err.to_string().contains("prior_"), "{err}");
+            let drift = DriftSpec::ordinary(s.len());
+            assert!(krige_bayesian(&t, &s, &drift, &vg, &[mean], &[var]).is_err());
+        }
+        assert!(krige_bayesian_polynomial(&t, &s, 0, &vg, &[100.0], &[0.0]).is_ok());
+    }
+
+    #[test]
+    fn factorial_structures_must_be_distinct_indices() {
+        let vg = Variogram {
+            nugget: 0.2,
+            structures: vec![Structure::new(Model::Spherical, 0.8, 50.0)],
+            anisotropy: None,
+        };
+        let s = vec![
+            samp(0.0, 0.0, 1.0),
+            samp(10.0, 0.0, 2.0),
+            samp(0.0, 12.0, 3.0),
+        ];
+        let t = (4.0, 4.0, 0.0);
+        let err = krige_factorial(&t, &s, &vg, false, &[5]).unwrap_err();
+        assert!(err.to_string().contains("0 to 0"), "{err}");
+        let err = krige_factorial(&t, &s, &vg, false, &[0, 0]).unwrap_err();
+        assert!(err.to_string().contains("distinct"), "{err}");
+        assert!(krige_factorial(&t, &s, &vg, false, &[]).is_err());
+        assert!(krige_factorial(&t, &s, &vg, false, &[0]).is_ok());
+        assert!(krige_factorial(&t, &s, &vg, true, &[]).is_ok());
     }
 }

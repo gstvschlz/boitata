@@ -86,6 +86,16 @@ fn check_min(n: usize, opts: &InterpOptions) -> Result<()> {
     Ok(())
 }
 
+/// An error unless `power` is an inverse-distance exponent: finite and >= 0.
+pub fn check_power(power: f64) -> Result<()> {
+    if !(power.is_finite() && power >= 0.0) {
+        return Err(EstimError::InvalidParameters(format!(
+            "power must be finite and >= 0; got {power}"
+        )));
+    }
+    Ok(())
+}
+
 /// Weights of [`inverse_distance`] on `samples`, in their order, summing
 /// to 1: all on a sample at the target, none beyond `dmax`.
 pub fn inverse_distance_weights(
@@ -94,6 +104,7 @@ pub fn inverse_distance_weights(
     power: f64,
     opts: &InterpOptions,
 ) -> Result<Vec<f64>> {
+    check_power(power)?;
     let neigh = within(target, samples, opts);
     check_min(neigh.len(), opts)?;
     let mut w = vec![0.0; samples.len()];
@@ -101,8 +112,10 @@ pub fn inverse_distance_weights(
         w[neigh[0].0] = 1.0;
         return Ok(w);
     }
+    // Relative to the nearest distance, so a high power cannot overflow.
+    let nearest = neigh[0].1;
     for &(i, d) in &neigh {
-        w[i] = 1.0 / d.powf(power);
+        w[i] = (nearest / d).powf(power);
     }
     let den: f64 = w.iter().sum();
     w.iter_mut().for_each(|w| *w /= den);
@@ -208,6 +221,7 @@ pub fn local_least_squares(
     degree: usize,
     opts: &InterpOptions,
 ) -> Result<InterpEstimate> {
+    crate::kriging_algebra::check_degree(degree)?;
     let neigh = within(target, samples, opts);
     check_min(neigh.len(), opts)?;
     // Local monomials in coordinates relative to the target.
@@ -322,5 +336,45 @@ mod tests {
             anisotropy: None,
         };
         assert!(nearest(&(0.0, 0.0, 0.0), &samples, &opts).is_err());
+    }
+
+    #[test]
+    fn idw_power_must_be_finite_and_non_negative() {
+        let samples = vec![s(1.0, 0.0, 10.0), s(5.0, 0.0, 2.0), s(20.0, 0.0, 0.0)];
+        let o = InterpOptions::default();
+        let t = (0.0, 0.0, 0.0);
+        for power in [f64::NAN, -2.0, f64::INFINITY] {
+            let err = inverse_distance(&t, &samples, power, &o).unwrap_err();
+            assert!(
+                err.to_string().contains("power must be finite and >= 0"),
+                "{err}"
+            );
+        }
+        let flat = inverse_distance(&t, &samples, 0.0, &o).unwrap();
+        assert!((flat.value - 4.0).abs() < 1e-12, "value {}", flat.value);
+    }
+
+    #[test]
+    fn idw_high_power_takes_the_nearest() {
+        let samples = vec![s(1e-3, 0.0, 10.0), s(5.0, 0.0, 2.0), s(1e6, 0.0, 0.0)];
+        let e =
+            inverse_distance(&(0.0, 0.0, 0.0), &samples, 400.0, &InterpOptions::default()).unwrap();
+        assert_eq!(e.value, 10.0);
+        let far = vec![s(1e3, 0.0, 10.0), s(2e3, 0.0, 2.0)];
+        let e = inverse_distance(&(0.0, 0.0, 0.0), &far, 400.0, &InterpOptions::default()).unwrap();
+        assert_eq!(e.value, 10.0);
+    }
+
+    #[test]
+    fn local_least_squares_degree_above_two_is_rejected() {
+        let samples: Vec<Sample> = (0..12)
+            .map(|i| s((i % 4) as f64, (i / 4) as f64, i as f64))
+            .collect();
+        let err = local_least_squares(&(1.5, 1.0, 0.0), &samples, 3, &InterpOptions::default())
+            .unwrap_err();
+        assert!(
+            err.to_string().contains("degree must be 0, 1 or 2"),
+            "{err}"
+        );
     }
 }

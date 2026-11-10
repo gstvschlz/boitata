@@ -46,9 +46,9 @@ pub use indicator::{
 };
 pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{
-    DriftSpec, DualKriging, Quality, calibrated_count, check_bayesian_prior, krige_bayesian,
-    krige_bayesian_polynomial, krige_calibrated, krige_factorial, krige_ordinary, krige_universal,
-    prefix_quality,
+    DriftSpec, DualKriging, Quality, calibrated_count, check_bayesian_prior, check_degree,
+    check_factorial, check_prior_values, krige_bayesian, krige_bayesian_polynomial,
+    krige_calibrated, krige_factorial, krige_ordinary, krige_universal, prefix_quality,
 };
 pub use multigaussian::Multigaussian;
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
@@ -57,8 +57,8 @@ pub use search::{
     neighborhood_groups, neighbors, neighbors_in, same_neighborhood, take,
 };
 pub use simple_interp::{
-    InterpEstimate, InterpOptions, inverse_distance, inverse_distance_weights, local_least_squares,
-    moving_average, moving_median, nearest_index,
+    InterpEstimate, InterpOptions, check_power, inverse_distance, inverse_distance_weights,
+    local_least_squares, moving_average, moving_median, nearest_index,
 };
 pub use validate::{CvRecord, CvSummary, k_fold, leave_one_out};
 
