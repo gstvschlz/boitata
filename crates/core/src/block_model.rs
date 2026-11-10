@@ -33,6 +33,17 @@ impl Geometry {
         if self.count.contains(&0) {
             return Err(Error::Geometry("cell counts must be positive".into()));
         }
+        let [nx, ny, nz] = self.count.map(|n| n as u64);
+        if nx
+            .checked_mul(ny)
+            .and_then(|n| n.checked_mul(nz))
+            .is_none_or(|n| usize::try_from(n).is_err())
+        {
+            return Err(Error::Geometry(format!(
+                "cell counts {nx} x {ny} x {nz} must multiply to at most {} cells",
+                usize::MAX
+            )));
+        }
         if self
             .origin
             .iter()
@@ -1003,6 +1014,17 @@ mod tests {
     fn regular_requires_one_row_per_cell() {
         assert!(BlockModel::regular(geometry([0.0; 3]), grades(vec![1.0; 5])).is_err());
         assert!(BlockModel::regular(geometry([0.0; 3]), grades(vec![1.0; 6])).is_ok());
+    }
+
+    #[test]
+    fn overflowing_cell_count_is_rejected() {
+        let g = Geometry {
+            count: [1 << 32, 1 << 32, 1],
+            ..geometry([0.0; 3])
+        };
+        let empty = RecordBatch::new_empty(Arc::new(Schema::empty()));
+        assert!(matches!(g.validate(), Err(Error::Geometry(_))));
+        assert!(BlockModel::regular(g, empty).is_err());
     }
 
     #[test]

@@ -548,6 +548,7 @@ pub struct Cap {
 pub fn capping(values: &[f64], weights: Option<&[f64]>, caps: Option<&[f64]>) -> Result<Vec<Cap>> {
     let (v, w) = valid(values, weights)?;
     let caps = match caps {
+        Some(c) if c.iter().any(|c| c.is_nan()) => return invalid("caps must not be NaN"),
         Some(c) => c.to_vec(),
         None => quantiles_of(&v, &w, &CAP_PROBABILITIES)?,
     };
@@ -1808,6 +1809,12 @@ mod tests {
             capping(&v, None, None).unwrap().len(),
             CAP_PROBABILITIES.len()
         );
+    }
+
+    #[test]
+    fn capping_rejects_nan_cap() {
+        assert!(capping(&[1.0, 2.0, 3.0], None, Some(&[f64::NAN])).is_err());
+        assert!(capping(&[1.0, 2.0, 3.0], None, Some(&[f64::INFINITY])).is_ok());
     }
 
     fn skewed() -> (Vec<f64>, Vec<u32>, Vec<f64>) {
