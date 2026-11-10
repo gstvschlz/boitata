@@ -42,12 +42,24 @@ print(rich)
 </details>
 
 ```text
-BlockModel(regular, 78000 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
-  estimate: Float64
-  variance: Float64
-BlockModel(masked, 11361 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
-  estimate: Float64
-  variance: Float64
+BlockModel  regular, 78,000 blocks
+  count   260 × 300 × 1
+  size    1 × 1 × 1
+  origin  0.5, 0.5, 0
+  crs     local grid
+  bounds  x 0.5 to 260.5, y 0.5 to 300.5, z 0 to 1
+  column    type     unit  nulls     min     mean      max
+  estimate  float64            0  -1.924    283.1   1447.1
+  variance  float64            0  8299.8  39229.2  72516.1
+BlockModel  masked, 11,361 of 78,000 blocks
+  count   260 × 300 × 1
+  size    1 × 1 × 1
+  origin  0.5, 0.5, 0
+  crs     local grid
+  bounds  x 16.5 to 259.5, y 0.5 to 300.5, z 0 to 1
+  column    type     unit  nulls     min     mean     max
+  estimate  float64            0     500    651.2  1447.1
+  variance  float64            0  8914.9  30476.5   56006
 ```
 
 The masked model keeps 11361 of the 78000 cells and stores its cell index with the attributes.
@@ -73,9 +85,15 @@ print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
  grid.parquet: 1.04 MB
  rich.parquet: 0.16 MB
      grid.csv: 4.05 MB
-BlockModel(masked, 11361 of 78000 cells, count [260, 300, 1], size [1.0, 1.0, 1.0], rotation [0.0, 0.0, 0.0])
-  estimate: Float64
-  variance: Float64
+BlockModel  masked, 11,361 of 78,000 blocks
+  count   260 × 300 × 1
+  size    1 × 1 × 1
+  origin  0.5, 0.5, 0
+  crs     local grid
+  bounds  x 16.5 to 259.5, y 0.5 to 300.5, z 0 to 1
+  column    type     unit  nulls     min     mean     max
+  estimate  float64            0     500    651.2  1447.1
+  variance  float64            0  8914.9  30476.5   56006
 same cells: True | crs: local grid
 ```
 
@@ -227,10 +245,17 @@ shape: (1, 3)
 ╞══════╪═════════════════════════════════╪══════════════╡
 │ pit  ┆ [[{60.0,80.0,0.0}, {60.0,240.0… ┆ [true, true] │
 └──────┴─────────────────────────────────┴──────────────┘
-Polylines(1 features, 2 parts, crs: local grid)
-  name: Utf8
-Polylines(1 features, 1 parts, crs: none)
-  ID: Utf8View
+Polylines  1 feature, 2 parts
+  closed  2 of 2 parts
+  crs     local grid
+  bounds  x 60 to 200, y 80 to 240, z 0 to 0
+  column  type  unit  nulls  values
+  name    str             0  1 unique: pit
+Polylines  1 feature, 1 part
+  closed  0 of 1 part
+  bounds  x 20 to 240, y 160 to 160, z 0 to 0
+  column  type  unit  nulls  values
+  ID      str             0  1 unique: A-A'
 ```
 
 ![polylines](polylines.png)

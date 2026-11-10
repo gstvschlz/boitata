@@ -52,7 +52,12 @@ print(gaussian)
 
 ```text
 12 samples at 0 ppm
-Variogram(nugget=0, structures=[Structure("spherical", sill=1, range=111.07592791907783)], rotation=(170.0, 0.0, 0.0), ratios=(0.44909922282146353, 1.0))
+Variogram  sill 1, 1 structure
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.4491, minor/major 1
+  structure  sill  major   semi  minor
+  nugget        0
+  spherical     1  111.1  49.88  111.1
 ```
 
 ## Distributions at points

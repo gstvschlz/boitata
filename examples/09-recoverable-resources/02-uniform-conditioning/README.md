@@ -49,7 +49,13 @@ print(raw)
 
 ```text
 r = 0.866
-Variogram(nugget=9443.636072785896, structures=[Structure("spherical", sill=7322.55159191909, range=10.622550182295146), Structure("spherical", sill=47288.1128266306, range=99.00105173141803)], rotation=(170.0, 0.0, 0.0), ratios=(0.4316396545722994, 1.0))
+Variogram  sill 64054.3, 2 structures
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.4316, minor/major 1
+  structure     sill  major   semi  minor
+  nugget      9443.6
+  spherical   7322.6  10.62  4.585  10.62
+  spherical  47288.1     99  42.73     99
 ```
 
 Ordinary block kriging of 50 × 50 m panels over the western 250 m. Its diagnostics give each panel the variance of its

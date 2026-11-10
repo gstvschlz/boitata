@@ -167,18 +167,6 @@ impl PyHighGrade {
                     == b.anisotropy.as_ref().map(|x| &x.angles)
         })
     }
-
-    fn __repr__(&self) -> String {
-        let extent = match self.ranges() {
-            Some(r) => format!("{r:?}, rotation={:?}", self.rotation().unwrap_or_default()),
-            None => format!("{}", self.0.radius),
-        };
-        format!(
-            "HighGrade({}, {extent}, mode={:?})",
-            self.0.threshold,
-            self.mode()
-        )
-    }
 }
 
 /// Neighborhood: `radius` is in meters along the major axis of the
@@ -702,17 +690,6 @@ impl Search {
     fn ratios(&self) -> Option<(f64, f64)> {
         let a = &self.core.anisotropy.as_ref()?.angles;
         Some((a.semi, a.minor))
-    }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Search(radius={}, max_samples={}, min_samples={}, octant={}, sectors={:?})",
-            self.core.radius,
-            self.core.max_samples,
-            self.core.min_samples,
-            self.core.octant,
-            self.sectors()
-        )
     }
 }
 

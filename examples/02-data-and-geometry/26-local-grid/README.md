@@ -119,7 +119,13 @@ save(fig, "grids")
 </details>
 
 ```text
-BlockModel(regular, 4096 of 4096 cells, count [64, 64, 1], size [24.99002413033656, 24.99002413033656, 10.0], rotation [127.99928275503542, 0.0, 0.0])
+BlockModel  regular, 4,096 blocks
+  count     64 × 64 × 1
+  size      24.99 × 24.99 × 10
+  origin    612635.5, 7730074.7, 888
+  rotation  azimuth 128°, dip 0°, rake 0°
+  crs       EPSG:32723
+  bounds    x 611650.8 to 613895.8, y 7727829.7 to 7730074.7, z 888 to 898
 rotation 127.999, size [24.99 24.99 10.  ], crs EPSG:32723
 largest centroid gap: 9.3e-10 m
 round trip: 5.1e-11 m, crs None

@@ -48,7 +48,7 @@ each kind of problem.
 data = bt.datasets.stacked_sulphide_lenses()
 lens = data["lens_2"]
 report = lens.validate()
-print(lens, report)
+print(f"{lens} {report}")
 print(f"volume {lens.volume:,.0f} m3")
 ```
 
@@ -103,7 +103,9 @@ print(broken)
 
 ```text
 2171 triangles flipped, 49 deleted
-Mesh(16201 vertices, 32352 triangles, open, 22 boundary edges)
+Mesh  16,201 vertices, 32,352 triangles, open, 22 boundary edges
+  area    382701.8
+  bounds  x 12154.3 to 12470.4, y 29814.2 to 30324, z -123.1 to 270.7
 ```
 
 ## Why it matters
@@ -260,7 +262,9 @@ print({k: v for k, v in report.summary.items() if v})
 </details>
 
 ```text
-Mesh(16186 vertices, 32348 triangles, open, 23 boundary edges)
+Mesh  16,186 vertices, 32,348 triangles, open, 23 boundary edges
+  area    382667.5
+  bounds  x 12154.3 to 12470.4, y 29814.2 to 30324, z -123 to 270.7
 {'boundary_edges': 23, 'non_manifold_edges': 1, 'shells': 1}
 ```
 
@@ -295,7 +299,7 @@ fixed = bt.Mesh(
     np.vstack([without_fin.coords, without_fin.coords[start].mean(axis=0)]), np.vstack([tri, cap])
 )
 print(f"hole rim: {len(rim)} edges, closed with {len(cap)} triangles")
-print(fixed, fixed.validate())
+print(f"{fixed} {fixed.validate()}")
 ```
 
 </details>

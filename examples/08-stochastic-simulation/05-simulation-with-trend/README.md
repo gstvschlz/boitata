@@ -64,8 +64,14 @@ by_sgs = plain.simulate(grid, n=20, seed=5, keep=True).realizations
 </details>
 
 ```text
-Variogram(nugget=0.1954025835782448, structures=[Structure("spherical", sill=0.8045974164217553, range=21.18654783120769)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
-Variogram(nugget=0.29338298731700524, structures=[Structure("spherical", sill=0.7066170126829948, range=71.08170719796509)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram  sill 1, 1 structure
+  structure    sill  range
+  nugget     0.1954
+  spherical  0.8046  21.19
+Variogram  sill 1, 1 structure
+  structure    sill  range
+  nugget     0.2934
+  spherical  0.7066  71.08
 ```
 
 <details><summary>Python</summary>

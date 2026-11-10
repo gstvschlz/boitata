@@ -405,15 +405,6 @@ pub fn arrow_c_stream<'py>(
     to_stream_pycapsule(py, Box::new(reader), requested_schema)
 }
 
-pub fn describe(batch: &RecordBatch) -> String {
-    batch
-        .schema()
-        .fields()
-        .iter()
-        .map(|f| format!("\n  {}: {}", f.name(), f.data_type()))
-        .collect()
-}
-
 #[pymethods]
 impl Table {
     #[new]
@@ -520,10 +511,6 @@ impl Table {
 
     fn __len__(&self) -> usize {
         self.0.num_rows()
-    }
-
-    fn __repr__(&self) -> String {
-        format!("Table({} rows){}", self.0.num_rows(), describe(&self.0))
     }
 
     fn to_polars<'py>(slf: &Bound<'py, Self>) -> PyResult<Bound<'py, PyAny>> {

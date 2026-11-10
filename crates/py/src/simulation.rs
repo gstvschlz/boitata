@@ -512,16 +512,6 @@ impl SimulationSummary {
             })
             .transpose()
     }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "SimulationSummary(n={}, targets={}, cutoffs={:?}, quantiles={:?})",
-            self.0.n,
-            self.0.mean.len(),
-            self.0.cutoffs,
-            self.0.quantiles
-        )
-    }
 }
 
 /// Uncertainty at every target from `n` realizations of categories.
@@ -826,6 +816,14 @@ impl Data {
         .map(|_| ())
         .map_err(err)
     }
+}
+
+fn shown(variogram: &CoreVariogram, length_unit: &Option<String>) -> Variogram {
+    let units = crate::variogram::Units {
+        length_unit: length_unit.clone(),
+        unit: None,
+    };
+    Variogram(variogram.clone(), units)
 }
 
 fn classes() -> usize {
@@ -1212,6 +1210,24 @@ impl Sgs {
     #[getter]
     fn correlation(&self) -> Option<f64> {
         self.correlation
+    }
+
+    /// The variogram given at construction.
+    #[getter]
+    fn variogram(&self) -> Variogram {
+        shown(&self.variogram, &self.length_unit)
+    }
+
+    /// The search passes given at construction.
+    #[getter]
+    fn search(&self) -> Vec<Search> {
+        self.search.clone()
+    }
+
+    /// Number of fitted samples; None before `fit`.
+    #[getter]
+    fn n_samples(&self) -> Option<usize> {
+        self.data.as_ref().map(|d| d.values.len())
     }
 
     /// The search pass of every target.
@@ -1753,6 +1769,24 @@ impl Dss {
         self.correlation
     }
 
+    /// The variogram given at construction.
+    #[getter]
+    fn variogram(&self) -> Variogram {
+        shown(&self.variogram, &self.length_unit)
+    }
+
+    /// The search passes given at construction.
+    #[getter]
+    fn search(&self) -> Vec<Search> {
+        self.search.clone()
+    }
+
+    /// Number of fitted samples; None before `fit`.
+    #[getter]
+    fn n_samples(&self) -> Option<usize> {
+        self.data.as_ref().map(|d| d.values.len())
+    }
+
     /// The search pass of every target, as in SGS.passes.
     ///
     /// Parameters
@@ -2174,6 +2208,30 @@ impl TurningBands {
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<crate::persist::Columns>) -> PyResult<Self> {
         crate::persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
+    }
+
+    /// The variogram given at construction.
+    #[getter]
+    fn variogram(&self) -> Variogram {
+        shown(&self.variogram, &self.length_unit)
+    }
+
+    /// The conditioning search given at construction; None for the default.
+    #[getter]
+    fn search(&self) -> Option<Search> {
+        self.search.clone()
+    }
+
+    /// Number of lines.
+    #[getter]
+    fn bands(&self) -> usize {
+        self.bands
+    }
+
+    /// Number of fitted samples; None before `fit`.
+    #[getter]
+    fn n_samples(&self) -> Option<usize> {
+        self.data.as_ref().map(|d| d.values.len())
     }
 
     /// `bands` lines, each discretized every `step` meters along the major axis

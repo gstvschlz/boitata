@@ -80,9 +80,14 @@ print(f"unestimated blocks: kriging {np.isnan(ok).sum()}, inverse distance {np.i
 </details>
 
 ```text
-BlockModel(regular, 780 of 780 cells, count [26, 30, 1], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
-  ok: Float64
-  id: Float64
+BlockModel  regular, 780 blocks
+  count   26 × 30 × 1
+  size    10 × 10 × 1
+  origin  0.5, 0.5, 0
+  bounds  x 0.5 to 260.5, y 0.5 to 300.5, z 0 to 1
+  column  type     unit  nulls      min   mean     max
+  ok      float64            0  -0.7403    284  1117.2
+  id      float64            0    10.71  325.4  1096.3
 unestimated blocks: kriging 0, inverse distance 0
 ```
 

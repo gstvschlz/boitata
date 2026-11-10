@@ -65,10 +65,15 @@ print(f"{blocks['ok'].size} blocks × {tonnes:,.0f} t = {blocks['ok'].size * ton
 </details>
 
 ```text
-BlockModel(regular, 780 of 780 cells, count [26, 30, 1], size [10.0, 10.0, 10.0], rotation [0.0, 0.0, 0.0])
-  ok: Float64
-  id: Float64
-  truth: Float64
+BlockModel  regular, 780 blocks
+  count   26 × 30 × 1
+  size    10 × 10 × 10
+  origin  0.5, 0.5, -5
+  bounds  x 0.5 to 260.5, y 0.5 to 300.5, z -5 to 5
+  column  type     unit  nulls      min   mean     max
+  ok      float64            0  -0.7479    284    1118
+  id      float64            0    10.65  325.3  1094.4
+  truth   float64            0    9.656  279.5  1209.6
 780 blocks × 2,700 t = 2,106,000 t
 ```
 

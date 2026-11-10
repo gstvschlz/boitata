@@ -103,10 +103,12 @@ print(samples)
 ```
 
 ```text
-PointSet(3 points, crs: none)
-  Au: Float64
-  ROCK: Utf8
-  Au_log: Float64
+PointSet  3 points
+  bounds  x 0 to 10, y 0 to 10, z 0 to 0
+  column  type     unit  nulls      min    mean     max
+  Au      float64            1      0.4     0.8     1.2
+  ROCK    str                1  2 unique: oxide, fresh
+  Au_log  float64            1  -0.9163  -0.367  0.1823
 ```
 
 `with_columns` adds several at once from a dict or a data frame.
@@ -152,7 +154,12 @@ print(model.coords[:2].round(2))
 ```
 
 ```text
-BlockModel(regular, 12 of 12 cells, count [4, 3, 1], size [10.0, 10.0, 5.0], rotation [30.0, 0.0, 0.0])
+BlockModel  regular, 12 blocks
+  count     4 × 3 × 1
+  size      10 × 10 × 5
+  origin    0, 0, 0
+  rotation  azimuth 30°, dip 0°, rake 0°
+  bounds    x 0 to 49.64, y -20 to 25.98, z 0 to 5
 [[ 6.83  1.83  2.5 ]
  [15.49 -3.17  2.5 ]]
 ```
@@ -182,7 +189,12 @@ print(rich.index)
 ```
 
 ```text
-BlockModel(masked, 11 of 12 cells, count [4, 3, 1], size [10.0, 10.0, 5.0], rotation [30.0, 0.0, 0.0])
+BlockModel  masked, 11 of 12 blocks
+  count     4 × 3 × 1
+  size      10 × 10 × 5
+  origin    0, 0, 0
+  rotation  azimuth 30°, dip 0°, rake 0°
+  bounds    x 5 to 49.64, y -20 to 25.98, z 0 to 5
 [ 1  2  3  4  5  6  7  8  9 10 11]
 ```
 

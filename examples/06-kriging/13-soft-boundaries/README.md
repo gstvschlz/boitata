@@ -96,7 +96,12 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=0.2606053672947485, structures=[Structure("spherical", sill=0.7041406693380989, range=53.72070332938034)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 0.14798946971838695))
+Variogram  sill 0.9647, 1 structure
+  rotation  azimuth 0°, dip 0°, rake 0°
+  ratios    semi/major 1, minor/major 0.148
+  structure    sill  major   semi  minor
+  nugget     0.2606
+  spherical  0.7041  53.72  53.72   7.95
 ```
 
 The holes on the 50 m mesh do the estimating; the 25 m infill holes are held out to check it. Three rules share one

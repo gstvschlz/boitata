@@ -105,7 +105,10 @@ save(fig, "bedrock")
 </details>
 
 ```text
-Variogram(nugget=0, structures=[Structure("spherical", sill=365.53369434127086, range=700.3291439038595)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram  sill 365.5, 1 structure
+  structure   sill  range
+  nugget         0
+  spherical  365.5  700.3
 kriged at the infill: mean error -0.29 m, RMSE 5.60 m
 topography less the mean depth: RMSE 5.86 m
 ```

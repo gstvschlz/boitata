@@ -175,7 +175,7 @@ print(
 # %%
 domain = domain.with_column("cu", np.random.default_rng(7).gamma(4, 0.25, len(domain)))
 full = domain.to_regular()
-print(full, "| null cells:", np.isnan(full["cu"]).sum())
+print(full)
 
 fig, ax = plt.subplots(figsize=(5.6, 4.6), layout="constrained")
 draw(ax, grid)

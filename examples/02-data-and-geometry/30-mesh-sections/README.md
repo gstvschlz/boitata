@@ -41,15 +41,9 @@ for name, lines in plans.items():
 </details>
 
 ```text
-lens 1: Polylines(6 features, 6 parts, crs: none)
-  lens: Utf8
-  offset: Float64
-lens 2: Polylines(7 features, 7 parts, crs: none)
-  lens: Utf8
-  offset: Float64
-lens 3: Polylines(5 features, 5 parts, crs: none)
-  lens: Utf8
-  offset: Float64
+lens 1: Polylines(6 features, 6 parts, 2 columns)
+lens 2: Polylines(7 features, 7 parts, 2 columns)
+lens 3: Polylines(5 features, 5 parts, 2 columns)
 ```
 
 ## Level plans

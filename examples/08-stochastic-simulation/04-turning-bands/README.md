@@ -38,7 +38,12 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.08618178903417904, structures=[Structure("spherical", sill=0.913818210965821, range=124.0562547366332)], rotation=(170.0, 0.0, 0.0), ratios=(0.4095872533818296, 1.0))
+Variogram  sill 1, 1 structure
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.4096, minor/major 1
+  structure     sill  major   semi  minor
+  nugget     0.08618
+  spherical   0.9138  124.1  50.81  124.1
 ```
 
 Both methods normal-score the data, simulate and back-transform; `bands` sets how many lines turning bands sums.

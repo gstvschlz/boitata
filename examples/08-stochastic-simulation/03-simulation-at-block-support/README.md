@@ -38,7 +38,12 @@ print(gaussian)
 </details>
 
 ```text
-Variogram(nugget=0.11060343270425142, structures=[Structure("spherical", sill=0.8893965672957486, range=104.50278028080879)], rotation=(170.0, 0.0, 0.0), ratios=(0.48446742261870374, 1.0))
+Variogram  sill 1, 1 structure
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.4845, minor/major 1
+  structure    sill  major   semi  minor
+  nugget     0.1106
+  spherical  0.8894  104.5  50.63  104.5
 ```
 
 Thirty realizations on 2.5 m nodes. `blocks=` averages each over the 16 nodes of each 10 × 10 m block before

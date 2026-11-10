@@ -67,7 +67,11 @@ print(model)
 </details>
 
 ```text
-BlockModel(regular, 1054440 of 1054440 cells, count [60, 174, 101], size [5.0, 5.0, 5.0], rotation [0.0, 0.0, 0.0])
+BlockModel  regular, 1,054,440 blocks
+  count   60 × 174 × 101
+  size    5 × 5 × 5
+  origin  7905, 14585, 380
+  bounds  x 7905 to 8205, y 14585 to 15455, z 380 to 885
 ```
 
 !!! step "Step 2: Measure the proportion of each block inside each vein"

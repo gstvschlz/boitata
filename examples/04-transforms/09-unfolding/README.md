@@ -50,7 +50,9 @@ print(
 </details>
 
 ```text
-Mesh(8056 vertices, 15750 triangles, open, 360 boundary edges)
+Mesh  8,056 vertices, 15,750 triangles, open, 360 boundary edges
+  area    806312.8
+  bounds  x 29980 to 31030, y 59980 to 60730, z 294.7 to 378.1
 bedrock 295 to 378 m, saprolite 3.0 to 45.5 m thick
 ```
 
@@ -229,8 +231,13 @@ save(fig, "section")
 
 ```text
 inverse of the unfolded centers: 0.0e+00 m from the centroids
-BlockModel(masked, 90652 of 644480 cells, count [106, 76, 80], size [10.0, 10.0, 1.0], rotation [0.0, 0.0, 0.0])
-  NI: Float64
+BlockModel  masked, 90,652 of 644,480 blocks
+  count   106 × 76 × 80
+  size    10 × 10 × 1
+  origin  29975, 59975, 300
+  bounds  x 29975 to 31035, y 59975 to 60735, z 300 to 380
+  column  type     unit  nulls     min   mean    max
+  NI      float64            0  0.5383  1.643  5.417
 ```
 
 ![section](section.png)

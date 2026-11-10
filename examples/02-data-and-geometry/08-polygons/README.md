@@ -41,7 +41,9 @@ def outline(ax, ring, **kwargs):
 </details>
 
 ```text
-Polylines(1 features, 1 parts, crs: none)
+Polylines  1 feature, 1 part
+  closed  1 of 1 part
+  bounds  x 20310.7 to 32194.2, y 50330.2 to 58130.2, z 0 to 0
 7202 of 10800 cells inside, 72.0 km²
 agreement with the INSIDE flag: 100.0%
 295 of 295 holes inside

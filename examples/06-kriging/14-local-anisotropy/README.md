@@ -51,7 +51,13 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=10703.549602970079, structures=[Structure("spherical", sill=7726.237673813235, range=7.500402744271657), Structure("spherical", sill=62833.69537342636, range=104.31142732855938)], rotation=(170.0, 0.0, 0.0), ratios=(0.37013517721103584, 1.0))
+Variogram  sill 81263.5, 2 structures
+  rotation  azimuth 170°, dip 0°, rake 0°
+  ratios    semi/major 0.3701, minor/major 1
+  structure     sill  major   semi  minor
+  nugget     10703.5
+  spherical   7726.2    7.5  2.776    7.5
+  spherical  62833.7  104.3  38.61  104.3
 ```
 
 A quick isotropic estimate outlines the bodies, and the gradient of that map gives the orientation of least change.

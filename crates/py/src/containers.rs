@@ -8,7 +8,7 @@ use pyo3_arrow::error::PyArrowResult;
 use rayon::prelude::*;
 
 use crate::invalid;
-use crate::table::{Table, arrow_c_stream, column, describe, empty, fill_units, to_batch};
+use crate::table::{Table, arrow_c_stream, column, empty, fill_units, to_batch};
 
 /// `(n, 2)` or `(n, 3)` array-like to xyz rows, 2D with z = 0; the coords
 /// of a PointSet or the centroids of a BlockModel.
@@ -268,15 +268,6 @@ impl PyPointSet {
 
     fn __len__(&self) -> usize {
         self.0.len()
-    }
-
-    fn __repr__(&self) -> String {
-        let crs = self.0.crs.as_deref().unwrap_or("none");
-        format!(
-            "PointSet({} points, crs: {crs}){}",
-            self.0.len(),
-            describe(self.0.attributes())
-        )
     }
 
     #[pyo3(signature = (requested_schema=None))]
@@ -721,16 +712,6 @@ impl PyPolylines {
 
     fn __len__(&self) -> usize {
         self.0.len()
-    }
-
-    fn __repr__(&self) -> String {
-        let crs = self.0.crs.as_deref().unwrap_or("none");
-        format!(
-            "Polylines({} features, {} parts, crs: {crs}){}",
-            self.0.len(),
-            self.0.num_parts(),
-            describe(self.0.attributes())
-        )
     }
 
     /// Builds polylines from a long table with one row per vertex.
@@ -1348,28 +1329,6 @@ impl PyBlockModel {
 
     fn __len__(&self) -> usize {
         self.0.len()
-    }
-
-    fn __repr__(&self) -> String {
-        let g = self.0.geometry();
-        let layout = match self.0.layout() {
-            Layout::Regular => "regular",
-            Layout::Masked(_) => "masked",
-            Layout::SubBlocked { .. } => "sub-blocked",
-        };
-        let rows = match self.0.layout() {
-            Layout::SubBlocked { .. } => {
-                format!("{} sub-blocks in {} cells", self.0.len(), g.cells())
-            }
-            _ => format!("{} of {} cells", self.0.len(), g.cells()),
-        };
-        format!(
-            "BlockModel({layout}, {rows}, count {:?}, size {:?}, rotation {:?}){}",
-            g.count,
-            g.size,
-            g.rotation,
-            describe(self.0.attributes())
-        )
     }
 
     #[pyo3(signature = (requested_schema=None))]

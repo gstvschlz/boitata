@@ -35,7 +35,13 @@ print(model)
 </details>
 
 ```text
-Variogram(nugget=4206.6877423721735, structures=[Structure("spherical", sill=22196.35970010272, range=13.985603587057282), Structure("spherical", sill=51357.03331809465, range=115)], rotation=(0.49145436900599293, 0.0, 0.0), ratios=(0.3430416888351493, 1.0))
+Variogram  sill 77760.1, 2 structures
+  rotation  azimuth 0.4915°, dip 0°, rake 0°
+  ratios    semi/major 0.343, minor/major 1
+  structure     sill  major   semi  minor
+  nugget      4206.7
+  spherical  22196.4  13.99  4.798  13.99
+  spherical    51357    115  39.45    115
 ```
 
 The search takes up to 24 samples within 100 m. `predict` accepts a `BlockModel`, a `PointSet` or an array of
@@ -55,9 +61,14 @@ print(grid)
 </details>
 
 ```text
-BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0], rotation [0.0, 0.0, 0.0])
-  estimate: Float64
-  variance: Float64
+BlockModel  regular, 3,120 blocks
+  count   52 × 60 × 1
+  size    5 × 5 × 1
+  origin  0.5, 0.5, 0
+  bounds  x 0.5 to 260.5, y 0.5 to 300.5, z 0 to 1
+  column    type     unit  nulls      min     mean      max
+  estimate  float64            0  -0.6739    283.4   1379.4
+  variance  float64            0   8901.1  39192.4  66726.8
 ```
 
 Compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
