@@ -98,14 +98,16 @@ save(fig, "statistics")
 #
 # Lens 1 has the most composites. A thin lens leaves few pairs across it, so the variogram is omnidirectional;
 # kriging uses the variogram of the grades, simulation that of the declustered normal scores, rescaled to a unit
-# sill.
+# sill. Both are fitted up to 60 m, just past the 45 m where γ first reaches its plateau: the longer lags hold three
+# to four times as many pairs, so with the fit weighted by pair count their scatter about the plateau would set the
+# model and stretch the range to the end of the lags.
 
 # %%
 one = composites.filter(names == "lens_1")
 grades = bt.experimental_variogram(one, "ZN_PCT", 10.0, 150.0)
-variogram = grades.fit("spherical")
+variogram = bt.experimental_variogram(one, "ZN_PCT", 10.0, 60.0).fit("spherical")
 scores = bt.NormalScore().fit(one["ZN_PCT"], weights=one["weight"])
-fitted = bt.experimental_variogram(one.coords, scores.transform(one["ZN_PCT"]), 10.0, 150.0).fit("spherical")
+fitted = bt.experimental_variogram(one.coords, scores.transform(one["ZN_PCT"]), 10.0, 60.0).fit("spherical")
 gaussian = fitted.standardized()
 for label, model in (("Zn", variogram), ("normal scores", gaussian)):
     s = model.structures[0]
@@ -235,9 +237,8 @@ fig.legend(*axes[0].get_legend_handles_labels(), loc="outside lower center", nco
 save(fig, "swath")
 
 # %% [markdown]
-# In lens 1 the kriged mean equals that of the nearest-neighbor model and lies 5.3 % above the declustered
-# composites; in lenses 2 and 3 it is 4 and 3 % above the declustered composites but 12 and 18 % above nearest
-# neighbor. The two references disagree with each other as much as with the model: nearest neighbor spreads each
+# In lens 1 the kriged mean lies 3 % below the nearest-neighbor model and 7 % below the declustered composites; in
+# lenses 2 and 3 it is 2 and 6 % below the declustered composites but 1 and 4 % above nearest neighbor. The two references disagree with each other as much as with the model: nearest neighbor spreads each
 # edge composite over the blocks around it, and cell declustering depends on the cell size it settles on. Along
 # northing and elevation, kriged blocks and nearest neighbor follow the same course, and the composites swing
 # around both, as raw data do.
@@ -245,7 +246,7 @@ save(fig, "swath")
 # ## Classification
 #
 # Measured blocks come from the first pass with a slope of regression of at least 0.6; indicated, from the first
-# two passes with a slope of 0.3; the rest is inferred. With a nugget of 42 % of the sill and a 46 m range, only
+# two passes with a slope of 0.3; the rest is inferred. With a nugget of 45 % of the sill and a 56 m range, only
 # blocks close to several holes qualify as measured.
 
 # %%
@@ -303,8 +304,9 @@ for groups in (block_lens, classes):
         print(f"{category:10} ≥ {cutoff:1.0f} % Zn{tonnes / 1e3:8.0f}{grade:7.2f}{metal / 1e5:8.1f}")
 
 # %% [markdown]
-# The three lenses hold 22.3 Mt at 5.66 % Zn, 1.26 Mt of zinc, of which 12.0 Mt at 7.45 % lie above 5 % Zn. Lens 1
-# carries 38 % of the metal; measured blocks, only 628 kt, are its rich core near the top.
+# The three lenses hold 22.3 Mt at 5.69 % Zn, 1.27 Mt of zinc, of which 11.9 Mt at 7.50 % lie above 5 % Zn. Lens 1
+# carries 38 % of the metal. Measured blocks, 8.9 Mt at 5.80 % Zn, gather around the holes; inferred ones fill the
+# edges of the lenses and the gaps between holes.
 #
 # The model, sub-blocks, lens names, grades, classes and all, goes to Parquet and back unchanged.
 
