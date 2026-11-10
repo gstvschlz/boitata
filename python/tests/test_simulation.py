@@ -104,6 +104,10 @@ def test_grade_tonnage_uncertainty_on_blocks(tmp_path):
         sgs.simulate(grid, n=1, density=2.5)
     with pytest.raises(bt.InvalidInput, match="no grade-tonnage"):
         sgs.simulate(grid, n=1).grade_tonnage()
+    with pytest.raises(bt.InvalidInput, match="tonnes must be finite"):
+        sgs.simulate(grid, n=1, grade_tonnage_cutoffs=[1.0], density=np.inf)
+    with pytest.raises(bt.InvalidInput, match="cutoffs must not be NaN"):
+        sgs.simulate(grid, n=1, cutoffs=[np.nan])
 
 
 def test_block_support_averages_each_realization():

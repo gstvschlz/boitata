@@ -525,6 +525,11 @@ impl<'a> Accumulator<'a> {
                 "tolerances must be finite and non-negative".into(),
             ));
         }
+        if options.cutoffs.iter().any(|c| c.is_nan()) {
+            return Err(SimError::InvalidParameters(
+                "cutoffs must not be NaN".into(),
+            ));
+        }
         let nc = options.cutoffs.len();
         let grade_tonnage = options.tonnage.as_ref().map(|t| {
             let mut groups: Vec<Option<u32>> = t
@@ -549,10 +554,10 @@ impl<'a> Accumulator<'a> {
         });
         if let Some(t) = &options.tonnage {
             if t.cutoffs.iter().any(|c| c.is_nan())
-                || t.tonnes.iter().any(|w| w.is_nan() || *w < 0.0)
+                || t.tonnes.iter().any(|w| !(w.is_finite() && *w >= 0.0))
             {
                 return Err(SimError::InvalidParameters(
-                    "cutoffs must not be NaN and tonnes must be non-negative".into(),
+                    "cutoffs must not be NaN and tonnes must be finite and non-negative".into(),
                 ));
             }
             if t.categories
@@ -1284,6 +1289,35 @@ mod tests {
             .build()
             .unwrap()
             .install(f)
+    }
+
+    #[test]
+    fn nan_cutoffs_and_infinite_tonnes_are_rejected() {
+        let simulate = |k: usize| Ok(vec![1.0 + k as f64, 2.0, 3.0]);
+        let options = ContinuousOptions {
+            cutoffs: vec![f64::NAN],
+            ..Default::default()
+        };
+        let err = continuous(3, &options, simulate).unwrap_err();
+        assert!(err.to_string().contains("cutoffs must not be NaN"), "{err}");
+        let options = ContinuousOptions {
+            cutoffs: vec![f64::NEG_INFINITY, f64::INFINITY],
+            ..Default::default()
+        };
+        let out = continuous(3, &options, simulate).unwrap();
+        assert_eq!(out.probability_above, vec![vec![1.0; 3], vec![0.0; 3]]);
+        for w in [f64::INFINITY, f64::NAN, -1.0] {
+            let options = ContinuousOptions {
+                tonnage: Some(TonnageOptions {
+                    cutoffs: vec![0.0],
+                    tonnes: vec![w, 2.7, 2.7],
+                    ..Default::default()
+                }),
+                ..Default::default()
+            };
+            let err = continuous(3, &options, simulate).unwrap_err();
+            assert!(err.to_string().contains("finite and non-negative"), "{err}");
+        }
     }
 
     #[test]
