@@ -1,5 +1,6 @@
 import itertools
 import math
+import struct
 import sys
 
 import boitata as bt
@@ -231,6 +232,50 @@ def test_mesh_dxf_polyface_and_obj_groups(tmp_path):
     bt.write_mesh(tmp_path / "g.obj", grouped)
     back = bt.read_mesh(tmp_path / "g.obj")
     assert list(back.face_attributes["group"]) == ["lid", "side", "side", "lid"]
+
+
+def test_untrusted_mesh_and_raster_headers_are_invalid_input(tmp_path):
+    ply = (
+        "ply\nformat ascii 1.0\nelement vertex 4\nproperty float x\nproperty float y\n"
+        "property float z\nelement face 1\nproperty list uchar int vertex_indices\n"
+        "end_header\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n"
+    )
+    for body in ("3 1 2 -1\n", "3 1.9 2 3\n"):
+        (tmp_path / "bad.ply").write_text(ply + body)
+        with pytest.raises(bt.InvalidInput, match="whole number"):
+            bt.read_mesh(tmp_path / "bad.ply")
+    (tmp_path / "huge.ply").write_text("ply\nformat ascii 1.0\nelement foo 1000000000000\nend_header\n")
+    with pytest.raises(bt.InvalidInput, match="no properties"):
+        bt.read_mesh(tmp_path / "huge.ply")
+    (tmp_path / "huge.msh").write_text(
+        "$MeshFormat\n2.2 0 8\n$EndMeshFormat\n$Nodes\n3\n1 0 0 0\n2 1 0 0\n3 0 1 0\n"
+        "$EndNodes\n$Elements\n1\n1 2 2 0 0 1 2 3\n$EndElements\n"
+        '$NodeData\n1\n"a"\n0\n3\n0\n1000000\n0\n$EndNodeData\n'
+    )
+    with pytest.raises(bt.InvalidInput, match="from 1 to 9"):
+        bt.read_mesh(tmp_path / "huge.msh")
+    tags = [
+        (256, 4, 1, 200_000),
+        (257, 4, 1, 200_000),
+        (258, 3, 1, 32),
+        (259, 3, 1, 1),
+        (262, 3, 1, 1),
+        (273, 4, 1, 230),
+        (277, 3, 1, 1),
+        (278, 4, 1, 200_000),
+        (279, 4, 1, 4),
+        (339, 3, 1, 3),
+        (33550, 12, 3, 158),
+        (33922, 12, 6, 182),
+    ]
+    tiff = b"II*\0" + struct.pack("<IH", 8, len(tags))
+    for tag, kind, count, value in tags:
+        packed = struct.pack("<HH", value, 0) if kind == 3 else struct.pack("<I", value)
+        tiff += struct.pack("<HHI", tag, kind, count) + packed
+    tiff += struct.pack("<I9df", 0, 1.0, 1.0, *[0.0] * 7, 1.5)
+    (tmp_path / "huge.tif").write_bytes(tiff)
+    with pytest.raises(bt.InvalidInput, match="bytes of image data"):
+        bt.read_geotiff(tmp_path / "huge.tif")
 
 
 def test_shapefile_round_trip(tmp_path):
