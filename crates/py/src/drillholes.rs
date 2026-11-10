@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use arrow_array::cast::AsArray;
@@ -321,7 +321,7 @@ impl Drillholes {
     ///     applies.
     /// categories : sequence of str
     ///     Categorical columns, composited to the value covering the most
-    ///     length.
+    ///     length; on a tie, the value first in sorted order.
     #[pyo3(signature = (
         length, grades, *, domain=None, intervals=None, residual="keep", min_fraction=0.5,
         categories=vec![]
@@ -365,20 +365,25 @@ impl Drillholes {
         let mut labels: Vec<Vec<String>> = vec![vec![]; categories.len()];
         let mut codes: Vec<Vec<Option<f64>>> = Vec::new();
         for (c, name) in categories.iter().enumerate() {
-            let mut index: HashMap<String, usize> = HashMap::new();
-            let column = text(batch, name)?
+            let column = text(batch, name)?;
+            labels[c] = column
+                .iter()
+                .flatten()
+                .cloned()
+                .collect::<BTreeSet<_>>()
                 .into_iter()
-                .map(|v| {
-                    v.map(|v| {
-                        let n = index.len();
-                        *index.entry(v.clone()).or_insert_with(|| {
-                            labels[c].push(v);
-                            n
-                        }) as f64
-                    })
-                })
                 .collect();
-            codes.push(column);
+            let index: HashMap<&str, usize> = labels[c]
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (l.as_str(), i))
+                .collect();
+            codes.push(
+                column
+                    .iter()
+                    .map(|v| v.as_deref().map(|v| index[v] as f64))
+                    .collect(),
+            );
         }
         let mut per_hole: BTreeMap<&str, Vec<(f64, f64, String, HashMap<String, f64>)>> =
             BTreeMap::new();

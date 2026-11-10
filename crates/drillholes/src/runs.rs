@@ -45,7 +45,7 @@ struct Span {
 ///    `max_dilution` between two ore runs joins them when the grade of the
 ///    three together is at or above `cutoff`.
 /// 3. Edge dilution: every ore run extends `edge` into each waste neighbor;
-///    a waste run left with no span is absorbed.
+///    a waste run left with no sampled length is absorbed.
 /// 4. Minimum length: while a run spans less than `min_length`, the shortest
 ///    (the shallowest on ties) takes its neighbors' flag and merges with them,
 ///    so every run of a hole with more than one spans at least `min_length`.
@@ -136,7 +136,7 @@ pub fn ore_runs(samples: &[(f64, f64, f64, bool)], rules: &RunRules) -> Result<V
             }
             let lo = if i > 0 { r.from + rules.edge } else { r.from };
             let hi = if i + 1 < n { r.to - rules.edge } else { r.to };
-            if hi - lo > EPS {
+            if hi - lo > EPS && measure(lo, hi).0 > EPS {
                 if i > 0
                     && let Some(last) = out.last_mut()
                 {
@@ -255,6 +255,21 @@ mod tests {
     }
 
     #[test]
+    fn edges_absorb_waste_left_only_in_a_gap() {
+        let s = [
+            (8.47, 8.97, 6.0, true),
+            (8.97, 9.47, 0.28, false),
+            (9.47, 10.47, 0.43, false),
+            (12.04, 13.04, 0.30, false),
+            (13.04, 13.54, 5.18, true),
+        ];
+        let runs = ore_runs(&s, &rules(0.0, 1.0, 1.5)).unwrap();
+        assert_eq!(spans(&runs), [(8.47, 13.54, true)]);
+        let metal: f64 = s.iter().map(|&(f, t, g, _)| g * (t - f)).sum();
+        assert!((runs[0].grade * runs[0].length - metal).abs() < 1e-12);
+    }
+
+    #[test]
     fn runs_conserve_metal() {
         let mut state = 7u64;
         let mut next = || {
@@ -277,11 +292,13 @@ mod tests {
             rules(0.0, 0.0, 0.0),
             rules(3.0, 2.0, 0.0),
             rules(3.0, 2.0, 0.7),
+            rules(0.0, 1.0, 1.5),
         ] {
             let runs = ore_runs(&s, &r).unwrap();
             let total: f64 = runs.iter().map(|r| r.grade * r.length).sum();
             assert!((total - metal).abs() < 1e-9 * metal);
             assert!(runs.windows(2).all(|w| w[0].to <= w[1].from + 1e-9));
+            assert!(runs.windows(2).all(|w| w[0].ore != w[1].ore));
             assert!(runs.iter().all(|x| x.to - x.from >= r.min_length - 1e-9));
             assert_eq!(runs, ore_runs(&s, &r).unwrap());
         }
