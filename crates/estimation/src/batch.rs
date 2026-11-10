@@ -174,7 +174,7 @@ where
     T: Send,
 {
     let wider = Search {
-        max_samples: search.max_samples + 1,
+        max_samples: search.max_samples.saturating_add(1),
         ..search.clone()
     };
     let tree = SearchTree::new(samples, &wider, vg);
@@ -338,6 +338,19 @@ mod tests {
         for (a, b) in ours.iter().zip(&reference.records) {
             assert!((a - b.estimate).abs() < 1e-9);
         }
+    }
+
+    #[test]
+    fn leave_one_out_takes_any_max_samples() {
+        let samples = samples();
+        let search = Search {
+            min_samples: 1,
+            max_samples: usize::MAX,
+            radius: 30.0,
+            ..Default::default()
+        };
+        let got = leave_one_out_many(&samples, &search, None, |_, s| Ok(s.len()));
+        assert!(got.iter().flatten().any(|&n| n > 1));
     }
 
     #[test]

@@ -680,7 +680,7 @@ pub(crate) fn sequential(
         // so the realization is the sequential one for any batch size. A
         // node goes stale with probability about size * most / 2 / known,
         // one in 16 here.
-        let size = batch.unwrap_or(known.samples.len() / (8 * most).max(1));
+        let size = batch.unwrap_or(known.samples.len() / most.saturating_mul(8).max(1));
         let nodes = &path[start..(start + size.clamp(1, BATCH)).min(path.len())];
         let points: Vec<Vec<[f64; 3]>> = match local {
             Some(_) => vec![],

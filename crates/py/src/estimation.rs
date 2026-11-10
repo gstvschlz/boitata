@@ -178,8 +178,8 @@ impl PyHighGrade {
 /// the target, split along the ellipsoid's axes; with 2D data (one elevation)
 /// the sectors are the ellipse's four quadrants, `max_samples / 4` each.
 /// `sectors` instead splits the plane of the ellipsoid's major and
-/// semi-major axes into that many equal angles, the first starting at the
-/// major axis. Either takes at most `max_per_sector` samples from each
+/// semi-major axes into that many (2 to 360) equal angles, the first
+/// starting at the major axis. Either takes at most `max_per_sector` samples from each
 /// (`max_samples` over the number of sectors, rounded up, by default).
 /// `min_sectors` leaves a target unestimated by this pass unless that many
 /// octants or sectors hold a sample, and `max_empty_sectors` when more than

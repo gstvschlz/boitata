@@ -23,6 +23,9 @@ use grid::{Grid, d2};
 
 type Point = (f64, f64, f64);
 
+/// Most plane sectors a search may balance over.
+pub const MAX_SECTORS: usize = 360;
+
 /// Search-neighborhood parameters.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Search {
@@ -222,8 +225,8 @@ impl Search {
             Some(PlaneSectors {
                 count,
                 max_per_sector,
-            }) if count < 2 || max_per_sector == 0 => {
-                return invalid("sectors need count >= 2 and max_per_sector >= 1");
+            }) if !(2..=MAX_SECTORS).contains(&count) || max_per_sector == 0 => {
+                return invalid("sectors need 2 <= count <= 360 and max_per_sector >= 1");
             }
             Some(p) => (p.count, p.count),
             None if self.octant => (8, 4),
@@ -487,7 +490,7 @@ impl<'a> Selector<'a> {
             target,
             params,
             sectors,
-            chosen: Vec::with_capacity(params.max_samples),
+            chosen: vec![],
             per_hole: vec![],
             untagged: 0,
             per_sector: vec![
@@ -1123,6 +1126,26 @@ mod tests {
     }
 
     #[test]
+    fn max_samples_beyond_the_data_selects_them_all() {
+        let samples = vec![s(0.0, 0.0, 0.0, 1.0, None), s(1.0, 0.0, 0.0, 2.0, None)];
+        for max_samples in [usize::MAX / 4, 1 << 40, usize::MAX] {
+            let search = Search {
+                octant: true,
+                ..params(1, max_samples, 100.0)
+            };
+            assert!(search.check().is_ok());
+            let tree = SearchTree::new(&samples, &search, None);
+            assert_eq!(tree.neighbors(&(0.5, 0.0, 0.0)).unwrap().len(), 2);
+            assert_eq!(
+                neighbors(&(0.5, 0.0, 0.0), &samples, &search, None)
+                    .unwrap()
+                    .len(),
+                2
+            );
+        }
+    }
+
+    #[test]
     fn selects_nearest_within_radius() {
         let samples = vec![
             s(1.0, 0.0, 0.0, 1.0, None),
@@ -1555,6 +1578,9 @@ mod tests {
         assert!(sectored(4, 2).check().is_ok());
         assert!(sectored(1, 2).check().is_err());
         assert!(sectored(4, 0).check().is_err());
+        assert!(sectored(MAX_SECTORS, 1).check().is_ok());
+        let err = sectored(1 << 40, 1).check().unwrap_err().to_string();
+        assert!(err.contains("count <= 360"), "{err}");
         let both = Search {
             octant: true,
             ..sectored(4, 2)
