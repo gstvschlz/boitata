@@ -288,7 +288,7 @@ print(f"host: {host_zn:.2f} % Zn, {host_density:.2f} t/m³")
 # A kriged SMU is too smooth to say how much ore lies above a cutoff. Turning bands draws 50 realizations of zinc,
 # each lens from its own data, on eight nodes per SMU, and `blocks=` averages each realization over its SMU. Each
 # realization is then diluted like the kriged grades, and the probability that an SMU exceeds 5 % Zn counts the
-# realizations above it ([turning bands](../../examples/10-simulation/04-turning-bands/example_10_04.md),
+# realizations above it ([turning bands](../../examples/10-simulation/03-turning-bands/example_10_03.md),
 # [simulation](../05-simulation/learn_05.md)).
 
 # %%

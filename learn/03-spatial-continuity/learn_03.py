@@ -328,7 +328,7 @@ for name, covariance in (("straight line to the sill", straight), ("spherical", 
 # !!! seealso "See also"
 #     - Examples: [experimental variograms](../../examples/07-variography/01-experimental-variograms/example_07_01.md),
 #       [variogram fitting](../../examples/07-variography/02-variogram-fitting/example_07_02.md),
-#       [nugget inference](../../examples/07-variography/11-nugget-inference/example_07_11.md).
+#       [nugget inference](../../examples/07-variography/10-nugget-inference/example_07_10.md).
 #     - API: [`experimental_variogram`](../../api/variography/experimental_variogram.md),
 #       [`ExperimentalVariogram`](../../api/variography/ExperimentalVariogram.md),
 #       [`variogram_map`](../../api/variography/variogram_map.md),

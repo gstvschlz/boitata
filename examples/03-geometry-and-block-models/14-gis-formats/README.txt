@@ -1,1 +1,1 @@
-## Shapefiles, GeoPackage, GeoTIFF and JPEG
+## Shapefiles, GeoPackage, GeoTIFF, JPEG and GeoJSON

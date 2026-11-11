@@ -32,7 +32,7 @@ mise run compat       # install via pip, uv, pixi and conda
 - `python/boitata/` — Python package (thin wrappers, `_boitata.pyi` stub,
   `plot.py`, `plot3d.py`, `datasets.py`, `checks.py`, `errors.py`).
 - `python/tests/` — pytest suite.
-- `examples/01-...` through `13-...` — numbered, narrative example scripts
+- `examples/01-...` through `11-...` (workflow chapters) and `12-case-studies` — numbered, narrative example scripts
   rendered into docs (`mise run examples`).
 - `docs/` — mkdocs site (`index.md`, `install.md`, hooks for example pages).
 

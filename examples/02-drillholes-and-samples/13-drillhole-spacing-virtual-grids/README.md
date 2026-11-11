@@ -23,7 +23,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, save
       that meet ±15 % at 90 %.
     - Why the required spacing depends on the volume: a quarter needs much denser drilling than a year.
 
-    Prerequisites: [simulation at block support](../../10-simulation/03-simulation-at-block-support/README.md)
+    Prerequisites: [simulation at block support](../../10-simulation/02-simulation-at-block-support/README.md)
     for `window=` and `SimulationSummary.relative_error`.
 
 ## The data

@@ -1,7 +1,8 @@
 # Sequential Gaussian simulation
 
 Kriging gives one smooth map. Simulation draws many maps, each honoring the samples, the declustered histogram and
-the variogram; together they measure uncertainty.
+the variogram; together they measure uncertainty. On a block model, SGS can run every realization along one multigrid
+path and reuse the kriging weights, or draw a new path each time.
 
 <details><summary>Python</summary>
 
@@ -170,7 +171,78 @@ save(fig, "reproduction")
 
 ![reproduction](reproduction.png)
 
-[Simulation at block support](../../10-simulation/03-simulation-at-block-support/README.md) targets blocks, [turning bands](../../10-simulation/04-turning-bands/README.md) draws realizations another way, and [simulation with a trend](../../10-simulation/05-simulation-with-trend/README.md) steers them with a
-trend.
+## A shared path
+
+On a block model the default path is one multigrid for every realization: coarse cells first, then finer ones. A
+node's neighbors and kriging weights then depend on the path alone, so SGS finds them once per batch of realizations
+and reuses them; only the noise differs. `path="random"` draws a new path per realization instead, as points and
+sub-blocked models need. The shared path gains speed as realizations and nodes grow. `batch`, the number simulated
+together, leaves the realizations unchanged and by default fills `memory`, 70 % of the available memory unless given.
+
+The same model on a 1 m grid of 260 × 300 cells, as in
+[realization checks](../../11-validation-and-reporting/04-realization-checks/README.md). Twenty realizations along
+each kind of path, timed:
+
+<details><summary>Python</summary>
+
+```python
+fine = bt.BlockModel(origin=(0.5, 0.5), size=(1, 1), count=(260, 300))
+runs = {}
+for path in ["shared", "random"]:
+    start = time.perf_counter()
+    runs[path] = sgs.simulate(fine, n=20, seed=42, keep=True, path=path)
+    print(
+        f"{path:6} path: {time.perf_counter() - start:5.2f} s for 20 realizations of {len(fine.coords):,} nodes"
+    )
+```
+
+</details>
+
+```text
+shared path:  0.17 s for 20 realizations of 78,000 nodes
+random path:  1.32 s for 20 realizations of 78,000 nodes
+```
+
+`batch` changes memory and speed and leaves the realizations alone: one at a time gives the same grades as all
+together.
+
+<details><summary>Python</summary>
+
+```python
+one = sgs.simulate(fine, n=4, seed=42, keep=True, path="shared", batch=1)
+together = sgs.simulate(fine, n=4, seed=42, keep=True, path="shared", batch=4)
+print("batch=1 equals batch=4:", np.array_equal(one.realizations, together.realizations))
+```
+
+</details>
+
+```text
+batch=1 equals batch=4: True
+```
+
+Both paths reproduce the declustered histogram and the variogram model along N170°; the bands overlap.
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(2, 2, figsize=(10, 6.4), layout="constrained")
+for row, (path, summary) in zip(axes, runs.items()):
+    check = bt.check_realizations(
+        fine, summary, samples, "V", weights=weights, variogram=gaussian, lag=lag, max_lag=max_lag
+    )
+    bt.plot.histogram_reproduction(check, ax=row[0])
+    bt.plot.variogram_reproduction(check, ax=row[1])
+    row[0].set(xlim=(0, 1600), xlabel="V (ppm)", title=f"Histogram, {path} path")
+    row[1].set(xlabel="Lag distance (m)", title=f"Variogram of normal scores, {path} path")
+save(fig, "shared-path")
+```
+
+</details>
+
+![shared-path](shared-path.png)
+
+[Simulation at block support](../../10-simulation/02-simulation-at-block-support/README.md) targets blocks,
+[turning bands](../../10-simulation/03-turning-bands/README.md) draws realizations another way, and
+[simulation with a trend](../../10-simulation/04-simulation-with-trend/README.md) steers them with a trend.
 
 Full script: [`example_10_01.py`](example_10_01.py)

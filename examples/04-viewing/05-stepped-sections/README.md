@@ -2,7 +2,7 @@
 
 `bt.plot.fence` slices a block model on several parallel planes stepped along a corridor, all sharing one color
 scale. It draws a fence of cross sections through the stacked sulfide lenses in one call, where the maps in
-[target distribution correction](../../06-transforms/10-target-distribution-correction/README.md) used a hand-rolled `plt.subplots` loop.
+[target distribution correction](../../06-transforms/09-target-distribution-correction/README.md) used a hand-rolled `plt.subplots` loop.
 
 <details><summary>Python</summary>
 
@@ -53,7 +53,7 @@ print(f"{len(model):,} blocks of 20 m")
 
 ## The old way: a manual loop
 
-[Target distribution correction](../../06-transforms/10-target-distribution-correction/README.md) drew its two maps by hand: `plt.subplots(1, n, sharey=True)`, one `bt.plot.section(..., colorbar=False,
+[Target distribution correction](../../06-transforms/09-target-distribution-correction/README.md) drew its two maps by hand: `plt.subplots(1, n, sharey=True)`, one `bt.plot.section(..., colorbar=False,
 ax=ax)` per panel, `vmin`/`vmax` matched by hand across them, and one `fig.colorbar` at the end reading the last
 panel's image. The same recipe, repeated for five sections stepped 125 m apart along strike:
 

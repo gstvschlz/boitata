@@ -15,7 +15,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, save
 
 </details>
 
-The quartz-vein composites of [top cuts](../../05-exploratory-analysis/06-top-cuts/README.md): gold in four veins, V1
+The quartz-vein composites of [top cuts](../../05-exploratory-analysis/05-top-cuts/README.md): gold in four veins, V1
 to V4, sampled by diamond holes and underground channels, composited to 1 m and declustered in 20 m cells.
 
 <details><summary>Python</summary>
@@ -75,9 +75,9 @@ loss to 5 % lifts their caps to 202 and 191 g/t, the latter just under the extre
 the P99 barely cuts: it is the maximum of V3. A CV of 1.5 caps V1 and V2 near 60 g/t and costs them 15 to 28 % of
 their metal.
 
-## The same numbers as [top cuts](../../05-exploratory-analysis/06-top-cuts/README.md)
+## The same numbers as [top cuts](../../05-exploratory-analysis/05-top-cuts/README.md)
 
-[Top cuts](../../05-exploratory-analysis/06-top-cuts/README.md) read the declustered P99 of each vein off
+[Top cuts](../../05-exploratory-analysis/05-top-cuts/README.md) read the declustered P99 of each vein off
 `describe_by` and passed it to `capping_report`. The quantile rule fits the same caps, and its `metal_removed_` is the
 `1 - mean_capped / mean` of the report.
 

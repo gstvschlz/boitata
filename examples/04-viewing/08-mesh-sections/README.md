@@ -94,7 +94,7 @@ lens 3: sections 1,665,311 m3, mesh 1,665,272 m3
 ```
 
 The sections are ordinary `Polylines`, so they go to GIS files as they are, with their elevation in z and the
-`lens` and `offset` columns as properties ([GeoJSON](../../03-geometry-and-block-models/15-geojson/README.md)):
+`lens` and `offset` columns as properties ([GeoJSON](../../03-geometry-and-block-models/14-gis-formats/README.md)):
 
 <details><summary>Python</summary>
 

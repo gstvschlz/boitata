@@ -3,7 +3,8 @@
 A coal seam drilled on a regular mesh, then infilled where the seam is thick. The infill holes over-represent thick
 coal, so the plain mean of the boreholes overstates the thickness of the seam. Declustering weights each hole by the
 area it stands for: cell declustering by the number of holes sharing its cell, polygonal declustering by the area
-nearer to it than to any other hole.
+nearer to it than to any other hole. Weight declustering instead weighs each hole by what it contributes to
+estimating the whole lease.
 
 <details><summary>Python</summary>
 
@@ -11,10 +12,10 @@ nearer to it than to any other hole.
 import boitata as bt
 import matplotlib.pyplot as plt
 import numpy as np
-from common import ACCENT, GRAY, INK, map_axes, save
+from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save
 
 data = bt.datasets.coal_seam_thickness()
-holes, lease = data["boreholes"], data["boundary"]
+holes, lease, grid = data["boreholes"], data["boundary"], data["grid"]
 thickness = holes["THICKNESS_M"]
 x, y = holes.x, holes.y
 print(f"{len(holes)} holes, mean thickness {thickness.mean():.2f} m")
@@ -132,7 +133,131 @@ save(fig, "histograms")
 ![histograms](histograms.png)
 
 These weights describe the data: histograms, statistics per domain, top cuts and the target of a normal-score
-transform. [Weight declustering](../../05-exploratory-analysis/05-weight-declustering/README.md) derives declustering
-weights from estimation weights, from what each hole contributes to estimating the whole lease.
+transform.
+
+## Weights from estimation
+
+`weight_declustering` estimates every cell of the lease and adds up the weight each hole receives. A hole alone in a
+sparse area informs many cells, while holes in the infill share the cells around them. The weights sum to the number
+of holes, as in `cell_declustering`. The targets are the 100 m cells inside the lease. The cell weights in the
+comparison are a second scan, the default cell sizes, again keeping the size with the lowest mean.
+
+<details><summary>Python</summary>
+
+```python
+cells = grid.coords[grid["INSIDE"] == 1]
+xy = holes.coords[:, :2]
+print(f"{len(holes)} holes, {len(cells)} cells, naive mean {thickness.mean():.2f} m")
+reference = bt.cell_declustering(holes, "THICKNESS_M")
+print(f"cell {reference.cell_size:.0f} m: mean {reference.mean:.2f} m")
+```
+
+</details>
+
+```text
+295 holes, 7202 cells, naive mean 2.01 m
+cell 766 m: mean 1.76 m
+```
+
+Inverse distance needs only a search; kriging also needs a variogram, fitted here on the holes.
+
+<details><summary>Python</summary>
+
+```python
+experimental = bt.experimental_variogram(holes, "THICKNESS_M", 300.0, 4000.0)
+model = experimental.fit("spherical")
+search = bt.Search(radius=5000, max_samples=16)
+methods = {
+    "nearest neighbor": bt.NearestNeighbor(search),
+    "inverse distance": bt.InverseDistance(search, power=2),
+    "ordinary kriging": bt.OrdinaryKriging(model, search),
+}
+weights = {
+    name: bt.weight_declustering(holes, "THICKNESS_M", cells, estimator=m) for name, m in methods.items()
+}
+for name, w in weights.items():
+    print(f"{name}: mean {w.mean:.2f} m, weights {w.weights.min():.2f} to {w.weights.max():.2f}")
+```
+
+</details>
+
+```text
+nearest neighbor: mean 1.74 m, weights 0.04 to 3.11
+inverse distance: mean 1.78 m, weights 0.32 to 2.08
+ordinary kriging: mean 1.77 m, weights 0.31 to 2.20
+```
+
+Nearest neighbor gives each hole the cells closest to it: polygon declustering at the resolution of the grid. Inverse
+distance and kriging spread each cell over several holes and even out the weights. Kriging also lets a hole screen
+those behind it, so its weights follow the spacing more closely.
+
+<details><summary>Python</summary>
+
+```python
+fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
+for ax, (title, w) in zip(
+    axes, [("Cell", reference.weights), ("Ordinary kriging", weights["ordinary kriging"].weights)]
+):
+    ax.scatter(cells[:, 0], cells[:, 1], s=1, color=LIGHT)
+    points = ax.scatter(
+        xy[:, 0], xy[:, 1], c=w, s=12, cmap="Greys", vmin=0, vmax=3, edgecolors=GRAY, linewidths=0.3
+    )
+    map_axes(ax, f"{title} weights")
+axes[1].set_ylabel("")
+fig.colorbar(points, ax=axes, label="Weight", shrink=0.8)
+save(fig, "estimation-weights")
+```
+
+</details>
+
+![estimation-weights](estimation-weights.png)
+
+The two agree on which holes matter. Cell weights are flat within a cell, and kriging weights vary smoothly with the
+spacing.
+
+<details><summary>Python</summary>
+
+```python
+fig, ax = plt.subplots(figsize=(4.5, 4))
+ax.scatter(reference.weights, weights["ordinary kriging"].weights, s=10, color=ACCENT)
+ax.axline((0, 0), slope=1, color=GRAY, lw=0.8)
+ax.set_xlabel("Cell weight")
+ax.set_ylabel("Ordinary kriging weight")
+ax.set_title("Weight per hole")
+save(fig, "compare")
+```
+
+</details>
+
+![compare](compare.png)
+
+## Declustered means
+
+All the declustered means sit well below the naive one. The ordinary kriging weights of each cell sum to 1, so their
+declustered mean equals the mean of the kriged cells (the dashed line).
+
+<details><summary>Python</summary>
+
+```python
+kriged = methods["ordinary kriging"].fit(holes, "THICKNESS_M").predict(cells)
+means = {"naive": thickness.mean(), "cell": reference.mean} | {name: w.mean for name, w in weights.items()}
+fig, ax = plt.subplots(figsize=(6, 2.6))
+ax.barh(
+    [name.capitalize() for name in means],
+    list(means.values()),
+    color=[HIGHLIGHT] + [ACCENT] * (len(means) - 1),
+)
+ax.axvline(np.nanmean(kriged), color=GRAY, ls="--", lw=0.8, label="Kriged cells")
+ax.invert_yaxis()
+ax.set_xlim(0, 2.7)
+ax.set_xlabel("Mean thickness (m)")
+ax.set_title("Declustered means")
+ax.legend(loc="lower right")
+save(fig, "means")
+```
+
+</details>
+
+![means](means.png)
 
 Full script: [`example_05_04.py`](example_05_04.py)

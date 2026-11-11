@@ -81,7 +81,7 @@ One channel at 1192 g/t, paired with a DD intercept of 5.7 g/t, triples the CH m
 means differ by less than 2 g/t, and the medians by less than 2 g/t. The bias swings from bin to bin with the few
 pairs in each, so the two sampling methods show no systematic difference. The pairs carry a warning instead: the Q-Q
 plot follows the 1:1 line except for its last few quantiles, and a mean of gold grades that rests on a few extreme
-values needs a top cut ([top cuts](../../05-exploratory-analysis/06-top-cuts/README.md)).
+values needs a top cut ([top cuts](../../05-exploratory-analysis/05-top-cuts/README.md)).
 
 <details><summary>Python</summary>
 

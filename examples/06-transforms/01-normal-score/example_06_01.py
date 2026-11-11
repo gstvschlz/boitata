@@ -117,5 +117,5 @@ print(f"transform: {np.unique(ns.transform(v[zero]))[0]:.2f} for all")
 
 # %% [markdown]
 # Neither order means anything. For a large spike, such as assays at a detection limit,
-# [despiking](../../05-exploratory-analysis/07-despiking/README.md) breaks the ties by the neighborhood of each sample
+# [despiking](../../05-exploratory-analysis/06-despiking/README.md) breaks the ties by the neighborhood of each sample
 # before the transform.
