@@ -1346,6 +1346,7 @@ class TurningBands:
         quantiles: Sequence[float] = (),
         tolerances: Sequence[float] = (),
         keep: bool | Sequence[int] = False,
+        anisotropy: None = None,
         blocks: BlockModel | None = None,
         window: tuple[float, float] | tuple[float, float, float] | None = None,
         groups: Labels | Column | None = None,

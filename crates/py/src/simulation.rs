@@ -2415,9 +2415,11 @@ impl TurningBands {
     /// the bands of every realization, then as many realizations at a time
     /// as fit beside them and the summary; a run whose bands or single
     /// realization do not fit raises InvalidInput. Realizations do not
-    /// depend on `memory`.
+    /// depend on `memory`. Turning bands sum stationary line processes, so
+    /// `anisotropy` (a `LocalAnisotropy`) raises InvalidInput: simulate
+    /// with `SGS` or `DSS` instead, which take it on any path.
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
     fn simulate(
         &self,
         py: Python,
@@ -2428,6 +2430,7 @@ impl TurningBands {
         quantiles: Vec<f64>,
         tolerances: Vec<f64>,
         keep: Option<&Bound<PyAny>>,
+        anisotropy: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         window: Option<Vec<f64>>,
         groups: Option<&Bound<PyAny>>,
@@ -2440,6 +2443,12 @@ impl TurningBands {
         categories: Option<&Bound<PyAny>>,
         memory: Option<f64>,
     ) -> PyResult<SimulationSummary> {
+        if anisotropy.is_some() {
+            return Err(invalid(
+                "turning bands assume one stationary covariance and cannot follow a \
+                 local anisotropy; simulate with SGS or DSS, which take `anisotropy`",
+            ));
+        }
         let grade = self.unit.as_deref();
         let cutoffs = cutoffs
             .map(|c| crate::units::values(c, grade, "cutoffs"))
