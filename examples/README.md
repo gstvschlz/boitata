@@ -1,179 +1,197 @@
 # Examples
 
-Worked examples with the Python API on open datasets from [gstvschlz/datasets](https://github.com/gstvschlz/datasets).
+Worked examples with the Python API on the synthetic datasets that `bt.datasets` generates on the call.
 
-## first steps
-
-| # | Example | Dataset | Covers |
-|---|---|---|---|
-| 1 | [quick tour](01-first-steps/01-quick-tour/README.md) | Walker Lake | `cell_declustering`, `describe`, `plot.histogram`, `Capping`, `experimental_variogram`, `Variogram`, `plot.variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `compare`, `plot.cross_validation`, `swath`, `plot.swath` |
-| 2 | [block models](01-first-steps/02-block-models/README.md) | Synthetic | `BlockModel`, `Polylines`, `write_csv`, `write_parquet`, `read_parquet` |
-| 3 | [saving and loading](01-first-steps/03-saving-and-loading/README.md) | Walker Lake | `cell_declustering`, `Capping`, `NormalScore`, `Variogram`, `experimental_variogram`, `Search`, `BlockModel`, `SimpleKriging`, `Declustering` |
-| 4 | [storing containers in parquet](01-first-steps/04-parquet/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `Categories`, `CategoricalIndicatorKriging`, `CategoricalIndicatorSummary`, `Polylines` |
-
-## data and geometry
+## Getting started
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [checking drill holes](02-data-and-geometry/01-check-drillholes/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes`, `Drillholes` |
-| 2 | [desurveying drill holes](02-data-and-geometry/02-desurvey/README.md) | Stacked sulphide lenses | `Drillholes`, `Table` |
-| 3 | [compositing](02-data-and-geometry/03-compositing/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes` |
-| 4 | [duplicates](02-data-and-geometry/04-duplicates/README.md) | Stacked sulphide lenses | `duplicates`, `Table`, `check_drillholes`, `fix_drillholes`, `Drillholes` |
-| 5 | [solids](02-data-and-geometry/05-solids/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `plot.section`, `plot.slab`, `block_shell` |
-| 6 | [sub-blocks](02-data-and-geometry/06-sub-blocks/README.md) | Stacked sulphide lenses | `BlockModel`, `plot.slab`, `grid_surface`, `Categories`, `plot.section`, `Drillholes`, `Search`, `InverseDistance` |
-| 7 | [mesh files](02-data-and-geometry/07-mesh-files/README.md) | Vein gold grade control | `read_mesh`, `plot.slab`, `write_mesh`, `Mesh` |
-| 8 | [polygons](02-data-and-geometry/08-polygons/README.md) | Coal seam thickness | `point_in_polygon`, `polygon_distance`, `plot.section`, `assign_domain`, `Categories`, `plot.category_colors`, `plot.category_legend`, `Polylines`, `PolygonSelector` |
-| 9 | [shapefiles, geopackage, GeoTIFF and JPEG](02-data-and-geometry/09-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `write_geopackage`, `read_geopackage`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff`, `write_jpeg`, `read_jpeg` |
-| 10 | [models larger than memory](02-data-and-geometry/10-large-models/README.md) | Iron formation plateau | `Drillholes`, `BlockModel`, `write_parquet`, `BlockModelFile`, `detrend`, `map_blocks`, `NormalScore`, `experimental_variogram`, `TurningBands`, `Search`, `plot.section` |
-| 11 | [3D views](02-data-and-geometry/11-3d-views/README.md) | Stacked sulphide lenses | `Drillholes`, `plot3d.Scene`, `BlockModel`, `Search`, `InverseDistance` |
-| 12 | [block model from extents](02-data-and-geometry/12-block-model-from-extents/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel` |
-| 13 | [runs and strip logs](02-data-and-geometry/13-runs-and-strip-logs/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `Categories`, `plot.strip_log` |
-| 14 | [domain cleanup](02-data-and-geometry/14-domain-cleanup/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `remove_small_units`, `plot.section`, `contact_distance`, `buffer_domains`, `plot.category_legend` |
-| 15 | [mesh-crossing interval splits](02-data-and-geometry/15-mesh-interval-splits/README.md) | Stacked sulphide lenses | `Drillholes`, `merge_intervals`, `describe_by` |
-| 16 | [stepped sections](02-data-and-geometry/16-stepped-sections/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section`, `plot.fence` |
-| 17 | [hole traces with deviation flags](02-data-and-geometry/17-hole-traces/README.md) | Stacked sulphide lenses | `check_drillholes`, `Drillholes`, `plot.holes` |
-| 18 | [outlines](02-data-and-geometry/18-outlines/README.md) | Stacked sulphide lenses | `PointSet`, `data_spacing`, `outline` |
-| 19 | [topography from points](02-data-and-geometry/19-topography/README.md) | Stacked sulphide lenses | `PointSet`, `topography`, `plot.section`, `Drillholes`, `snap_to_surface` |
-| 20 | [sections with holes](02-data-and-geometry/20-sections-with-holes/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section` |
-| 21 | [live scene](02-data-and-geometry/21-live-scene/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
-| 22 | [meshes and points in a scene](02-data-and-geometry/22-meshes-and-points/README.md) | Stacked sulphide lenses | `Drillholes`, `PointSet`, `topography`, `plot3d.Scene` |
-| 23 | [filtering block models](02-data-and-geometry/23-filtering-block-models/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
-| 24 | [interactive sections](02-data-and-geometry/24-interactive-sections/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
-| 25 | [units](02-data-and-geometry/25-units/README.md) | Stacked sulphide lenses | `write_csv`, `Table`, `units`, `InvalidInput`, `plot.histogram`, `Drillholes`, `BlockModel`, `OrdinaryKriging`, `Variogram`, `Search`, `grade_tonnage`, `MultipleIndicatorKriging`, `Capping`, `validate_model` |
-| 26 | [local mine grid](02-data-and-geometry/26-local-grid/README.md) | Synthetic | `LocalGrid`, `BlockModel`, `Drillholes` |
-| 27 | [coordinate reference systems](02-data-and-geometry/27-coordinate-systems/README.md) | Synthetic | `Polylines`, `PointSet`, `BlockModel`, `InvalidInput` |
-| 28 | [GeoJSON](02-data-and-geometry/28-geojson/README.md) | Synthetic | `PointSet`, `Polylines`, `write_geojson`, `read_geojson` |
-| 29 | [VTK files](02-data-and-geometry/29-vtk-files/README.md) | Vein gold grade control | `read_mesh`, `PointSet`, `write_vtk`, `read_vtk`, `BlockModel` |
-| 30 | [mesh sections](02-data-and-geometry/30-mesh-sections/README.md) | Stacked sulphide lenses | `write_geojson`, `read_geojson` |
-| 31 | [mesh booleans and cuts](02-data-and-geometry/31-mesh-booleans/README.md) | Stacked sulphide lenses | `Mesh` |
+| 1 | [Quick tour](01-getting-started/01-quick-tour/README.md) | Clustered metal survey | `cell_declustering`, `describe`, `plot.histogram`, `Capping`, `experimental_variogram`, `Variogram`, `plot.variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `compare`, `plot.cross_validation`, `swath`, `plot.swath` |
+| 2 | [Block models](01-getting-started/02-block-models/README.md) | Synthetic | `BlockModel`, `Polylines`, `write_csv`, `write_parquet`, `read_parquet` |
+| 3 | [Saving and loading](01-getting-started/03-saving-and-loading/README.md) | Clustered metal survey | `cell_declustering`, `Capping`, `NormalScore`, `Variogram`, `experimental_variogram`, `Search`, `BlockModel`, `SimpleKriging`, `Declustering` |
+| 4 | [Storing containers in parquet](01-getting-started/04-parquet/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `BlockModel`, `OrdinaryKriging`, `Search`, `write_parquet`, `write_csv`, `read_parquet`, `Categories`, `CategoricalIndicatorKriging`, `CategoricalIndicatorSummary`, `Polylines` |
 
-## exploratory analysis
+## Drill holes and samples
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [paired data](03-exploratory-analysis/01-paired-data/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `pairs`, `paired_bias`, `plot.paired_bias`, `plot.qq`, `plot.scatter` |
-| 2 | [statistics by domain](03-exploratory-analysis/02-statistics-by-domain/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `describe_by`, `plot.boxplot`, `plot.cdf`, `plot.qq` |
-| 3 | [declustering](03-exploratory-analysis/03-declustering/README.md) | Coal seam thickness | `cell_declustering`, `plot.declustering`, `polygon_declustering` |
-| 4 | [weight declustering](03-exploratory-analysis/04-weight-declustering/README.md) | Coal seam thickness | `cell_declustering`, `experimental_variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `weight_declustering` |
-| 5 | [top cuts](03-exploratory-analysis/05-top-cuts/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `capping`, `describe_by`, `plot.probability`, `capping_report` |
-| 6 | [despiking](03-exploratory-analysis/06-despiking/README.md) | Soil geochemistry survey | `despike`, `NormalScore` |
-| 7 | [contacts](03-exploratory-analysis/07-contacts/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
-| 8 | [soft-boundary statistics](03-exploratory-analysis/08-soft-boundary-statistics/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `soft_boundary` |
-| 9 | [swaths](03-exploratory-analysis/09-swaths/README.md) | Phosphate weathering profile | `merge_intervals`, `Drillholes`, `describe_by`, `swath`, `plot.swath` |
-| 10 | [data spacing](03-exploratory-analysis/10-data-spacing/README.md) | Coal seam thickness, Iron formation plateau | `data_spacing`, `plot.section`, `plot.histogram`, `Drillholes`, `Search` |
-| 11 | [correlations](03-exploratory-analysis/11-correlations/README.md) | Iron formation plateau | `merge_intervals`, `Drillholes`, `correlation`, `plot.correlation`, `plot.scatter_matrix`, `plot.completeness`, `plot.conditional`, `h_scatter` |
-| 12 | [spatial bootstrap](03-exploratory-analysis/12-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `describe`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
-| 13 | [reference distributions](03-exploratory-analysis/13-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |
-| 14 | [cleaning steps](03-exploratory-analysis/14-cleaning-steps/README.md) | Stacked sulphide lenses | `Pipeline`, `RenameColumns`, `ToNull`, `Replace`, `ToNumber`, `DropNull`, `plot.histogram` |
+| 1 | [Checking drill holes](02-drillholes-and-samples/01-check-drillholes/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes`, `Drillholes` |
+| 2 | [Audit drill holes before modeling](02-drillholes-and-samples/02-drillhole-audit/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes` |
+| 3 | [Desurveying drill holes](02-drillholes-and-samples/03-desurvey/README.md) | Stacked sulphide lenses | `Drillholes`, `Table` |
+| 4 | [Compositing](02-drillholes-and-samples/04-compositing/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes` |
+| 5 | [Duplicates](02-drillholes-and-samples/05-duplicates/README.md) | Stacked sulphide lenses | `duplicates`, `Table`, `check_drillholes`, `fix_drillholes`, `Drillholes` |
+| 6 | [Runs and strip logs](02-drillholes-and-samples/06-runs-and-strip-logs/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `Categories`, `plot.strip_log` |
+| 7 | [Domain cleanup](02-drillholes-and-samples/07-domain-cleanup/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `remove_small_units`, `plot.section`, `contact_distance`, `buffer_domains`, `plot.category_legend` |
+| 8 | [Mesh-crossing interval splits](02-drillholes-and-samples/08-mesh-interval-splits/README.md) | Stacked sulphide lenses | `Drillholes`, `merge_intervals`, `describe_by` |
+| 9 | [Units](02-drillholes-and-samples/09-units/README.md) | Stacked sulphide lenses | `write_csv`, `Table`, `units`, `InvalidInput`, `plot.histogram`, `Drillholes`, `BlockModel`, `OrdinaryKriging`, `Variogram`, `Search`, `PointSet`, `grade_tonnage`, `MultipleIndicatorKriging`, `Capping`, `validate_model` |
+| 10 | [Local mine grid](02-drillholes-and-samples/10-local-grid/README.md) | Synthetic | `LocalGrid`, `BlockModel`, `Drillholes` |
+| 11 | [Coordinate reference systems](02-drillholes-and-samples/11-coordinate-systems/README.md) | Synthetic | `Polylines`, `PointSet`, `BlockModel`, `InvalidInput` |
+| 12 | [Data spacing](02-drillholes-and-samples/12-data-spacing/README.md) | Coal seam thickness, Iron formation plateau | `data_spacing`, `plot.section`, `plot.histogram`, `Drillholes`, `Search` |
+| 13 | [Drill-hole spacing from virtual grids](02-drillholes-and-samples/13-drillhole-spacing-virtual-grids/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `TurningBands`, `Search`, `select_realizations`, `spacing_study`, `uncertainty_curve`, `required_spacing`, `plot.uncertainty_curve`, `planned_drillholes` |
+| 14 | [Drill-hole spacing from a learning curve](02-drillholes-and-samples/14-drillhole-spacing-learning-curve/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `TurningBands`, `Search`, `data_spacing`, `uncertainty_curve`, `required_spacing`, `spacing_study` |
 
-## transforms
-
-| # | Example | Dataset | Covers |
-|---|---|---|---|
-| 1 | [normal-score transform](04-transforms/01-normal-score/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `describe`, `normal_cdf`, `plot.probability` |
-| 2 | [censored normal-score transform](04-transforms/02-censored-normal-score/README.md) | Tailings reprocessing, Soil geochemistry survey | `NormalScore`, `experimental_variogram`, `Search`, `ExternalDriftKriging` |
-| 3 | [capping transform](04-transforms/03-capping-transform/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `Capping`, `describe_by`, `capping_report`, `plot.probability`, `BlockModel`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore` |
-| 4 | [compositional data](04-transforms/04-compositional/README.md) | Porphyry geometallurgy | `closure`, `composition_center`, `variation_matrix`, `total_variance`, `PointSet`, `Pipeline`, `ILR`, `PPMT`, `correlation`, `plot.ternary`, `plot.biplot` |
-| 5 | [multivariate transforms](04-transforms/05-multivariate-transforms/README.md) | Porphyry geometallurgy | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
-| 6 | [imputation](04-transforms/06-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `GaussianImputer`, `compare` |
-| 7 | [spatial imputation](04-transforms/07-spatial-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `NormalScore`, `experimental_variogram`, `plot.variogram`, `GaussianImputer`, `compare` |
-| 8 | [smooth trend](04-transforms/08-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |
-| 9 | [unfolding](04-transforms/09-unfolding/README.md) | Nickel laterite profile | `Drillholes`, `BlockModel`, `InverseDistance`, `Search`, `grid_surface`, `Unfold`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `plot.section`, `plot.slab` |
-| 10 | [target distribution correction](04-transforms/10-target-distribution-correction/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
-| 11 | [pipeline](04-transforms/11-pipeline/README.md) | Walker Lake | `cell_declustering`, `Pipeline`, `Capping`, `NormalScore`, `PPMT` |
-
-## spatial continuity
+## Geometry and block models
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [experimental variograms](05-spatial-continuity/01-experimental-variograms/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram` |
-| 2 | [variogram fitting](05-spatial-continuity/02-variogram-fitting/README.md) | Walker Lake | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram` |
-| 3 | [variogram sets](05-spatial-continuity/03-variogram-sets/README.md) | Jura, Walker Lake | `experimental_variograms`, `Coregionalization`, `correlation`, `plot.variograms`, `BlockModel`, `experimental_variogram` |
-| 4 | [variogram volume](05-spatial-continuity/04-variogram-volume/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `plot.variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram` |
-| 5 | [downhole nugget](05-spatial-continuity/05-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
-| 6 | [madogram](05-spatial-continuity/06-madogram/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `dissemination` |
-| 7 | [coregionalization](05-spatial-continuity/07-coregionalization/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
-| 8 | [intrinsic coregionalization](05-spatial-continuity/08-intrinsic-coregionalization/README.md) | Jura | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging`, `compare` |
-| 9 | [local variogram parameters](05-spatial-continuity/09-local-variogram-parameters/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters`, `compare` |
-| 10 | [from variogram to search plan](05-spatial-continuity/10-search-plans/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram`, `plot.slab`, `BlockModel`, `OrdinaryKriging`, `Search`, `hole_distance`, `plot.section` |
-| 11 | [nugget inference](05-spatial-continuity/11-nugget-inference/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `pairs` |
+| 1 | [Block model from extents](03-geometry-and-block-models/01-block-model-from-extents/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel` |
+| 2 | [Filtering block models](03-geometry-and-block-models/02-filtering-block-models/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
+| 3 | [Models larger than memory](03-geometry-and-block-models/03-large-models/README.md) | Iron formation plateau | `Drillholes`, `BlockModel`, `write_parquet`, `BlockModelFile`, `detrend`, `map_blocks`, `NormalScore`, `experimental_variogram`, `TurningBands`, `Search`, `plot.section` |
+| 4 | [Sub-blocks](03-geometry-and-block-models/04-sub-blocks/README.md) | Stacked sulphide lenses | `BlockModel`, `plot.slab`, `grid_surface`, `Categories`, `plot.section`, `Drillholes`, `Search`, `InverseDistance` |
+| 5 | [Solids](03-geometry-and-block-models/05-solids/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `plot.section`, `plot.slab`, `block_shell` |
+| 6 | [Flag solid proportions in a block model](03-geometry-and-block-models/06-solid-proportions/README.md) | Vein gold grade control | `BlockModel`, `plot.section`, `Categories`, `plot.slab` |
+| 7 | [Sub-block a model from solids](03-geometry-and-block-models/07-sub-blocks-from-solids/README.md) | Vein gold grade control | `BlockModel`, `Categories`, `plot.section`, `plot.slab`, `plot.category_legend` |
+| 8 | [Find and fix degenerate solids](03-geometry-and-block-models/08-degenerate-solids/README.md) | Stacked sulphide lenses | `Mesh` |
+| 9 | [Mesh booleans and cuts](03-geometry-and-block-models/09-mesh-booleans/README.md) | Stacked sulphide lenses | `Mesh` |
+| 10 | [Polygons](03-geometry-and-block-models/10-polygons/README.md) | Coal seam thickness | `point_in_polygon`, `polygon_distance`, `plot.section`, `assign_domain`, `Categories`, `plot.category_colors`, `plot.category_legend`, `Polylines`, `PolygonSelector` |
+| 11 | [Outlines](03-geometry-and-block-models/11-outlines/README.md) | Stacked sulphide lenses | `PointSet`, `data_spacing`, `outline` |
+| 12 | [Topography from points](03-geometry-and-block-models/12-topography/README.md) | Stacked sulphide lenses | `PointSet`, `topography`, `plot.section`, `Drillholes`, `snap_to_surface` |
+| 13 | [Mesh files](03-geometry-and-block-models/13-mesh-files/README.md) | Vein gold grade control | `write_mesh`, `read_mesh`, `plot.slab`, `Mesh` |
+| 14 | [Shapefiles, GeoPackage, GeoTIFF and JPEG](03-geometry-and-block-models/14-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `write_geopackage`, `read_geopackage`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff`, `write_jpeg`, `read_jpeg` |
+| 15 | [GeoJSON](03-geometry-and-block-models/15-geojson/README.md) | Synthetic | `PointSet`, `Polylines`, `write_geojson`, `read_geojson` |
+| 16 | [VTK files](03-geometry-and-block-models/16-vtk-files/README.md) | Vein gold grade control | `PointSet`, `write_vtk`, `read_vtk`, `BlockModel` |
 
-## kriging
-
-| # | Example | Dataset | Covers |
-|---|---|---|---|
-| 1 | [ordinary kriging](06-kriging/01-ordinary-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
-| 2 | [simple estimators](06-kriging/02-simple-estimators/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `MovingAverage`, `OrdinaryKriging`, `compare`, `compare_models` |
-| 3 | [universal kriging](06-kriging/03-universal-kriging/README.md) | Coal seam thickness | `detrend`, `experimental_variogram`, `plot.variogram`, `Search`, `OrdinaryKriging`, `UniversalKriging` |
-| 4 | [external drift kriging](06-kriging/04-external-drift-kriging/README.md) | Soil geochemistry survey | `experimental_variogram`, `Search`, `OrdinaryKriging`, `ExternalDriftKriging` |
-| 5 | [block kriging](06-kriging/05-block-kriging/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `OrdinaryKriging`, `compare` |
-| 6 | [search](06-kriging/06-search/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `compare` |
-| 7 | [search calibration](06-kriging/07-search-calibration/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `HermiteAnamorphosis`, `calibrate_search`, `compare` |
-| 8 | [high-grade restriction](06-kriging/08-high-grade-restriction/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `BlockKriging`, `Search`, `HighGrade`, `compare` |
-| 9 | [cokriging](06-kriging/09-cokriging/README.md) | Jura | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging`, `compare`, `BlockModel`, `LocalAnisotropy` |
-| 10 | [indicator kriging](06-kriging/10-indicator-kriging/README.md) | Jura | `experimental_variogram`, `Search`, `IndicatorKriging` |
-| 11 | [multiple indicator kriging](06-kriging/11-multiple-indicator-kriging/README.md) | Jura | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `compare`, `BlockModel` |
-| 12 | [multigaussian kriging](06-kriging/12-multigaussian-kriging/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `despike`, `experimental_variogram`, `BlockModel`, `MultigaussianKriging`, `Search`, `compare`, `plot.scatter` |
-| 13 | [soft boundaries](06-kriging/13-soft-boundaries/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact`, `NormalScore`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `SGS` |
-| 14 | [locally varying anisotropy](06-kriging/14-local-anisotropy/README.md) | Walker Lake | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `compare`, `cell_declustering`, `NormalScore`, `SGS` |
-
-## categories and domains
+## Viewing
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [categories](07-categories-and-domains/01-categories/README.md) | Tailings reprocessing | `Drillholes`, `Categories`, `plot.proportions`, `plot.category_swath` |
-| 2 | [domain change tables](07-categories-and-domains/02-domain-change-tables/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `OrdinaryKriging`, `remove_small_units`, `domain_change`, `plot.domain_change` |
-| 3 | [along-hole transition matrix and MDS](07-categories-and-domains/03-transition-matrix-mds/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `transition_matrix`, `plot.domain_change`, `plot.transition_mds` |
-| 4 | [local proportions](07-categories-and-domains/04-local-proportions/README.md) | Tailings reprocessing | `Drillholes`, `Categories`, `cell_declustering`, `vertical_proportions`, `plot.category_legend`, `detrend`, `BlockModel`, `combine_proportions`, `Variogram`, `Search`, `SIS`, `plot.category_colors`, `check_realizations`, `plot.histogram_reproduction` |
-| 5 | [categorical indicator kriging](07-categories-and-domains/05-categorical-indicator-kriging/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `plot.section`, `plot.uncertain` |
-| 6 | [sequential indicator simulation](07-categories-and-domains/06-sis/README.md) | Jura | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `plot.category_colors`, `plot.category_legend` |
-| 7 | [plurigaussian simulation](07-categories-and-domains/07-plurigaussian/README.md) | Jura | `Categories`, `Variogram`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `experimental_variogram` |
-| 8 | [grades in simulated rock types](07-categories-and-domains/08-grades-in-simulated-rocks/README.md) | Jura | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `NormalScore`, `SGS` |
-| 9 | [ensemble domains](07-categories-and-domains/09-ensemble-domains/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `domains`, `plot.slab` |
+| 1 | [3D views](04-viewing/01-3d-views/README.md) | Stacked sulphide lenses | `Drillholes`, `plot3d.Scene`, `BlockModel`, `Search`, `InverseDistance` |
+| 2 | [Live scene](04-viewing/02-live-scene/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
+| 3 | [Meshes and points in a scene](04-viewing/03-meshes-and-points/README.md) | Stacked sulphide lenses | `Drillholes`, `PointSet`, `topography`, `plot3d.Scene` |
+| 4 | [Hole traces with deviation flags](04-viewing/04-hole-traces/README.md) | Stacked sulphide lenses | `check_drillholes`, `Drillholes`, `plot.holes` |
+| 5 | [Stepped sections](04-viewing/05-stepped-sections/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section`, `plot.fence` |
+| 6 | [Sections with holes](04-viewing/06-sections-with-holes/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Variogram`, `Search`, `BlockModel`, `OrdinaryKriging`, `plot.section` |
+| 7 | [Interactive sections](04-viewing/07-interactive-sections/README.md) | Stacked sulphide lenses | `Drillholes`, `BlockModel`, `Search`, `InverseDistance`, `plot3d.Scene` |
+| 8 | [Mesh sections](04-viewing/08-mesh-sections/README.md) | Stacked sulphide lenses | `write_geojson`, `read_geojson` |
 
-## stochastic simulation
-
-| # | Example | Dataset | Covers |
-|---|---|---|---|
-| 1 | [sequential gaussian simulation](08-stochastic-simulation/01-sgs/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search` |
-| 2 | [SGS along a shared path](08-stochastic-simulation/02-sgs-shared-path/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
-| 3 | [simulation at block support](08-stochastic-simulation/03-simulation-at-block-support/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `plot.grade_tonnage`, `BlockKriging`, `localize`, `compare` |
-| 4 | [turning bands](08-stochastic-simulation/04-turning-bands/README.md) | Walker Lake | `BlockModel`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `SGS`, `Search`, `TurningBands` |
-| 5 | [simulation with a trend](08-stochastic-simulation/05-simulation-with-trend/README.md) | Walker Lake | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `SGS` |
-| 6 | [multivariate simulation](08-stochastic-simulation/06-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
-| 7 | [collocated cosimulation](08-stochastic-simulation/07-collocated-cosimulation/README.md) | Jura | `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `Variogram`, `DSS` |
-| 8 | [direct sequential simulation](08-stochastic-simulation/08-direct-sequential-simulation/README.md) | Walker Lake | `cell_declustering`, `describe`, `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `DSS`, `SGS`, `correct_distribution` |
-
-## recoverable resources
+## Exploratory analysis
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [discrete gaussian model](09-recoverable-resources/01-discrete-gaussian-model/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support` |
-| 2 | [uniform conditioning](09-recoverable-resources/02-uniform-conditioning/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support`, `Search`, `BlockModel`, `BlockKriging`, `UniformConditioning`, `compare` |
-| 3 | [MIK localization](09-recoverable-resources/03-mik-localization/README.md) | Walker Lake | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `MultipleIndicatorKriging`, `compare` |
-| 4 | [disjunctive kriging](09-recoverable-resources/04-disjunctive-kriging/README.md) | Walker Lake | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `BlockModel`, `DisjunctiveKriging`, `Search` |
+| 1 | [Paired data](05-exploratory-analysis/01-paired-data/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `pairs`, `paired_bias`, `plot.paired_bias`, `plot.qq`, `plot.scatter` |
+| 2 | [Statistics by domain](05-exploratory-analysis/02-statistics-by-domain/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `describe_by`, `plot.boxplot`, `plot.cdf`, `plot.qq` |
+| 3 | [Cleaning steps](05-exploratory-analysis/03-cleaning-steps/README.md) | Stacked sulphide lenses | `Pipeline`, `RenameColumns`, `ToNull`, `Replace`, `ToNumber`, `DropNull`, `plot.histogram` |
+| 4 | [Declustering](05-exploratory-analysis/04-declustering/README.md) | Coal seam thickness | `cell_declustering`, `plot.declustering`, `polygon_declustering` |
+| 5 | [Weight declustering](05-exploratory-analysis/05-weight-declustering/README.md) | Coal seam thickness | `cell_declustering`, `experimental_variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `weight_declustering` |
+| 6 | [Top cuts](05-exploratory-analysis/06-top-cuts/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `capping`, `describe_by`, `plot.probability`, `capping_report` |
+| 7 | [Despiking](05-exploratory-analysis/07-despiking/README.md) | Soil geochemistry survey | `despike`, `NormalScore` |
+| 8 | [Swaths](05-exploratory-analysis/08-swaths/README.md) | Phosphate weathering profile | `merge_intervals`, `Drillholes`, `describe_by`, `swath`, `plot.swath` |
+| 9 | [Correlations](05-exploratory-analysis/09-correlations/README.md) | Iron formation plateau | `merge_intervals`, `Drillholes`, `correlation`, `plot.correlation`, `plot.scatter_matrix`, `plot.completeness`, `plot.conditional`, `h_scatter` |
+| 10 | [Spatial bootstrap](05-exploratory-analysis/10-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `describe`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
+| 11 | [Reference distributions](05-exploratory-analysis/11-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |
 
-## checking models
-
-| # | Example | Dataset | Covers |
-|---|---|---|---|
-| 1 | [model checks](10-checking-models/01-model-checks/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `global_bias`, `validate_model`, `plot.cdf`, `swath`, `plot.swath` |
-| 2 | [cross-validation](10-checking-models/02-cross-validation/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation` |
-| 3 | [kriging diagnostics](10-checking-models/03-kriging-diagnostics/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `BlockKriging`, `compare` |
-| 4 | [realization checks](10-checking-models/04-realization-checks/README.md) | Walker Lake, Porphyry geometallurgy | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `PointSet`, `PPMT`, `TurningBands`, `MultivariateSimulation`, `plot.correlation_reproduction` |
-| 5 | [classification](10-checking-models/05-classification/README.md) | Coal seam thickness | `data_spacing`, `classify`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
-| 6 | [result plots](10-checking-models/06-result-plots/README.md) | Walker Lake, Nickel laterite profile | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `MultipleIndicatorKriging`, `BlockModel`, `BlockKriging`, `cell_declustering`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage`, `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
-| 7 | [section validation plates](10-checking-models/07-section-validation-plates/README.md) | Stacked sulphide lenses | `BlockModel`, `Drillholes`, `InverseDistance`, `Search`, `plot.section`, `plot.slab`, `plot.scatter` |
-
-## geological modeling
+## Transforms
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [grade shells](11-geological-modeling/01-grade-shells/README.md) | Iron formation plateau | `Drillholes`, `ImplicitModel`, `plot.slab` |
-| 2 | [contact surfaces](11-geological-modeling/02-contact-surfaces/README.md) | Stacked sulphide lenses | `Drillholes`, `Variogram`, `ImplicitModel`, `BlockModel`, `plot.slab` |
-| 3 | [structural data](11-geological-modeling/03-structural-data/README.md) | Synthetic | `BlockModel`, `ImplicitModel`, `plot.scatter` |
-| 4 | [layered surfaces](11-geological-modeling/04-layered-surfaces/README.md) | Phosphate weathering profile | `grid_surface`, `plot.section`, `Drillholes`, `InverseDistance`, `Search`, `BlockModel`, `Categories`, `plot.slab`, `plot.category_legend` |
-| 5 | [large implicit models](11-geological-modeling/05-large-implicit-models/README.md) | Iron formation plateau | `Drillholes`, `ImplicitModel`, `plot.slab` |
+| 1 | [Normal-score transform](06-transforms/01-normal-score/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `describe`, `normal_cdf`, `plot.probability` |
+| 2 | [Censored normal-score transform](06-transforms/02-censored-normal-score/README.md) | Tailings reprocessing, Soil geochemistry survey | `NormalScore`, `experimental_variogram`, `Search`, `ExternalDriftKriging` |
+| 3 | [Capping transform](06-transforms/03-capping-transform/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `Capping`, `describe_by`, `capping_report`, `plot.probability`, `BlockModel`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore` |
+| 4 | [Compositional data](06-transforms/04-compositional/README.md) | Porphyry geometallurgy | `closure`, `composition_center`, `variation_matrix`, `total_variance`, `PointSet`, `Pipeline`, `ILR`, `PPMT`, `correlation`, `plot.ternary`, `plot.biplot` |
+| 5 | [Multivariate transforms](06-transforms/05-multivariate-transforms/README.md) | Porphyry geometallurgy | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
+| 6 | [Imputation](06-transforms/06-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `GaussianImputer`, `compare` |
+| 7 | [Spatial imputation](06-transforms/07-spatial-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `NormalScore`, `experimental_variogram`, `plot.variogram`, `GaussianImputer`, `compare` |
+| 8 | [Smooth trend](06-transforms/08-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |
+| 9 | [Unfolding](06-transforms/09-unfolding/README.md) | Nickel laterite profile | `Drillholes`, `BlockModel`, `InverseDistance`, `Search`, `grid_surface`, `Unfold`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `plot.section`, `plot.slab` |
+| 10 | [Target distribution correction](06-transforms/10-target-distribution-correction/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
+| 11 | [Pipeline](06-transforms/11-pipeline/README.md) | Clustered metal survey | `cell_declustering`, `Pipeline`, `Capping`, `NormalScore`, `PPMT` |
+
+## Variography
+
+| # | Example | Dataset | Covers |
+|---|---|---|---|
+| 1 | [Experimental variograms](07-variography/01-experimental-variograms/README.md) | Clustered metal survey | `variogram_map`, `experimental_variogram`, `plot.variogram` |
+| 2 | [Variogram fitting](07-variography/02-variogram-fitting/README.md) | Clustered metal survey | `variogram_map`, `experimental_variogram`, `plot.variogram`, `Variogram` |
+| 3 | [Variogram sets](07-variography/03-variogram-sets/README.md) | Topsoil metals, Clustered metal survey | `experimental_variograms`, `Coregionalization`, `correlation`, `plot.variograms`, `BlockModel`, `experimental_variogram` |
+| 4 | [Variogram volume](07-variography/04-variogram-volume/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `plot.variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram` |
+| 5 | [Downhole nugget](07-variography/05-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
+| 6 | [Madogram](07-variography/06-madogram/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `dissemination` |
+| 7 | [Coregionalization](07-variography/07-coregionalization/README.md) | Topsoil metals | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
+| 8 | [Intrinsic coregionalization](07-variography/08-intrinsic-coregionalization/README.md) | Topsoil metals | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging`, `compare` |
+| 9 | [Local variogram parameters](07-variography/09-local-variogram-parameters/README.md) | Clustered metal survey | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters`, `compare` |
+| 10 | [From variogram to search plan](07-variography/10-search-plans/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram`, `plot.slab`, `BlockModel`, `OrdinaryKriging`, `Search`, `hole_distance`, `plot.section` |
+| 11 | [Nugget inference](07-variography/11-nugget-inference/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `pairs` |
+
+## Domains and geology
+
+| # | Example | Dataset | Covers |
+|---|---|---|---|
+| 1 | [Categories](08-domains-and-geology/01-categories/README.md) | Tailings reprocessing | `Drillholes`, `Categories`, `plot.proportions`, `plot.category_swath` |
+| 2 | [Domain change tables](08-domains-and-geology/02-domain-change-tables/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `OrdinaryKriging`, `remove_small_units`, `domain_change`, `plot.domain_change` |
+| 3 | [Along-hole transition matrix and MDS](08-domains-and-geology/03-transition-matrix-mds/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `transition_matrix`, `plot.domain_change`, `plot.transition_mds` |
+| 4 | [Local proportions](08-domains-and-geology/04-local-proportions/README.md) | Tailings reprocessing | `Drillholes`, `Categories`, `cell_declustering`, `vertical_proportions`, `plot.category_legend`, `detrend`, `BlockModel`, `combine_proportions`, `Variogram`, `Search`, `SIS`, `plot.category_colors`, `check_realizations`, `plot.histogram_reproduction` |
+| 5 | [Contacts](08-domains-and-geology/05-contacts/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
+| 6 | [Soft-boundary statistics](08-domains-and-geology/06-soft-boundary-statistics/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `soft_boundary` |
+| 7 | [Ensemble domains](08-domains-and-geology/07-ensemble-domains/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `Categories`, `domains`, `plot.slab` |
+| 8 | [Grade shells](08-domains-and-geology/08-grade-shells/README.md) | Iron formation plateau | `Drillholes`, `ImplicitModel`, `plot.slab` |
+| 9 | [Contact surfaces](08-domains-and-geology/09-contact-surfaces/README.md) | Stacked sulphide lenses | `Drillholes`, `Variogram`, `ImplicitModel`, `BlockModel`, `plot.slab` |
+| 10 | [Structural data](08-domains-and-geology/10-structural-data/README.md) | Synthetic | `BlockModel`, `ImplicitModel`, `plot.scatter` |
+| 11 | [Layered surfaces](08-domains-and-geology/11-layered-surfaces/README.md) | Phosphate weathering profile | `grid_surface`, `plot.section`, `Drillholes`, `InverseDistance`, `Search`, `BlockModel`, `Categories`, `plot.slab`, `plot.category_legend` |
+| 12 | [Large implicit models](08-domains-and-geology/12-large-implicit-models/README.md) | Iron formation plateau | `Drillholes`, `ImplicitModel`, `plot.slab` |
+
+## Estimation
+
+| # | Example | Dataset | Covers |
+|---|---|---|---|
+| 1 | [Ordinary kriging](09-estimation/01-ordinary-kriging/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `OrdinaryKriging`, `plot.scatter` |
+| 2 | [Simple estimators](09-estimation/02-simple-estimators/README.md) | Clustered metal survey | `BlockModel`, `experimental_variogram`, `Variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `MovingAverage`, `OrdinaryKriging`, `compare`, `compare_models` |
+| 3 | [Universal kriging](09-estimation/03-universal-kriging/README.md) | Coal seam thickness | `detrend`, `experimental_variogram`, `plot.variogram`, `Search`, `OrdinaryKriging`, `UniversalKriging` |
+| 4 | [External drift kriging](09-estimation/04-external-drift-kriging/README.md) | Soil geochemistry survey | `experimental_variogram`, `Search`, `OrdinaryKriging`, `ExternalDriftKriging` |
+| 5 | [Block kriging](09-estimation/05-block-kriging/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `OrdinaryKriging`, `compare` |
+| 6 | [Search](09-estimation/06-search/README.md) | Clustered metal survey | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `compare` |
+| 7 | [Search calibration](09-estimation/07-search-calibration/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `HermiteAnamorphosis`, `calibrate_search`, `compare` |
+| 8 | [High-grade restriction](09-estimation/08-high-grade-restriction/README.md) | Clustered metal survey | `BlockModel`, `experimental_variogram`, `Variogram`, `BlockKriging`, `Search`, `HighGrade`, `compare` |
+| 9 | [Cokriging](09-estimation/09-cokriging/README.md) | Topsoil metals | `experimental_variogram`, `Coregionalization`, `Search`, `OrdinaryKriging`, `Cokriging`, `compare`, `BlockModel`, `LocalAnisotropy` |
+| 10 | [Indicator kriging](09-estimation/10-indicator-kriging/README.md) | Topsoil metals | `experimental_variogram`, `Search`, `IndicatorKriging` |
+| 11 | [Multiple indicator kriging](09-estimation/11-multiple-indicator-kriging/README.md) | Topsoil metals | `Search`, `cell_declustering`, `experimental_variogram`, `MultipleIndicatorKriging`, `OrdinaryKriging`, `compare`, `BlockModel` |
+| 12 | [Multigaussian kriging](09-estimation/12-multigaussian-kriging/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `despike`, `experimental_variogram`, `BlockModel`, `MultigaussianKriging`, `Search`, `compare`, `plot.scatter` |
+| 13 | [Soft boundaries](09-estimation/13-soft-boundaries/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `contact`, `plot.contact`, `NormalScore`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `SGS` |
+| 14 | [Locally varying anisotropy](09-estimation/14-local-anisotropy/README.md) | Clustered metal survey | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `plot.directions`, `compare`, `cell_declustering`, `NormalScore`, `SGS` |
+| 15 | [Categorical indicator kriging](09-estimation/15-categorical-indicator-kriging/README.md) | Stacked sulphide lenses | `Drillholes`, `Categories`, `cell_declustering`, `Variogram`, `Search`, `CategoricalIndicatorKriging`, `BlockModel`, `plot.section`, `plot.uncertain` |
+| 16 | [Discrete Gaussian model](09-estimation/16-discrete-gaussian-model/README.md) | Clustered metal survey | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support` |
+| 17 | [Uniform conditioning](09-estimation/17-uniform-conditioning/README.md) | Clustered metal survey | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `change_of_support`, `Search`, `BlockModel`, `BlockKriging`, `UniformConditioning`, `compare` |
+| 18 | [MIK localization](09-estimation/18-mik-localization/README.md) | Clustered metal survey | `cell_declustering`, `experimental_variogram`, `Variogram`, `Search`, `BlockModel`, `BlockKriging`, `MultipleIndicatorKriging`, `compare` |
+| 19 | [Disjunctive kriging](09-estimation/19-disjunctive-kriging/README.md) | Clustered metal survey | `cell_declustering`, `HermiteAnamorphosis`, `experimental_variogram`, `Variogram`, `BlockModel`, `DisjunctiveKriging`, `Search` |
+
+## Simulation
+
+| # | Example | Dataset | Covers |
+|---|---|---|---|
+| 1 | [Sequential Gaussian simulation](10-simulation/01-sgs/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search` |
+| 2 | [SGS along a shared path](10-simulation/02-sgs-shared-path/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
+| 3 | [Simulation at block support](10-simulation/03-simulation-at-block-support/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `plot.grade_tonnage`, `BlockKriging`, `localize`, `compare` |
+| 4 | [Turning bands](10-simulation/04-turning-bands/README.md) | Clustered metal survey | `BlockModel`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `SGS`, `Search`, `TurningBands` |
+| 5 | [Simulation with a trend](10-simulation/05-simulation-with-trend/README.md) | Clustered metal survey | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `SGS` |
+| 6 | [Multivariate simulation](10-simulation/06-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
+| 7 | [Collocated cosimulation](10-simulation/07-collocated-cosimulation/README.md) | Topsoil metals | `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `Variogram`, `DSS` |
+| 8 | [Direct sequential simulation](10-simulation/08-direct-sequential-simulation/README.md) | Clustered metal survey | `cell_declustering`, `describe`, `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `DSS`, `SGS`, `correct_distribution` |
+| 9 | [Sequential indicator simulation](10-simulation/09-sis/README.md) | Topsoil metals | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `plot.category_colors`, `plot.category_legend` |
+| 10 | [Plurigaussian simulation](10-simulation/10-plurigaussian/README.md) | Topsoil metals | `Categories`, `Variogram`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `experimental_variogram` |
+| 11 | [Grades in simulated rock types](10-simulation/11-grades-in-simulated-rocks/README.md) | Topsoil metals | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `NormalScore`, `SGS` |
+| 12 | [SNESIM and its multigrid](10-simulation/12-snesim-multigrid/README.md) | Channel training image | `BlockModel`, `SNESIM` |
+| 13 | [Conditioning SNESIM](10-simulation/13-snesim-conditioning/README.md) | Channel training image | `BlockModel`, `SNESIM` |
+| 14 | [Continuous SNESIM](10-simulation/14-snesim-continuous/README.md) | Seismic cube | `BlockModel`, `SNESIM`, `compare` |
+| 15 | [Rotation and affinity](10-simulation/15-snesim-rotation-affinity/README.md) | Channel training image, Seismic cube | `BlockModel`, `LocalAnisotropy`, `SNESIM` |
+| 16 | [Several training images](10-simulation/16-snesim-training-images-by-zone/README.md) | Channel training image | `BlockModel`, `object_training_image`, `SNESIM` |
+| 17 | [Soft data in SNESIM](10-simulation/17-snesim-soft-data/README.md) | Channel training image | `BlockModel`, `SNESIM` |
+| 18 | [Training images and their consistency](10-simulation/18-training-images/README.md) | Channel training image | `BlockModel`, `object_training_image`, `training_image_consistency` |
+| 19 | [Image quilting](10-simulation/19-image-quilting/README.md) | Channel training image | `BlockModel`, `ImageQuilting` |
+| 20 | [Continuous image quilting](10-simulation/20-image-quilting-continuous/README.md) | Seismic cube | `BlockModel`, `compare`, `ImageQuilting`, `SNESIM` |
+| 21 | [Seismic volumes](10-simulation/21-seismic-volumes/README.md) | Seismic cube | `write_segy`, `read_segy`, `BlockModel`, `object_training_image`, `ImageQuilting` |
+
+## Validation and reporting
+
+| # | Example | Dataset | Covers |
+|---|---|---|---|
+| 1 | [Model checks](11-validation-and-reporting/01-model-checks/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `cell_declustering`, `BlockModel`, `Search`, `BlockKriging`, `global_bias`, `validate_model`, `plot.cdf`, `swath`, `plot.swath` |
+| 2 | [Cross-validation](11-validation-and-reporting/02-cross-validation/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation` |
+| 3 | [Kriging diagnostics](11-validation-and-reporting/03-kriging-diagnostics/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `BlockModel`, `Search`, `BlockKriging`, `compare` |
+| 4 | [Realization checks](11-validation-and-reporting/04-realization-checks/README.md) | Clustered metal survey, Porphyry geometallurgy | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `PointSet`, `PPMT`, `TurningBands`, `MultivariateSimulation`, `plot.correlation_reproduction` |
+| 5 | [Classification](11-validation-and-reporting/05-classification/README.md) | Coal seam thickness | `data_spacing`, `classify`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `smooth_classes`, `Categories`, `plot.category_colors`, `plot.category_legend` |
+| 6 | [Result plots](11-validation-and-reporting/06-result-plots/README.md) | Clustered metal survey, Nickel laterite profile | `experimental_variogram`, `Variogram`, `Search`, `OrdinaryKriging`, `plot.cross_validation`, `MultipleIndicatorKriging`, `BlockModel`, `BlockKriging`, `cell_declustering`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage`, `merge_intervals`, `Drillholes`, `contact`, `plot.contact` |
+| 7 | [Section validation plates](11-validation-and-reporting/07-section-validation-plates/README.md) | Stacked sulphide lenses | `BlockModel`, `Drillholes`, `InverseDistance`, `Search`, `plot.section`, `plot.slab`, `plot.scatter` |
+| 8 | [Compare two estimates of one deposit](11-validation-and-reporting/08-compare-two-estimates/README.md) | Clustered metal survey | `cell_declustering`, `describe`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `global_bias`, `swath`, `plot.swath`, `compare_models`, `OrdinaryKriging`, `compare` |
+| 9 | [Grade-tonnage curves and the change in contained metal](11-validation-and-reporting/09-grade-tonnage-and-metal/README.md) | Clustered metal survey | `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage` |
 
 ## Case studies
 
@@ -183,34 +201,6 @@ Worked examples with the Python API on open datasets from [gstvschlz/datasets](h
 | 2 | [From drill holes to a classified model](12-case-studies/02-drillholes-to-classified-model/README.md) | Stacked sulphide lenses | Drill holes; Samples inside each lens; Declustering and capping; Zn variogram of lens 1; A sub-blocked model; Kriging in passes; Simulation at block support; Validation; Classification; Tonnes and metal |
 | 3 | [Iron ore: several grades, one closure, reconciled](12-case-studies/03-iron-ore-multivariate/README.md) | Iron formation plateau | Composites by lithology; One closure; Ore domains of the model; Log-ratios, PPMT and simulation; Do the blocks still close?; Reconciliation with the blastholes; A bench in plan |
 | 4 | [A laterite profile: horizons, then grades](12-case-studies/04-laterite-profile/README.md) | Nickel laterite profile | Horizon contacts; Is the 50 m mesh enough?; A layered block model; Ni and Co by horizon; Grades into the blocks; Tonnes and grade by horizon |
-
-## multiple-point statistics
-
-| # | Example | Dataset | Covers |
-|---|---|---|---|
-| 1 | [SNESIM and its multigrid](13-multiple-point-statistics/01-snesim-multigrid/README.md) | Strebelle | `BlockModel`, `SNESIM` |
-| 2 | [conditioning SNESIM](13-multiple-point-statistics/02-snesim-conditioning/README.md) | Strebelle | `BlockModel`, `SNESIM` |
-| 3 | [continuous SNESIM](13-multiple-point-statistics/03-snesim-continuous/README.md) | F3 seismic | `BlockModel`, `SNESIM`, `compare` |
-| 4 | [rotation and affinity](13-multiple-point-statistics/04-snesim-rotation-affinity/README.md) | Strebelle, F3 seismic | `BlockModel`, `LocalAnisotropy`, `SNESIM` |
-| 5 | [several training images](13-multiple-point-statistics/05-snesim-training-images-by-zone/README.md) | Strebelle | `BlockModel`, `object_training_image`, `SNESIM` |
-| 6 | [soft data in SNESIM](13-multiple-point-statistics/06-snesim-soft-data/README.md) | Strebelle | `BlockModel`, `SNESIM` |
-| 7 | [training images and their consistency](13-multiple-point-statistics/07-training-images/README.md) | Strebelle | `BlockModel`, `object_training_image`, `training_image_consistency` |
-| 8 | [image quilting](13-multiple-point-statistics/08-image-quilting/README.md) | Strebelle | `BlockModel`, `ImageQuilting` |
-| 9 | [continuous image quilting](13-multiple-point-statistics/09-image-quilting-continuous/README.md) | F3 seismic | `BlockModel`, `compare`, `ImageQuilting`, `SNESIM` |
-| 10 | [seismic volumes](13-multiple-point-statistics/10-seismic-volumes/README.md) | F3 seismic | `read_segy`, `BlockModel`, `object_training_image`, `write_segy`, `ImageQuilting` |
-
-## Workflows
-
-| # | Example | Dataset | Covers |
-|---|---|---|---|
-| 1 | [Flag solid proportions in a block model](14-workflows/01-solid-proportions/README.md) | Vein gold grade control | `BlockModel`, `plot.section`, `Categories`, `plot.slab` |
-| 2 | [Sub-block a model from solids](14-workflows/02-sub-blocks-from-solids/README.md) | Vein gold grade control | `BlockModel`, `Categories`, `plot.section`, `plot.slab`, `plot.category_legend` |
-| 3 | [Find and fix degenerate solids](14-workflows/03-degenerate-solids/README.md) | Stacked sulphide lenses | `Mesh` |
-| 4 | [Audit drill holes before modeling](14-workflows/04-drillhole-audit/README.md) | Stacked sulphide lenses | `check_drillholes`, `Table`, `fix_drillholes` |
-| 5 | [Compare two estimates of one deposit](14-workflows/05-compare-two-estimates/README.md) | Walker Lake | `cell_declustering`, `describe`, `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `global_bias`, `swath`, `plot.swath`, `compare_models`, `OrdinaryKriging`, `compare` |
-| 6 | [Grade-tonnage curves and the change in contained metal](14-workflows/06-grade-tonnage-and-metal/README.md) | Walker Lake | `experimental_variogram`, `Variogram`, `Search`, `BlockKriging`, `InverseDistance`, `BlockModel`, `grade_tonnage`, `compare_models`, `plot.grade_tonnage` |
-| 7 | [Drill-hole spacing from virtual grids](14-workflows/07-drillhole-spacing-virtual-grids/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `TurningBands`, `Search`, `select_realizations`, `spacing_study`, `uncertainty_curve`, `required_spacing`, `plot.uncertainty_curve`, `planned_drillholes` |
-| 8 | [Drill-hole spacing from a learning curve](14-workflows/08-drillhole-spacing-learning-curve/README.md) | Walker Lake | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `TurningBands`, `Search`, `data_spacing`, `uncertainty_curve`, `required_spacing`, `spacing_study` |
 
 Each page alternates text, collapsed Python and its results. `mise run examples` reruns every script
 and rewrites the pages; `bt.datasets` downloads the data once and caches it. `render.py --index` writes this file.

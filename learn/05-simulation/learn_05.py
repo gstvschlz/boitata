@@ -379,9 +379,9 @@ save(fig, "summaries")
 #     - Why is "cutoff applied to the E-type map" the wrong way to estimate tonnage above cutoff?
 #
 # !!! seealso "See also"
-#     - [Sequential Gaussian simulation](../../examples/08-stochastic-simulation/01-sgs/example_08_01.md) and
-#       [turning bands](../../examples/08-stochastic-simulation/04-turning-bands/example_08_04.md) in the gallery.
-#     - [Realization checks](../../examples/10-checking-models/04-realization-checks/example_10_04.md).
+#     - [Sequential Gaussian simulation](../../examples/10-simulation/01-sgs/example_10_01.md) and
+#       [turning bands](../../examples/10-simulation/04-turning-bands/example_10_04.md) in the gallery.
+#     - [Realization checks](../../examples/11-validation-and-reporting/04-realization-checks/example_11_04.md).
 #     - API: [`SGS`](../../api/simulation/SGS.md), [`NormalScore`](../../api/transforms/NormalScore.md),
 #       [`SimulationSummary`](../../api/simulation/SimulationSummary.md).
 #

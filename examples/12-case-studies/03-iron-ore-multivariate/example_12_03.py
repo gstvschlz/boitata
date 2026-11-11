@@ -124,8 +124,8 @@ for name, codes in domains.items():
 # ## Log-ratios, PPMT and simulation
 #
 # The isometric log-ratio (ilr) maps each 7-part composition to 6 unconstrained coordinates, and any 6 coordinates
-# back to a composition summing to 100 %. PPMT turns the coordinates into independent Gaussian factors ([compositional data](../../04-transforms/04-compositional/README.md) and
-# [multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md)), each simulated on its own by turning bands with the omnidirectional variogram of its scores. Per domain,
+# back to a composition summing to 100 %. PPMT turns the coordinates into independent Gaussian factors ([compositional data](../../06-transforms/04-compositional/README.md) and
+# [multivariate transforms](../../06-transforms/05-multivariate-transforms/README.md)), each simulated on its own by turning bands with the omnidirectional variogram of its scores. Per domain,
 # `MultivariateSimulation` simulates 30 realizations on 12.5 × 12.5 × 6 m nodes, eight per block, and at every
 # blasthole. The factors come back as ilr coordinates, turned into oxides at the nodes; blocks average their nodes
 # only after that, since the log-ratio is not linear.

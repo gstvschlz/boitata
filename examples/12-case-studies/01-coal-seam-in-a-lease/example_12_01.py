@@ -257,7 +257,7 @@ save(fig, "classes")
 # %% [markdown]
 # Measured cells, a quarter of the lease, sit on the infill where the seam is thickest, 2.39 m on average, and hold
 # 62.6 Mt. Indicated cells cover the regional grid, 91.5 Mt; inferred ones, 22.7 Mt, lie at the edges of the lease
-# beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../10-checking-models/05-classification/README.md) classifies
+# beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../11-validation-and-reporting/05-classification/README.md) classifies
 # from the kriging itself.
 #
 # `Scene.add` encodes a text `values` column itself, so the 3D layer takes the class labels directly rather than

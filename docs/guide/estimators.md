@@ -79,7 +79,7 @@ grid = grid.with_columns({"slope": report["slope"], "n_samples": report["n_sampl
 ['value', 'variance', 'efficiency', 'slope', 'n_samples', 'pass', 'n_holes', 'n_other_domain', 'mean_distance', 'negative_weight_sum', 'lagrange', 'support_variance', 'estimate_variance', 'max_samples_reached', 'target_met']
 ```
 
-The slope of regression and the kriging efficiency tell you how far to trust each estimate; [kriging diagnostics](../examples/10-checking-models/03-kriging-diagnostics/example_10_03.md) reads them.
+The slope of regression and the kriging efficiency tell you how far to trust each estimate; [kriging diagnostics](../examples/11-validation-and-reporting/03-kriging-diagnostics/example_11_03.md) reads them.
 
 A fitted estimator also checks itself. `cross_validate` re-estimates every sample from the others with the same variogram and search:
 
@@ -117,4 +117,4 @@ Realization `k` draws from a seed built from your `seed` and `k`, and boitatá s
 !!! pitfall "Pitfall"
     The method names match scikit-learn's, yet these objects take one column of values plus coordinates in place of a 2D feature matrix, and they have no `get_params`. They do not drop into a scikit-learn `Pipeline` unchanged, so chain them by hand, as above.
 
-The examples apply this lifecycle in the [normal-score transform](../examples/04-transforms/01-normal-score/example_04_01.md), [ordinary kriging](../examples/06-kriging/01-ordinary-kriging/example_06_01.md), [cross-validation](../examples/10-checking-models/02-cross-validation/example_10_02.md) and [sequential Gaussian simulation](../examples/08-stochastic-simulation/01-sgs/example_08_01.md). [Saving models](saving.md) shows how a fitted transform saves as JSON and a fitted estimator as Parquet.
+The examples apply this lifecycle in the [normal-score transform](../examples/06-transforms/01-normal-score/example_06_01.md), [ordinary kriging](../examples/09-estimation/01-ordinary-kriging/example_09_01.md), [cross-validation](../examples/11-validation-and-reporting/02-cross-validation/example_11_02.md) and [sequential Gaussian simulation](../examples/10-simulation/01-sgs/example_10_01.md). [Saving models](saving.md) shows how a fitted transform saves as JSON and a fitted estimator as Parquet.
