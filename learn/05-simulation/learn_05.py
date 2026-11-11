@@ -380,7 +380,7 @@ save(fig, "summaries")
 #
 # !!! seealso "See also"
 #     - [Sequential Gaussian simulation](../../examples/10-simulation/01-sgs/example_10_01.md) and
-#       [turning bands](../../examples/10-simulation/04-turning-bands/example_10_04.md) in the gallery.
+#       [turning bands](../../examples/10-simulation/03-turning-bands/example_10_03.md) in the gallery.
 #     - [Realization checks](../../examples/11-validation-and-reporting/04-realization-checks/example_11_04.md).
 #     - API: [`SGS`](../../api/simulation/SGS.md), [`NormalScore`](../../api/transforms/NormalScore.md),
 #       [`SimulationSummary`](../../api/simulation/SimulationSummary.md).

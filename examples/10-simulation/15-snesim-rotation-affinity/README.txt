@@ -1,1 +1,0 @@
-## Rotation and affinity

@@ -341,10 +341,10 @@ print(f"back-transform: largest error {np.abs(transform.inverse_transform(scores
 # !!! seealso "See also"
 #     - [Declustering](../../examples/05-exploratory-analysis/04-declustering/example_05_04.md) compares cell and
 #       polygonal declustering on a coal seam.
-#     - [Top cuts](../../examples/05-exploratory-analysis/06-top-cuts/example_05_06.md) chooses one cap per vein.
+#     - [Top cuts](../../examples/05-exploratory-analysis/05-top-cuts/example_05_05.md) chooses one cap per vein.
 #     - [Statistics by domain](../../examples/05-exploratory-analysis/02-statistics-by-domain/example_05_02.md) adds
 #       cumulative distributions and Q-Q plots.
-#     - [Correlations](../../examples/05-exploratory-analysis/09-correlations/example_05_09.md) and
+#     - [Correlations](../../examples/05-exploratory-analysis/08-correlations/example_05_08.md) and
 #       [normal-score transform](../../examples/06-transforms/01-normal-score/example_06_01.md).
 #     - API: [`describe`](../../api/eda/describe.md), [`describe_by`](../../api/eda/describe_by.md),
 #       [`capping`](../../api/eda/capping.md), [`Capping`](../../api/transforms/Capping.md),

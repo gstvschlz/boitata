@@ -104,5 +104,5 @@ save(fig, "grade-tonnage")
 # point curves run a few percent high, since the declustered samples still overstate the rich grades.
 # [Uniform conditioning](../../09-estimation/17-uniform-conditioning/README.md) and
 # [MIK localization](../../09-estimation/18-mik-localization/README.md) carry block support down to panels;
-# [simulation at block support](../../10-simulation/03-simulation-at-block-support/README.md) reaches it by
+# [simulation at block support](../../10-simulation/02-simulation-at-block-support/README.md) reaches it by
 # simulation.

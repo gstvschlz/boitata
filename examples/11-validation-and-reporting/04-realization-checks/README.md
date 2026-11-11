@@ -94,7 +94,7 @@ save(fig, "metal_survey")
 
 ## Several variables
 
-Log chalcocite and log tennantite of porphyry 1, cosimulated through PPMT by turning bands as in [multivariate simulation](../../10-simulation/06-multivariate-simulation/README.md). Given a
+Log chalcocite and log tennantite of porphyry 1, cosimulated through PPMT by turning bands as in [multivariate simulation](../../10-simulation/05-multivariate-simulation/README.md). Given a
 list of summaries, one per variable, the check adds each realization's correlation matrix.
 
 <details><summary>Python</summary>

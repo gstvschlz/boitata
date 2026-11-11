@@ -65,7 +65,7 @@ print(f"grid {grid.count}: {len(file):,} of {len(grid):,} blocks of 5 m kept, {s
 
 # %% [markdown]
 # Weathering acts from the top of the plateau, so within a domain iron still drifts with position. A smooth trend per
-# domain ([smooth trend](../../06-transforms/08-smooth-trend/README.md)), with a 400 m kernel flattened to 80 m vertically, takes that out, and you
+# domain ([smooth trend](../../06-transforms/07-smooth-trend/README.md)), with a 400 m kernel flattened to 80 m vertically, takes that out, and you
 # simulate the residuals. The trend is smooth enough to evaluate on the 25 m blocks. `map_blocks` streams the file
 # through any function of a chunk and writes the columns it returns next to the input's: here each block's domain
 # and trend, looked up in the 25 m model.

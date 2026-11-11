@@ -64,7 +64,7 @@ save(fig, "samples")
 #
 # ## Top cut
 #
-# `Capping` clips the grades at a cap chosen from the data, here the declustered P99 ([top cuts](../../05-exploratory-analysis/06-top-cuts/README.md) chooses a cap, and
+# `Capping` clips the grades at a cap chosen from the data, here the declustered P99 ([top cuts](../../05-exploratory-analysis/05-top-cuts/README.md) chooses a cap, and
 # [capping transform](../../06-transforms/03-capping-transform/README.md) compares the rules).
 
 # %%
@@ -146,7 +146,7 @@ save(fig, "estimate")
 #
 # Leave-one-out cross-validation re-estimates each sample from the others ([cross-validation](../../11-validation-and-reporting/02-cross-validation/README.md)). A swath compares
 # mean grades slice by slice for the declustered samples, the estimate and the truth ([model checks](../../11-validation-and-reporting/01-model-checks/README.md),
-# [swaths](../../05-exploratory-analysis/08-swaths/README.md)).
+# [swaths](../../05-exploratory-analysis/07-swaths/README.md)).
 
 # %%
 cv = kriging.cross_validate()

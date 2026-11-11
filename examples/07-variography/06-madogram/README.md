@@ -17,7 +17,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, save
 
 </details>
 
-The 1 m quartz-vein composites of [top cuts](../../05-exploratory-analysis/06-top-cuts/README.md), gold in g/t, in
+The 1 m quartz-vein composites of [top cuts](../../05-exploratory-analysis/05-top-cuts/README.md), gold in g/t, in
 vein V1:
 
 <details><summary>Python</summary>

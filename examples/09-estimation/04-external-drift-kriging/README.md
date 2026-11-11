@@ -1,7 +1,7 @@
 # External drift kriging
 
 Copper grades from the soil geochemistry survey (the dataset of
-[despiking](../../05-exploratory-analysis/07-despiking/README.md)) correlate weakly with the magnetics and elevation of
+[despiking](../../05-exploratory-analysis/06-despiking/README.md)) correlate weakly with the magnetics and elevation of
 the covariates grid. `ExternalDriftKriging` drapes those covariates onto the samples and kriges copper with them as an
 extra drift, in one system with the usual constant term. Ordinary kriging on the same grid is the comparison.
 

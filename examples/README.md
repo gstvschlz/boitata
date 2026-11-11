@@ -47,9 +47,8 @@ Worked examples with the Python API on the synthetic datasets that `bt.datasets`
 | 11 | [Outlines](03-geometry-and-block-models/11-outlines/README.md) | Stacked sulphide lenses | `PointSet`, `data_spacing`, `outline` |
 | 12 | [Topography from points](03-geometry-and-block-models/12-topography/README.md) | Stacked sulphide lenses | `PointSet`, `topography`, `plot.section`, `Drillholes`, `snap_to_surface` |
 | 13 | [Mesh files](03-geometry-and-block-models/13-mesh-files/README.md) | Vein gold grade control | `write_mesh`, `read_mesh`, `plot.slab`, `Mesh` |
-| 14 | [Shapefiles, GeoPackage, GeoTIFF and JPEG](03-geometry-and-block-models/14-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `write_geopackage`, `read_geopackage`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff`, `write_jpeg`, `read_jpeg` |
-| 15 | [GeoJSON](03-geometry-and-block-models/15-geojson/README.md) | Synthetic | `PointSet`, `Polylines`, `write_geojson`, `read_geojson` |
-| 16 | [VTK files](03-geometry-and-block-models/16-vtk-files/README.md) | Vein gold grade control | `PointSet`, `write_vtk`, `read_vtk`, `BlockModel` |
+| 14 | [Shapefiles, GeoPackage, GeoTIFF, JPEG and GeoJSON](03-geometry-and-block-models/14-gis-formats/README.md) | Soil geochemistry survey | `write_shapefile`, `read_shapefile`, `Polylines`, `write_geopackage`, `read_geopackage`, `Categories`, `BlockModel`, `write_geotiff`, `read_geotiff`, `write_jpeg`, `read_jpeg`, `PointSet`, `write_geojson`, `read_geojson` |
+| 15 | [VTK files](03-geometry-and-block-models/15-vtk-files/README.md) | Vein gold grade control | `PointSet`, `write_vtk`, `read_vtk`, `BlockModel` |
 
 ## Viewing
 
@@ -71,14 +70,13 @@ Worked examples with the Python API on the synthetic datasets that `bt.datasets`
 | 1 | [Paired data](05-exploratory-analysis/01-paired-data/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `pairs`, `paired_bias`, `plot.paired_bias`, `plot.qq`, `plot.scatter` |
 | 2 | [Statistics by domain](05-exploratory-analysis/02-statistics-by-domain/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `describe_by`, `plot.boxplot`, `plot.cdf`, `plot.qq` |
 | 3 | [Cleaning steps](05-exploratory-analysis/03-cleaning-steps/README.md) | Stacked sulphide lenses | `Pipeline`, `RenameColumns`, `ToNull`, `Replace`, `ToNumber`, `DropNull`, `plot.histogram` |
-| 4 | [Declustering](05-exploratory-analysis/04-declustering/README.md) | Coal seam thickness | `cell_declustering`, `plot.declustering`, `polygon_declustering` |
-| 5 | [Weight declustering](05-exploratory-analysis/05-weight-declustering/README.md) | Coal seam thickness | `cell_declustering`, `experimental_variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `weight_declustering` |
-| 6 | [Top cuts](05-exploratory-analysis/06-top-cuts/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `capping`, `describe_by`, `plot.probability`, `capping_report` |
-| 7 | [Despiking](05-exploratory-analysis/07-despiking/README.md) | Soil geochemistry survey | `despike`, `NormalScore` |
-| 8 | [Swaths](05-exploratory-analysis/08-swaths/README.md) | Phosphate weathering profile | `merge_intervals`, `Drillholes`, `describe_by`, `swath`, `plot.swath` |
-| 9 | [Correlations](05-exploratory-analysis/09-correlations/README.md) | Iron formation plateau | `merge_intervals`, `Drillholes`, `correlation`, `plot.correlation`, `plot.scatter_matrix`, `plot.completeness`, `plot.conditional`, `h_scatter` |
-| 10 | [Spatial bootstrap](05-exploratory-analysis/10-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `describe`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
-| 11 | [Reference distributions](05-exploratory-analysis/11-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |
+| 4 | [Declustering](05-exploratory-analysis/04-declustering/README.md) | Coal seam thickness | `cell_declustering`, `plot.declustering`, `polygon_declustering`, `experimental_variogram`, `Search`, `NearestNeighbor`, `InverseDistance`, `OrdinaryKriging`, `weight_declustering` |
+| 5 | [Top cuts](05-exploratory-analysis/05-top-cuts/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `capping`, `describe_by`, `plot.probability`, `capping_report` |
+| 6 | [Despiking](05-exploratory-analysis/06-despiking/README.md) | Soil geochemistry survey | `despike`, `NormalScore` |
+| 7 | [Swaths](05-exploratory-analysis/07-swaths/README.md) | Phosphate weathering profile | `merge_intervals`, `Drillholes`, `describe_by`, `swath`, `plot.swath` |
+| 8 | [Correlations](05-exploratory-analysis/08-correlations/README.md) | Iron formation plateau | `merge_intervals`, `Drillholes`, `correlation`, `plot.correlation`, `plot.scatter_matrix`, `plot.completeness`, `plot.conditional`, `h_scatter` |
+| 9 | [Spatial bootstrap](05-exploratory-analysis/09-spatial-bootstrap/README.md) | Coal seam thickness | `cell_declustering`, `describe`, `despike`, `NormalScore`, `Variogram`, `experimental_variogram`, `spatial_bootstrap` |
+| 10 | [Reference distributions](05-exploratory-analysis/10-reference-distributions/README.md) | Vein gold grade control, Porphyry geometallurgy | `merge_intervals`, `Drillholes`, `cell_declustering`, `KernelDensity`, `NormalScore`, `GaussianMixture`, `GaussianImputer` |
 
 ## Transforms
 
@@ -89,12 +87,11 @@ Worked examples with the Python API on the synthetic datasets that `bt.datasets`
 | 3 | [Capping transform](06-transforms/03-capping-transform/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `cell_declustering`, `Capping`, `describe_by`, `capping_report`, `plot.probability`, `BlockModel`, `experimental_variogram`, `Search`, `OrdinaryKriging`, `NormalScore` |
 | 4 | [Compositional data](06-transforms/04-compositional/README.md) | Porphyry geometallurgy | `closure`, `composition_center`, `variation_matrix`, `total_variance`, `PointSet`, `Pipeline`, `ILR`, `PPMT`, `correlation`, `plot.ternary`, `plot.biplot` |
 | 5 | [Multivariate transforms](06-transforms/05-multivariate-transforms/README.md) | Porphyry geometallurgy | `PCA`, `MAF`, `StepwiseConditional`, `PPMT` |
-| 6 | [Imputation](06-transforms/06-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `GaussianImputer`, `compare` |
-| 7 | [Spatial imputation](06-transforms/07-spatial-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `Drillholes`, `NormalScore`, `experimental_variogram`, `plot.variogram`, `GaussianImputer`, `compare` |
-| 8 | [Smooth trend](06-transforms/08-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |
-| 9 | [Unfolding](06-transforms/09-unfolding/README.md) | Nickel laterite profile | `Drillholes`, `BlockModel`, `InverseDistance`, `Search`, `grid_surface`, `Unfold`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `plot.section`, `plot.slab` |
-| 10 | [Target distribution correction](06-transforms/10-target-distribution-correction/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
-| 11 | [Pipeline](06-transforms/11-pipeline/README.md) | Clustered metal survey | `cell_declustering`, `Pipeline`, `Capping`, `NormalScore`, `PPMT` |
+| 6 | [Imputation](06-transforms/06-imputation/README.md) | Stacked sulphide lenses | `merge_intervals`, `GaussianImputer`, `compare`, `Drillholes`, `NormalScore`, `experimental_variogram`, `plot.variogram` |
+| 7 | [Smooth trend](06-transforms/07-smooth-trend/README.md) | Coal seam thickness | `cell_declustering`, `detrend` |
+| 8 | [Unfolding](06-transforms/08-unfolding/README.md) | Nickel laterite profile | `Drillholes`, `BlockModel`, `InverseDistance`, `Search`, `grid_surface`, `Unfold`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `plot.section`, `plot.slab` |
+| 9 | [Target distribution correction](06-transforms/09-target-distribution-correction/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `correct_distribution`, `plot.histogram_reproduction`, `plot.section`, `KernelDensity` |
+| 10 | [Pipeline](06-transforms/10-pipeline/README.md) | Clustered metal survey | `cell_declustering`, `Pipeline`, `Capping`, `NormalScore`, `PPMT` |
 
 ## Variography
 
@@ -106,11 +103,10 @@ Worked examples with the Python API on the synthetic datasets that `bt.datasets`
 | 4 | [Variogram volume](07-variography/04-variogram-volume/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `plot.variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram` |
 | 5 | [Downhole nugget](07-variography/05-downhole-nugget/README.md) | Nickel laterite profile | `merge_intervals`, `Drillholes`, `experimental_variogram` |
 | 6 | [Madogram](07-variography/06-madogram/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `dissemination` |
-| 7 | [Coregionalization](07-variography/07-coregionalization/README.md) | Topsoil metals | `experimental_variogram`, `Coregionalization`, `plot.variogram` |
-| 8 | [Intrinsic coregionalization](07-variography/08-intrinsic-coregionalization/README.md) | Topsoil metals | `experimental_variograms`, `Coregionalization`, `plot.variogram`, `Search`, `Cokriging`, `compare` |
-| 9 | [Local variogram parameters](07-variography/09-local-variogram-parameters/README.md) | Clustered metal survey | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters`, `compare` |
-| 10 | [From variogram to search plan](07-variography/10-search-plans/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram`, `plot.slab`, `BlockModel`, `OrdinaryKriging`, `Search`, `hole_distance`, `plot.section` |
-| 11 | [Nugget inference](07-variography/11-nugget-inference/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `pairs` |
+| 7 | [Coregionalization](07-variography/07-coregionalization/README.md) | Topsoil metals | `experimental_variogram`, `Coregionalization`, `plot.variogram`, `experimental_variograms`, `Search`, `Cokriging`, `compare` |
+| 8 | [Local variogram parameters](07-variography/08-local-variogram-parameters/README.md) | Clustered metal survey | `BlockModel`, `experimental_variogram`, `Variogram`, `OrdinaryKriging`, `Search`, `LocalAnisotropy`, `local_variogram_parameters`, `compare` |
+| 9 | [From variogram to search plan](07-variography/09-search-plans/README.md) | Stacked sulphide lenses | `Drillholes`, `variogram_volume`, `experimental_variogram`, `Variogram`, `plot.variogram`, `plot.slab`, `BlockModel`, `OrdinaryKriging`, `Search`, `hole_distance`, `plot.section` |
+| 10 | [Nugget inference](07-variography/10-nugget-inference/README.md) | Vein gold grade control | `merge_intervals`, `Drillholes`, `experimental_variogram`, `pairs` |
 
 ## Domains and geology
 
@@ -157,27 +153,21 @@ Worked examples with the Python API on the synthetic datasets that `bt.datasets`
 
 | # | Example | Dataset | Covers |
 |---|---|---|---|
-| 1 | [Sequential Gaussian simulation](10-simulation/01-sgs/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search` |
-| 2 | [SGS along a shared path](10-simulation/02-sgs-shared-path/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
-| 3 | [Simulation at block support](10-simulation/03-simulation-at-block-support/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `plot.grade_tonnage`, `BlockKriging`, `localize`, `compare` |
-| 4 | [Turning bands](10-simulation/04-turning-bands/README.md) | Clustered metal survey | `BlockModel`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `SGS`, `Search`, `TurningBands` |
-| 5 | [Simulation with a trend](10-simulation/05-simulation-with-trend/README.md) | Clustered metal survey | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `SGS` |
-| 6 | [Multivariate simulation](10-simulation/06-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
-| 7 | [Collocated cosimulation](10-simulation/07-collocated-cosimulation/README.md) | Topsoil metals | `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `Variogram`, `DSS` |
-| 8 | [Direct sequential simulation](10-simulation/08-direct-sequential-simulation/README.md) | Clustered metal survey | `cell_declustering`, `describe`, `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `DSS`, `SGS`, `correct_distribution` |
-| 9 | [Sequential indicator simulation](10-simulation/09-sis/README.md) | Topsoil metals | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `plot.category_colors`, `plot.category_legend` |
-| 10 | [Plurigaussian simulation](10-simulation/10-plurigaussian/README.md) | Topsoil metals | `Categories`, `Variogram`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `experimental_variogram` |
-| 11 | [Grades in simulated rock types](10-simulation/11-grades-in-simulated-rocks/README.md) | Topsoil metals | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `NormalScore`, `SGS` |
-| 12 | [SNESIM and its multigrid](10-simulation/12-snesim-multigrid/README.md) | Channel training image | `BlockModel`, `SNESIM` |
-| 13 | [Conditioning SNESIM](10-simulation/13-snesim-conditioning/README.md) | Channel training image | `BlockModel`, `SNESIM` |
-| 14 | [Continuous SNESIM](10-simulation/14-snesim-continuous/README.md) | Seismic cube | `BlockModel`, `SNESIM`, `compare` |
-| 15 | [Rotation and affinity](10-simulation/15-snesim-rotation-affinity/README.md) | Channel training image, Seismic cube | `BlockModel`, `LocalAnisotropy`, `SNESIM` |
-| 16 | [Several training images](10-simulation/16-snesim-training-images-by-zone/README.md) | Channel training image | `BlockModel`, `object_training_image`, `SNESIM` |
-| 17 | [Soft data in SNESIM](10-simulation/17-snesim-soft-data/README.md) | Channel training image | `BlockModel`, `SNESIM` |
-| 18 | [Training images and their consistency](10-simulation/18-training-images/README.md) | Channel training image | `BlockModel`, `object_training_image`, `training_image_consistency` |
-| 19 | [Image quilting](10-simulation/19-image-quilting/README.md) | Channel training image | `BlockModel`, `ImageQuilting` |
-| 20 | [Continuous image quilting](10-simulation/20-image-quilting-continuous/README.md) | Seismic cube | `BlockModel`, `compare`, `ImageQuilting`, `SNESIM` |
-| 21 | [Seismic volumes](10-simulation/21-seismic-volumes/README.md) | Seismic cube | `write_segy`, `read_segy`, `BlockModel`, `object_training_image`, `ImageQuilting` |
+| 1 | [Sequential Gaussian simulation](10-simulation/01-sgs/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `BlockModel`, `SGS`, `Search`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction` |
+| 2 | [Simulation at block support](10-simulation/02-simulation-at-block-support/README.md) | Clustered metal survey | `cell_declustering`, `NormalScore`, `experimental_variogram`, `Variogram`, `BlockModel`, `SGS`, `Search`, `plot.grade_tonnage`, `BlockKriging`, `localize`, `compare` |
+| 3 | [Turning bands](10-simulation/03-turning-bands/README.md) | Clustered metal survey | `BlockModel`, `cell_declustering`, `NormalScore`, `experimental_variogram`, `SGS`, `Search`, `TurningBands` |
+| 4 | [Simulation with a trend](10-simulation/04-simulation-with-trend/README.md) | Clustered metal survey | `cell_declustering`, `BlockModel`, `MovingAverage`, `Search`, `StepwiseConditional`, `NormalScore`, `experimental_variogram`, `SGS` |
+| 5 | [Multivariate simulation](10-simulation/05-multivariate-simulation/README.md) | Porphyry geometallurgy | `PointSet`, `cell_declustering`, `BlockModel`, `Search`, `PPMT`, `PCA`, `experimental_variogram`, `MultivariateSimulation`, `TurningBands` |
+| 6 | [Collocated cosimulation](10-simulation/06-collocated-cosimulation/README.md) | Topsoil metals | `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `SGS`, `check_realizations`, `plot.histogram_reproduction`, `plot.variogram_reproduction`, `Variogram`, `DSS` |
+| 7 | [Direct sequential simulation](10-simulation/07-direct-sequential-simulation/README.md) | Clustered metal survey | `cell_declustering`, `describe`, `NormalScore`, `experimental_variogram`, `BlockModel`, `Search`, `DSS`, `SGS`, `correct_distribution` |
+| 8 | [Sequential indicator simulation](10-simulation/08-sis/README.md) | Topsoil metals | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `plot.category_colors`, `plot.category_legend` |
+| 9 | [Plurigaussian simulation](10-simulation/09-plurigaussian/README.md) | Topsoil metals | `Categories`, `Variogram`, `Plurigaussian`, `plot.category_colors`, `plot.category_legend`, `experimental_variogram` |
+| 10 | [Grades in simulated rock types](10-simulation/10-grades-in-simulated-rocks/README.md) | Topsoil metals | `Categories`, `experimental_variogram`, `Variogram`, `SIS`, `Search`, `NormalScore`, `SGS` |
+| 11 | [SNESIM basics](10-simulation/11-snesim-basics/README.md) | Channel training image, Seismic cube | `BlockModel`, `SNESIM`, `compare` |
+| 12 | [Non-stationary SNESIM](10-simulation/12-non-stationary-snesim/README.md) | Channel training image, Seismic cube | `BlockModel`, `LocalAnisotropy`, `SNESIM`, `object_training_image` |
+| 13 | [Training images and their consistency](10-simulation/13-training-images/README.md) | Channel training image | `BlockModel`, `object_training_image`, `training_image_consistency` |
+| 14 | [Image quilting](10-simulation/14-image-quilting/README.md) | Channel training image, Seismic cube | `BlockModel`, `ImageQuilting`, `compare`, `SNESIM` |
+| 15 | [Seismic volumes](10-simulation/15-seismic-volumes/README.md) | Seismic cube | `write_segy`, `read_segy`, `BlockModel`, `object_training_image`, `ImageQuilting` |
 
 ## Validation and reporting
 

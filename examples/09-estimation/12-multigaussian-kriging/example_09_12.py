@@ -31,7 +31,7 @@ azimuth = 170.0
 #
 # The declustering weights set the transform, so the E-type follows the declustered histogram instead of the clustered
 # high-grade samples. Some samples tie at 0 ppm; `despike=True` in `fit` breaks the ties as
-# [`despike`](../../05-exploratory-analysis/07-despiking/README.md) does, so they get distinct scores. The scores'
+# [`despike`](../../05-exploratory-analysis/06-despiking/README.md) does, so they get distinct scores. The scores'
 # variogram, along N170° (the major axis found in
 # [variogram fitting](../../07-variography/02-variogram-fitting/README.md)) and N260°, is scaled to a unit sill,
 # which makes the kriging variance the variance of the conditional Gaussian.

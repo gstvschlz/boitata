@@ -5,7 +5,7 @@ Cosimulating correlated grades is simpler on independent factors: simulate each 
 Four transforms reach independence to different degrees. PCA and min/max autocorrelation factors (MAF) are linear
 rotations, which remove correlation and leave curved dependence. The stepwise conditional transform (SCT) and the
 projection-pursuit multivariate transform (PPMT) are nonlinear and Gaussian by construction.
-[Multivariate simulation](../../10-simulation/06-multivariate-simulation/README.md) simulates the factors.
+[Multivariate simulation](../../10-simulation/05-multivariate-simulation/README.md) simulates the factors.
 """
 
 # %% [hidden]

@@ -73,7 +73,7 @@ for name, lens in lenses.items():
 
 # %% [markdown]
 # The sections are ordinary `Polylines`, so they go to GIS files as they are, with their elevation in z and the
-# `lens` and `offset` columns as properties ([GeoJSON](../../03-geometry-and-block-models/15-geojson/README.md)):
+# `lens` and `offset` columns as properties ([GeoJSON](../../03-geometry-and-block-models/14-gis-formats/README.md)):
 
 # %%
 with tempfile.TemporaryDirectory() as folder:
