@@ -5,6 +5,7 @@
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
 use estimation::search::SearchTree;
+use rayon::prelude::*;
 use variogram::Variogram;
 
 use crate::error::{Result, SimError};
@@ -35,14 +36,16 @@ impl Conditioning {
         data: &[Sample],
         vg: &Variogram,
     ) -> Result<Self> {
-        let mut offsets = Vec::with_capacity(targets.len() + 1);
-        offsets.push(0);
-        let mut neighbors = Vec::new();
-        for (i, g) in targets.iter().enumerate() {
-            let chosen = tree
-                .neighbors_in(g, domains.map(|d| d[i]))
-                .unwrap_or_default();
-            if !chosen.is_empty() {
+        let parts: Vec<Result<Vec<Neighbor>>> = targets
+            .par_iter()
+            .enumerate()
+            .map(|(i, g)| {
+                let chosen = tree
+                    .neighbors_in(g, domains.map(|d| d[i]))
+                    .unwrap_or_default();
+                if chosen.is_empty() {
+                    return Ok(Vec::new());
+                }
                 let near: Vec<Sample> = chosen
                     .iter()
                     .map(|&k| Sample::new(data[k].loc, 0.0))
@@ -50,12 +53,22 @@ impl Conditioning {
                 let weights = krige(Kind::Simple { mean: 0.0 }, g, &near, vg)
                     .map_err(|e| SimError::Estimation(e.to_string()))?
                     .weights;
-                neighbors.extend(chosen.iter().zip(weights).map(|(&k, weight)| Neighbor {
-                    datum: k as u32,
-                    weight,
-                    cap: tree.cap(g, None, k),
-                }));
-            }
+                Ok(chosen
+                    .iter()
+                    .zip(weights)
+                    .map(|(&k, weight)| Neighbor {
+                        datum: k as u32,
+                        weight,
+                        cap: tree.cap(g, None, k),
+                    })
+                    .collect())
+            })
+            .collect();
+        let mut offsets = Vec::with_capacity(targets.len() + 1);
+        offsets.push(0);
+        let mut neighbors = Vec::new();
+        for part in parts {
+            neighbors.extend(part?);
             offsets.push(neighbors.len());
         }
         Ok(Self { offsets, neighbors })
