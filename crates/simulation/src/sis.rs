@@ -15,7 +15,11 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use rand::seq::SliceRandom;
+use rayon::prelude::*;
 use variogram::Variogram;
+
+/// Largest batch of nodes searched and kriged in parallel.
+const BATCH: usize = 512;
 
 /// SIS parameters.
 #[derive(Debug, Clone)]
@@ -47,6 +51,31 @@ pub fn sis(
     variograms: &[Variogram],
     params: &SisParams,
     proportions: Option<(&[Vec<f64>], &[Vec<f64>])>,
+) -> Result<CategoricalRealization> {
+    simulate(
+        data_locs,
+        data_cats,
+        data_holes,
+        grid,
+        n_categories,
+        variograms,
+        params,
+        proportions,
+        None,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn simulate(
+    data_locs: &[(f64, f64, f64)],
+    data_cats: &[usize],
+    data_holes: Option<&[u32]>,
+    grid: &[(f64, f64, f64)],
+    n_categories: usize,
+    variograms: &[Variogram],
+    params: &SisParams,
+    proportions: Option<(&[Vec<f64>], &[Vec<f64>])>,
+    batch: Option<usize>,
 ) -> Result<CategoricalRealization> {
     if data_locs.len() != data_cats.len() {
         return Err(SimError::InvalidParameters("data length mismatch".into()));
@@ -126,69 +155,178 @@ pub fn sis(
         Some(_) => Kind::Simple { mean: 0.0 },
         None => Kind::Ordinary,
     };
+    let (reps, groups) = variogram_groups(variograms);
+    let local_rows = local.as_deref();
+    let most = params.search.max_samples;
 
-    for &node in &path {
+    // The weights of a neighborhood depend on the neighbor locations and the
+    // variogram, not on the indicator values.
+    let step = |all: &[Sample],
+                means: &[Vec<f64>],
+                tree: &SearchTree,
+                node: usize,
+                earlier: Option<&[usize]>|
+     -> Option<Step> {
         let target = grid[node];
-        let prior = local.as_ref().map_or(&marg, |l| &l[node]);
-
+        let prior: &[f64] = match local_rows {
+            Some(rows) => &rows[node],
+            None => &marg,
+        };
         let found = tree.neighbors(&target);
+        if let Some(earlier) = earlier {
+            // Stale when a node simulated since `all` would join the search:
+            // within the farthest neighbor of a full search, or within the
+            // radius of one that is not.
+            let d = |p: &(f64, f64, f64)| tree.distance(&target, p);
+            let reach = match &found {
+                Ok(idx) if idx.len() >= most => {
+                    idx.iter().map(|&k| d(&all[k].loc)).fold(0.0, f64::max)
+                }
+                _ => params.search.radius,
+            };
+            if earlier.iter().any(|&j| d(&grid[j]) <= reach * (1.0 + 1e-9)) {
+                return None;
+            }
+        }
         let datum = match &found {
             Ok(idx) => idx.iter().copied().find(|&k| all[k].loc == target),
             Err(_) => on_datum.get(&crate::sgs::location_key(&target)).copied(),
         };
         if let Some(k) = datum {
-            // A node on a datum takes its category and is not added again.
-            out[node] = all[k].value as usize;
-            continue;
+            return Some(Step::Datum(all[k].value as usize));
         }
-        let probs = match found {
-            Ok(idx) if !idx.is_empty() => {
-                let mut p = vec![0.0f64; n_categories];
-                for c in 0..n_categories {
-                    // Indicator = 1 where the neighbor's category equals c,
-                    // less its local proportion.
-                    let mean = |k: usize| means.get(k).map_or(0.0, |m: &Vec<f64>| m[c]);
-                    let ind: Vec<Sample> = idx
-                        .iter()
-                        .map(|&k| Sample {
-                            loc: all[k].loc,
-                            value: f64::from(u8::from(all[k].value.round() as usize == c))
-                                - mean(k),
-                            hole: None,
-                            error_variance: 0.0,
-                            domain: None,
-                        })
-                        .collect();
-                    let offset = if local.is_some() { prior[c] } else { 0.0 };
-                    let est = krige(kind, &target, &ind, &variograms[c])
-                        .map(|e| e.value + offset)
-                        .unwrap_or(prior[c]);
-                    p[c] = est.clamp(0.0, 1.0);
+        let idx = match found {
+            Ok(idx) if !idx.is_empty() => idx,
+            _ => return Some(Step::Marginal(prior.to_vec())),
+        };
+        let zeros: Vec<Sample> = idx
+            .iter()
+            .map(|&k| Sample {
+                loc: all[k].loc,
+                value: 0.0,
+                hole: None,
+                error_variance: 0.0,
+                domain: None,
+            })
+            .collect();
+        let mut p = vec![0.0; n_categories];
+        for (g, cats) in groups.iter().enumerate() {
+            match krige(kind, &target, &zeros, &variograms[reps[g]]) {
+                Ok(est) => {
+                    for &c in cats {
+                        let z_at = |k: usize| {
+                            f64::from(u8::from(all[k].value.round() as usize == c))
+                                - means.get(k).map_or(0.0, |m| m[c])
+                        };
+                        let value = match kind {
+                            Kind::Simple { mean } => {
+                                mean + est
+                                    .weights
+                                    .iter()
+                                    .zip(&idx)
+                                    .map(|(w, &k)| w * (z_at(k) - mean))
+                                    .sum::<f64>()
+                            }
+                            _ => est
+                                .weights
+                                .iter()
+                                .zip(&idx)
+                                .map(|(w, &k)| w * z_at(k))
+                                .sum::<f64>(),
+                        };
+                        let offset = if local_rows.is_some() { prior[c] } else { 0.0 };
+                        p[c] = (value + offset).clamp(0.0, 1.0);
+                    }
                 }
-                normalize(&mut p, prior);
-                p
+                Err(_) => {
+                    for &c in cats {
+                        p[c] = prior[c].clamp(0.0, 1.0);
+                    }
+                }
             }
-            _ => prior.clone(),
-        };
-
-        let cat = draw_category(&probs, &mut rng);
-        out[node] = cat;
-
-        let sample = Sample {
-            loc: target,
-            value: cat as f64,
-            hole: None,
-            error_variance: 0.0,
-            domain: None,
-        };
-        tree.add(&sample);
-        all.push(sample);
-        if let Some(l) = &local {
-            means.push(l[node].clone());
         }
+        normalize(&mut p, prior);
+        Some(Step::Probs(p))
+    };
+
+    let mut start = 0;
+    while start < path.len() {
+        // A batch is searched and kriged in parallel against the nodes
+        // simulated before it. Stale nodes are redone in path order, so the
+        // realization is the sequential one for any batch size.
+        let size = batch.unwrap_or(all.len() / (8 * most).max(1));
+        let nodes = &path[start..(start + size.clamp(1, BATCH)).min(path.len())];
+        let steps: Vec<Option<Step>> = nodes
+            .par_iter()
+            .enumerate()
+            .map(|(t, &node)| step(&all, &means, &tree, node, Some(&nodes[..t])))
+            .collect();
+        for (&node, found) in nodes.iter().zip(steps) {
+            let found = match found {
+                Some(found) => found,
+                None => step(&all, &means, &tree, node, None).expect("never stale alone"),
+            };
+            let cat = match found {
+                // A node on a datum takes its category and is not added again.
+                Step::Datum(cat) => {
+                    out[node] = cat;
+                    continue;
+                }
+                Step::Marginal(probs) | Step::Probs(probs) => draw_category(&probs, &mut rng),
+            };
+            out[node] = cat;
+            let sample = Sample {
+                loc: grid[node],
+                value: cat as f64,
+                hole: None,
+                error_variance: 0.0,
+                domain: None,
+            };
+            tree.add(&sample);
+            all.push(sample);
+            if let Some(rows) = &local {
+                means.push(rows[node].clone());
+            }
+        }
+        start += nodes.len();
     }
 
     Ok(CategoricalRealization { categories: out })
+}
+
+enum Step {
+    Datum(usize),
+    Marginal(Vec<f64>),
+    Probs(Vec<f64>),
+}
+
+/// Categories that share a variogram, and the index of each group's variogram.
+fn variogram_groups(variograms: &[Variogram]) -> (Vec<usize>, Vec<Vec<usize>>) {
+    let mut reps: Vec<usize> = Vec::new();
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    for (c, vg) in variograms.iter().enumerate() {
+        match reps
+            .iter()
+            .position(|&r| same_variogram(&variograms[r], vg))
+        {
+            Some(g) => groups[g].push(c),
+            None => {
+                reps.push(c);
+                groups.push(vec![c]);
+            }
+        }
+    }
+    (reps, groups)
+}
+
+fn same_variogram(a: &Variogram, b: &Variogram) -> bool {
+    a.nugget == b.nugget
+        && a.structures == b.structures
+        && match (&a.anisotropy, &b.anisotropy) {
+            (None, None) => true,
+            (Some(x), Some(y)) => x.angles == y.angles,
+            _ => false,
+        }
 }
 
 /// Normalize probabilities to sum 1; fall back to marginals if degenerate.
@@ -375,5 +513,71 @@ mod tests {
             seed: 0,
         };
         assert!(sis(&data_locs, &data_cats, None, &grid, 3, &vgs, &params, short).is_err());
+    }
+
+    #[test]
+    fn realizations_follow_the_seed_not_threads_or_batches() {
+        let data_locs: Vec<_> = (0..24)
+            .map(|i| ((i % 6) as f64 * 4.0, (i / 6) as f64 * 4.0, 0.0))
+            .collect();
+        let data_cats: Vec<_> = (0..24).map(|i| i % 3).collect();
+        let grid: Vec<_> = (0..16 * 16)
+            .map(|i| ((i % 16) as f64, (i / 16) as f64, 0.0))
+            .collect();
+        let search = Search {
+            min_samples: 1,
+            max_samples: 8,
+            radius: 20.0,
+            ..Default::default()
+        };
+        let shared = vec![Variogram::single(Model::Spherical, 0.2, 12.0); 3];
+        let distinct: Vec<_> = (0..3)
+            .map(|c| Variogram::single(Model::Spherical, 0.2, 10.0 + c as f64))
+            .collect();
+        let at_data = vec![vec![1.0 / 3.0; 3]; data_locs.len()];
+        let at_grid: Vec<_> = grid
+            .iter()
+            .map(|p| vec![0.5, 0.3 * p.0 / 15.0, 0.2])
+            .collect();
+        for (vgs, proportions) in [
+            (shared, None),
+            (distinct, None),
+            (
+                vec![Variogram::single(Model::Exponential, 0.2, 14.0); 3],
+                Some((&at_data[..], &at_grid[..])),
+            ),
+        ] {
+            let run = |threads, batch| {
+                let params = SisParams {
+                    search: search.clone(),
+                    seed: 3,
+                };
+                rayon::ThreadPoolBuilder::new()
+                    .num_threads(threads)
+                    .build()
+                    .unwrap()
+                    .install(|| {
+                        simulate(
+                            &data_locs,
+                            &data_cats,
+                            None,
+                            &grid,
+                            3,
+                            &vgs,
+                            &params,
+                            proportions,
+                            batch,
+                        )
+                        .unwrap()
+                        .categories
+                    })
+            };
+            let sequential = run(1, Some(1));
+            for threads in [1, 8] {
+                for batch in [Some(1), Some(3), Some(64), None] {
+                    assert_eq!(sequential, run(threads, batch));
+                }
+            }
+        }
     }
 }

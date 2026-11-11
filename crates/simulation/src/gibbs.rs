@@ -39,6 +39,81 @@ impl Default for GibbsParams {
     }
 }
 
+/// Precision of the data covariance. It depends only on the locations and the
+/// variogram, so one system serves every realization and every matching field.
+pub(crate) struct GibbsSystem {
+    /// Row-major `P = Σ⁻¹`. `DMatrix` is column-major; the sweep reads a row
+    /// at a time.
+    precision: Vec<f64>,
+    n: usize,
+}
+
+impl GibbsSystem {
+    pub(crate) fn new(locs: &[(f64, f64, f64)], vg: &Variogram) -> Result<Self> {
+        let n = locs.len();
+        if n == 0 {
+            return Err(SimError::InsufficientData("no sites".into()));
+        }
+        let sill = vg.total_sill();
+        let mut sigma = DMatrix::<f64>::zeros(n, n);
+        for i in 0..n {
+            for j in 0..n {
+                sigma[(i, j)] = vg.cov_points(&locs[i], &locs[j]) / sill;
+            }
+            sigma[(i, i)] += 1e-9; // jitter
+        }
+        let p = sigma
+            .try_inverse()
+            .ok_or_else(|| SimError::Estimation("covariance not invertible".into()))?;
+        let mut precision = vec![0.0; n * n];
+        for i in 0..n {
+            for j in 0..n {
+                precision[i * n + j] = p[(i, j)];
+            }
+        }
+        Ok(Self { precision, n })
+    }
+
+    /// One draw at the sites, each constrained to `bounds[i] = (lo, hi)`.
+    pub(crate) fn sample(&self, bounds: &[(f64, f64)], params: &GibbsParams) -> Result<Vec<f64>> {
+        let n = self.n;
+        if bounds.len() != n {
+            return Err(SimError::InvalidParameters("bounds length mismatch".into()));
+        }
+        if bounds.iter().any(|(lo, hi)| hi < lo) {
+            return Err(SimError::InvalidParameters("bound hi < lo".into()));
+        }
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let mut y = vec![0.0; n];
+        for i in 0..n {
+            y[i] = draw_truncated(&mut rng, 0.0, 1.0, bounds[i].0, bounds[i].1);
+        }
+        let sweeps = params.burn_in + params.iterations.max(1);
+        for _ in 0..sweeps {
+            for i in 0..n {
+                let row = &self.precision[i * n..(i + 1) * n];
+                let pii = row[i];
+                if pii.abs() < 1e-300 {
+                    continue;
+                }
+                // Conditional mean = −(1/Pii) Σ_{j≠i} Pij Yj ; variance = 1/Pii.
+                // `0..i` then `i+1..n` is the same order as skipping `j == i`.
+                let mut acc = 0.0;
+                for j in 0..i {
+                    acc += row[j] * y[j];
+                }
+                for j in i + 1..n {
+                    acc += row[j] * y[j];
+                }
+                let mean = -acc / pii;
+                let sd = (1.0 / pii).sqrt();
+                y[i] = draw_truncated(&mut rng, mean, sd, bounds[i].0, bounds[i].1);
+            }
+        }
+        Ok(y)
+    }
+}
+
 /// Sample a Gaussian vector at `locs`, each constrained to `bounds[i] = (lo, hi)`.
 ///
 /// `vg` is the (unit-sill) Gaussian variogram. Returns one draw honoring both
@@ -49,57 +124,13 @@ pub fn gibbs(
     vg: &Variogram,
     params: &GibbsParams,
 ) -> Result<Vec<f64>> {
-    let n = locs.len();
-    if n == 0 {
-        return Err(SimError::InsufficientData("no sites".into()));
-    }
-    if bounds.len() != n {
+    if bounds.len() != locs.len() {
         return Err(SimError::InvalidParameters("bounds length mismatch".into()));
     }
     if bounds.iter().any(|(lo, hi)| hi < lo) {
         return Err(SimError::InvalidParameters("bound hi < lo".into()));
     }
-
-    // Covariance (unit correlogram) and precision.
-    let sill = vg.total_sill();
-    let mut sigma = DMatrix::<f64>::zeros(n, n);
-    for i in 0..n {
-        for j in 0..n {
-            sigma[(i, j)] = vg.cov_points(&locs[i], &locs[j]) / sill;
-        }
-        sigma[(i, i)] += 1e-9; // jitter
-    }
-    let p = sigma
-        .try_inverse()
-        .ok_or_else(|| SimError::Estimation("covariance not invertible".into()))?;
-
-    let mut rng = StdRng::seed_from_u64(params.seed);
-
-    let mut y = vec![0.0; n];
-    for i in 0..n {
-        y[i] = draw_truncated(&mut rng, 0.0, 1.0, bounds[i].0, bounds[i].1);
-    }
-
-    let sweeps = params.burn_in + params.iterations.max(1);
-    for _ in 0..sweeps {
-        for i in 0..n {
-            let pii = p[(i, i)];
-            if pii.abs() < 1e-300 {
-                continue;
-            }
-            // Conditional mean = −(1/Pii) Σ_{j≠i} Pij Yj ; variance = 1/Pii.
-            let mut acc = 0.0;
-            for j in 0..n {
-                if j != i {
-                    acc += p[(i, j)] * y[j];
-                }
-            }
-            let mean = -acc / pii;
-            let sd = (1.0 / pii).sqrt();
-            y[i] = draw_truncated(&mut rng, mean, sd, bounds[i].0, bounds[i].1);
-        }
-    }
-    Ok(y)
+    GibbsSystem::new(locs, vg)?.sample(bounds, params)
 }
 
 /// Draw from `N(mean, sd²)` truncated to `[lo, hi]` by inverse-CDF.

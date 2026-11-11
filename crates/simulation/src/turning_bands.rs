@@ -232,6 +232,17 @@ pub fn bounds(points: &[(f64, f64, f64)]) -> ([f64; 3], [f64; 3]) {
     )
 }
 
+/// Box of `data` then `grid`, the same fold as [`bounds`] of the two concatenated.
+fn union_bounds(data: &[(f64, f64, f64)], grid: &[(f64, f64, f64)]) -> ([f64; 3], [f64; 3]) {
+    grid.iter().fold(bounds(data), |(lo, hi), p| {
+        let p = [p.0, p.1, p.2];
+        (
+            std::array::from_fn(|i| lo[i].min(p[i])),
+            std::array::from_fn(|i| hi[i].max(p[i])),
+        )
+    })
+}
+
 /// Bytes the band factors and the bands of every realization may take.
 const BAND_BYTES: usize = 8 << 30;
 
@@ -576,14 +587,99 @@ pub fn conditional_gaussian_field(
     if grid.is_empty() {
         return Ok(vec![]);
     }
-    let (lo, hi) = bounds(&[data_locs, grid].concat());
-    let bands = Bands::new(lo, hi, vg, params, rng)?;
-    let at_data = bands.field(data_locs);
-    let data = data(data_locs, gaussian_data, vec![None; data_locs.len()], None);
-    let tree = SearchTree::new(&data, &params.search, Some(vg));
-    condition(grid, None, bands.field(grid), &tree, vg, |k, _, cap| {
-        Sample::new(data[k].loc, cap.unwrap_or(data[k].value) - at_data[k])
-    })
+    FieldMachine::new(data_locs, grid, vg, params)?.realize(gaussian_data, grid, rng)
+}
+
+/// Band layout and simple-kriging weights for one variogram over one grid.
+///
+/// A high-grade rule reads the Gaussian values, which change every draw, so
+/// that path kriges again. Otherwise the weights are fixed.
+pub(crate) struct FieldMachine {
+    layout: Layout,
+    search: Search,
+    vg: Variogram,
+    locs: Vec<(f64, f64, f64)>,
+    conditioning: Option<Conditioning>,
+    n_bands: usize,
+    nodes: usize,
+}
+
+impl FieldMachine {
+    pub(crate) fn new(
+        data_locs: &[(f64, f64, f64)],
+        grid: &[(f64, f64, f64)],
+        vg: &Variogram,
+        params: &TurningBandsParams,
+    ) -> Result<Self> {
+        let (lo, hi) = union_bounds(data_locs, grid);
+        let layout = Layout::new(lo, hi, vg, params, 1)?;
+        let conditioning = match params.search.high_grade {
+            Some(_) => None,
+            None => {
+                let zeros = vec![0.0; data_locs.len()];
+                let samples = data(data_locs, &zeros, vec![None; data_locs.len()], None);
+                let tree = SearchTree::new(&samples, &params.search, Some(vg));
+                Some(Conditioning::new(grid, None, &tree, &samples, vg)?)
+            }
+        };
+        Ok(Self {
+            layout,
+            search: params.search.clone(),
+            vg: vg.clone(),
+            locs: data_locs.to_vec(),
+            conditioning,
+            n_bands: params.n_bands,
+            nodes: grid.len(),
+        })
+    }
+
+    /// Conditioned field at `grid`. `grid` is the one given to [`Self::new`].
+    /// Draws the bands from `rng` and leaves the rest of the machine in place.
+    pub(crate) fn realize(
+        &self,
+        gaussian_data: &[f64],
+        grid: &[(f64, f64, f64)],
+        rng: &mut StdRng,
+    ) -> Result<Vec<f64>> {
+        if gaussian_data.len() != self.locs.len() {
+            return Err(SimError::InvalidParameters("data length mismatch".into()));
+        }
+        if grid.len() != self.nodes {
+            return Err(SimError::InvalidParameters(
+                "grid does not match the prepared field".into(),
+            ));
+        }
+        if grid.is_empty() {
+            return Ok(vec![]);
+        }
+        let bands = self.layout.bands(self.n_bands, rng);
+        let at_data = bands.field(&self.locs);
+        let field = bands.field(grid);
+        let Some(cached) = &self.conditioning else {
+            let samples = data(&self.locs, gaussian_data, vec![None; self.locs.len()], None);
+            let tree = SearchTree::new(&samples, &self.search, Some(&self.vg));
+            return condition(grid, None, field, &tree, &self.vg, |k, _, cap| {
+                Sample::new(samples[k].loc, cap.unwrap_or(samples[k].value) - at_data[k])
+            });
+        };
+        let mut out = field;
+        for i in 0..grid.len() {
+            let near = cached.of(i);
+            if near.is_empty() {
+                continue;
+            }
+            // Simple kriging of mean 0, the same sum `krige` returns.
+            let acc = near
+                .iter()
+                .map(|n| {
+                    let z = gaussian_data[n.datum as usize] - at_data[n.datum as usize];
+                    n.weight * (z - 0.0)
+                })
+                .sum::<f64>();
+            out[i] += 0.0 + acc;
+        }
+        Ok(out)
+    }
 }
 
 /// `n` conditional turning-bands realizations (realization `k` seeded by

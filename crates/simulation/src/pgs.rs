@@ -17,8 +17,8 @@
 //! 4. the truncation rule classifies each grid node.
 
 use crate::error::{Result, SimError};
-use crate::gibbs::{GibbsParams, gibbs};
-use crate::turning_bands::{TurningBandsParams, conditional_gaussian_field};
+use crate::gibbs::{GibbsParams, GibbsSystem};
+use crate::turning_bands::{FieldMachine, TurningBandsParams};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
@@ -442,14 +442,18 @@ pub fn plurigaussian(
     rule: &TruncationRule,
     params: &PgsParams,
 ) -> Result<Vec<usize>> {
-    check(data_locs, data_facies, variograms, rule.fields())?;
-    let fields = variograms.len();
-    let intervals: Vec<Vec<(f64, f64)>> = data_facies
-        .iter()
-        .map(|&f| rule.facies_intervals(f, fields))
-        .collect();
-    let values = latent(data_locs, &intervals, grid, variograms, params)?;
-    Ok(values.iter().map(|y| rule.classify(y)).collect())
+    check(
+        data_locs.len(),
+        data_facies.len(),
+        variograms.len(),
+        rule.fields(),
+    )?;
+    LatentFields::new(data_locs, grid, variograms, &params.bands)?.categories(
+        data_facies,
+        grid,
+        rule,
+        params,
+    )
 }
 
 /// Plurigaussian simulation with locally varying proportions: the thresholds
@@ -466,77 +470,207 @@ pub fn plurigaussian_local(
     grid_proportions: &[Vec<f64>],
     params: &PgsParams,
 ) -> Result<Vec<usize>> {
-    check(data_locs, data_facies, variograms, hierarchy.fields())?;
-    if data_proportions.len() != data_locs.len() || grid_proportions.len() != grid.len() {
-        return Err(invalid("one row of proportions per datum and per node"));
-    }
-    let fields = variograms.len();
-    let intervals: Vec<Vec<(f64, f64)>> = data_facies
-        .iter()
-        .zip(data_proportions)
-        .map(|(&f, p)| hierarchy.rule(p).facies_intervals(f, fields))
-        .collect();
-    let values = latent(data_locs, &intervals, grid, variograms, params)?;
-    Ok(values
-        .iter()
-        .zip(grid_proportions)
-        .map(|(y, p)| hierarchy.classify(y, p))
-        .collect())
+    check(
+        data_locs.len(),
+        data_facies.len(),
+        variograms.len(),
+        hierarchy.fields(),
+    )?;
+    LatentFields::new(data_locs, grid, variograms, &params.bands)?.categories_local(
+        data_facies,
+        grid,
+        hierarchy,
+        data_proportions,
+        grid_proportions,
+        params,
+    )
 }
 
-fn check(
-    data_locs: &[(f64, f64, f64)],
-    data_facies: &[usize],
-    variograms: &[Variogram],
-    fields: usize,
-) -> Result<()> {
-    if data_locs.len() != data_facies.len() {
+fn check(n_data: usize, n_facies: usize, n_variograms: usize, fields: usize) -> Result<()> {
+    if n_data != n_facies {
         return Err(invalid("data length mismatch"));
     }
-    if data_locs.is_empty() {
+    if n_data == 0 {
         return Err(SimError::InsufficientData("no conditioning data".into()));
     }
-    if variograms.is_empty() || fields > variograms.len() {
+    if n_variograms == 0 || fields > n_variograms {
         return Err(invalid(format!(
-            "the rule thresholds {fields} fields but {} variograms were given",
-            variograms.len()
+            "the rule thresholds {fields} fields but {n_variograms} variograms were given"
         )));
     }
     Ok(())
 }
 
-/// Latent Gaussian values at every node, one per field, conditioned by Gibbs
-/// draws at the data within their facies `intervals`.
-fn latent(
-    data_locs: &[(f64, f64, f64)],
-    intervals: &[Vec<(f64, f64)>],
-    grid: &[(f64, f64, f64)],
-    variograms: &[Variogram],
-    params: &PgsParams,
-) -> Result<Vec<Vec<f64>>> {
-    if grid.is_empty() {
-        return Ok(vec![]);
+fn same_variogram(a: &Variogram, b: &Variogram) -> bool {
+    a.nugget == b.nugget
+        && a.structures == b.structures
+        && match (&a.anisotropy, &b.anisotropy) {
+            (None, None) => true,
+            (Some(x), Some(y)) => x.angles == y.angles,
+            _ => false,
+        }
+}
+
+/// Latent fields of one plurigaussian model, factored once for every
+/// realization on the grid given to [`LatentFields::new`].
+///
+/// The Gibbs precision, turning-band layout and simple-kriging weights depend
+/// only on the data locations, that grid and the variograms. The band count
+/// and the search are those of `new`; each draw uses its own seed and Gibbs
+/// settings.
+#[doc(hidden)]
+pub struct LatentFields {
+    systems: Vec<GibbsSystem>,
+    machines: Vec<FieldMachine>,
+    /// Field index to shared variogram.
+    which: Vec<usize>,
+    n_data: usize,
+    n_fields: usize,
+    nodes: usize,
+}
+
+impl LatentFields {
+    pub fn new(
+        data_locs: &[(f64, f64, f64)],
+        grid: &[(f64, f64, f64)],
+        variograms: &[Variogram],
+        bands: &TurningBandsParams,
+    ) -> Result<Self> {
+        if data_locs.is_empty() {
+            return Err(SimError::InsufficientData("no conditioning data".into()));
+        }
+        if variograms.is_empty() {
+            return Err(invalid(
+                "the rule thresholds 0 fields but 0 variograms were given",
+            ));
+        }
+        if grid.is_empty() {
+            return Ok(Self {
+                systems: vec![],
+                machines: vec![],
+                which: vec![],
+                n_data: data_locs.len(),
+                n_fields: variograms.len(),
+                nodes: 0,
+            });
+        }
+        let mut systems = Vec::new();
+        let mut machines = Vec::new();
+        let mut reps: Vec<&Variogram> = Vec::new();
+        let mut which = Vec::with_capacity(variograms.len());
+        for vg in variograms {
+            let group = reps.iter().position(|r| same_variogram(r, vg));
+            let group = match group {
+                Some(group) => group,
+                None => {
+                    systems.push(GibbsSystem::new(data_locs, vg)?);
+                    machines.push(FieldMachine::new(data_locs, grid, vg, bands)?);
+                    reps.push(vg);
+                    reps.len() - 1
+                }
+            };
+            which.push(group);
+        }
+        Ok(Self {
+            systems,
+            machines,
+            which,
+            n_data: data_locs.len(),
+            n_fields: variograms.len(),
+            nodes: grid.len(),
+        })
     }
-    let mut rng = StdRng::seed_from_u64(params.seed);
-    let mut values = vec![Vec::with_capacity(variograms.len()); grid.len()];
-    for (k, vg) in variograms.iter().enumerate() {
-        let k = k as u64;
-        let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k as usize]).collect();
-        let g = GibbsParams {
-            seed: boitata_core::rng::realization_seed(params.seed, 2 * k),
-            ..params.gibbs.clone()
-        };
-        let at_data = gibbs(data_locs, &bounds, vg, &g)?;
-        let b = TurningBandsParams {
-            seed: boitata_core::rng::realization_seed(params.seed, 2 * k + 1),
-            ..params.bands.clone()
-        };
-        let field = conditional_gaussian_field(data_locs, &at_data, grid, vg, &b, &mut rng)?;
-        for (v, y) in values.iter_mut().zip(field) {
-            v.push(y);
+
+    /// Facies at `grid` through `rule`. `grid` is the one given to [`Self::new`].
+    pub fn categories(
+        &self,
+        data_facies: &[usize],
+        grid: &[(f64, f64, f64)],
+        rule: &TruncationRule,
+        params: &PgsParams,
+    ) -> Result<Vec<usize>> {
+        check(self.n_data, data_facies.len(), self.n_fields, rule.fields())?;
+        if grid.is_empty() {
+            return Ok(vec![]);
+        }
+        self.same_grid(grid)?;
+        let intervals: Vec<Vec<(f64, f64)>> = data_facies
+            .iter()
+            .map(|&f| rule.facies_intervals(f, self.n_fields))
+            .collect();
+        let values = self.values(&intervals, grid, params)?;
+        Ok(values.iter().map(|y| rule.classify(y)).collect())
+    }
+
+    /// Facies at `grid` through `hierarchy` and the local proportions.
+    #[allow(clippy::too_many_arguments)]
+    pub fn categories_local(
+        &self,
+        data_facies: &[usize],
+        grid: &[(f64, f64, f64)],
+        hierarchy: &Hierarchy,
+        data_proportions: &[Vec<f64>],
+        grid_proportions: &[Vec<f64>],
+        params: &PgsParams,
+    ) -> Result<Vec<usize>> {
+        check(
+            self.n_data,
+            data_facies.len(),
+            self.n_fields,
+            hierarchy.fields(),
+        )?;
+        if data_proportions.len() != self.n_data || grid_proportions.len() != grid.len() {
+            return Err(invalid("one row of proportions per datum and per node"));
+        }
+        if grid.is_empty() {
+            return Ok(vec![]);
+        }
+        self.same_grid(grid)?;
+        let intervals: Vec<Vec<(f64, f64)>> = data_facies
+            .iter()
+            .zip(data_proportions)
+            .map(|(&f, p)| hierarchy.rule(p).facies_intervals(f, self.n_fields))
+            .collect();
+        let values = self.values(&intervals, grid, params)?;
+        Ok(values
+            .iter()
+            .zip(grid_proportions)
+            .map(|(y, p)| hierarchy.classify(y, p))
+            .collect())
+    }
+
+    fn same_grid(&self, grid: &[(f64, f64, f64)]) -> Result<()> {
+        if grid.len() == self.nodes {
+            Ok(())
+        } else {
+            Err(invalid("grid does not match the prepared fields"))
         }
     }
-    Ok(values)
+
+    /// Latent Gaussian values at every node, one per field, conditioned by Gibbs
+    /// draws at the data within their facies `intervals`.
+    fn values(
+        &self,
+        intervals: &[Vec<(f64, f64)>],
+        grid: &[(f64, f64, f64)],
+        params: &PgsParams,
+    ) -> Result<Vec<Vec<f64>>> {
+        let mut rng = StdRng::seed_from_u64(params.seed);
+        let mut values = vec![Vec::with_capacity(self.which.len()); grid.len()];
+        for (k, &model) in self.which.iter().enumerate() {
+            let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k]).collect();
+            let g = GibbsParams {
+                seed: boitata_core::rng::realization_seed(params.seed, 2 * k as u64),
+                ..params.gibbs.clone()
+            };
+            let at_data = self.systems[model].sample(&bounds, &g)?;
+            let field = self.machines[model].realize(&at_data, grid, &mut rng)?;
+            for (v, y) in values.iter_mut().zip(field) {
+                v.push(y);
+            }
+        }
+        Ok(values)
+    }
 }
 
 #[cfg(test)]
@@ -780,6 +914,42 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    #[test]
+    fn a_prepared_model_matches_a_fresh_call_at_every_seed() {
+        let data_locs: Vec<_> = (0..12).map(|i| (i as f64 * 3.0, 1.0, 0.0)).collect();
+        let facies: Vec<_> = (0..12).map(|i| i % 2).collect();
+        let grid: Vec<_> = (0..40)
+            .map(|i| ((i % 8) as f64, (i / 8) as f64, 0.0))
+            .collect();
+        let vgs = vec![
+            Variogram::single(Model::Spherical, 1.0, 8.0),
+            Variogram::single(Model::Spherical, 1.0, 8.0),
+        ];
+        let rule = TruncationRule::from_proportions(&[0.6, 0.4]);
+        let bands = TurningBandsParams {
+            n_bands: 40,
+            ..Default::default()
+        };
+        let prepared = LatentFields::new(&data_locs, &grid, &vgs, &bands).unwrap();
+        let mut draws = vec![];
+        for seed in [1, 4] {
+            let params = PgsParams {
+                bands: bands.clone(),
+                gibbs: GibbsParams {
+                    iterations: 5,
+                    burn_in: 1,
+                    seed,
+                },
+                seed,
+            };
+            let fresh = plurigaussian(&data_locs, &facies, &grid, &vgs, &rule, &params).unwrap();
+            let reused = prepared.categories(&facies, &grid, &rule, &params).unwrap();
+            assert_eq!(fresh, reused);
+            draws.push(fresh);
+        }
+        assert_ne!(draws[0], draws[1]);
     }
 
     #[test]

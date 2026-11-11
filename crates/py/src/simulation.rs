@@ -2999,17 +2999,23 @@ impl Plurigaussian {
         let k = self.facies();
         let keep = keep_arg(keep)?;
         py.detach(|| {
+            let prepared = simulation::pgs::LatentFields::new(
+                locs,
+                &grid,
+                &self.variograms,
+                &TurningBandsParams::default(),
+            )?;
+            let rule = &self.rule;
             simulation::categorical(n, k, &keep, |i| {
                 let params = PgsParams {
                     seed: boitata_core::rng::realization_seed(seed, i as u64),
                     ..Default::default()
                 };
-                let (vgs, rule) = (&self.variograms, &self.rule);
                 match (&local, &self.hierarchy) {
-                    (Some((at_data, at_grid)), Some(tree)) => simulation::plurigaussian_local(
-                        locs, facies, &grid, vgs, tree, at_data, at_grid, &params,
-                    ),
-                    _ => simulation::plurigaussian(locs, facies, &grid, vgs, rule, &params),
+                    (Some((at_data, at_grid)), Some(tree)) => {
+                        prepared.categories_local(facies, &grid, tree, at_data, at_grid, &params)
+                    }
+                    _ => prepared.categories(facies, &grid, rule, &params),
                 }
                 .and_then(|f| majority(&support, f, k))
             })
