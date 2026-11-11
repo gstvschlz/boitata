@@ -212,17 +212,4 @@ impl LocalGrid {
     fn from_json(text: &str) -> PyResult<Self> {
         crate::persist::from_json(text)
     }
-
-    fn __repr__(&self) -> String {
-        let g = &self.0;
-        format!(
-            "LocalGrid(scale={}, rotation={}, shift=({}, {}), z_shift={}, crs={})",
-            g.scale,
-            g.rotation,
-            g.shift[0],
-            g.shift[1],
-            g.z_shift,
-            g.crs.as_deref().unwrap_or("none")
-        )
-    }
 }

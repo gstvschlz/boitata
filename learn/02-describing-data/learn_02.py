@@ -339,13 +339,13 @@ print(f"back-transform: largest error {np.abs(transform.inverse_transform(scores
 #     - Why can the Spearman coefficient differ from the Pearson coefficient on the same pairs?
 #
 # !!! seealso "See also"
-#     - [Declustering](../../examples/03-exploratory-analysis/03-declustering/example_03_03.md) compares cell and
+#     - [Declustering](../../examples/05-exploratory-analysis/04-declustering/example_05_04.md) compares cell and
 #       polygonal declustering on a coal seam.
-#     - [Top cuts](../../examples/03-exploratory-analysis/05-top-cuts/example_03_05.md) chooses one cap per vein.
-#     - [Statistics by domain](../../examples/03-exploratory-analysis/02-statistics-by-domain/example_03_02.md) adds
+#     - [Top cuts](../../examples/05-exploratory-analysis/05-top-cuts/example_05_05.md) chooses one cap per vein.
+#     - [Statistics by domain](../../examples/05-exploratory-analysis/02-statistics-by-domain/example_05_02.md) adds
 #       cumulative distributions and Q-Q plots.
-#     - [Correlations](../../examples/03-exploratory-analysis/11-correlations/example_03_11.md) and
-#       [normal-score transform](../../examples/04-transforms/01-normal-score/example_04_01.md).
+#     - [Correlations](../../examples/05-exploratory-analysis/08-correlations/example_05_08.md) and
+#       [normal-score transform](../../examples/06-transforms/01-normal-score/example_06_01.md).
 #     - API: [`describe`](../../api/eda/describe.md), [`describe_by`](../../api/eda/describe_by.md),
 #       [`capping`](../../api/eda/capping.md), [`Capping`](../../api/transforms/Capping.md),
 #       [`NormalScore`](../../api/transforms/NormalScore.md).

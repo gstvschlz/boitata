@@ -29,7 +29,7 @@ from common import ACCENT, GRAY, HIGHLIGHT, INK, LIGHT, map_axes, save, show
 # The stacked sulfide lenses ship with collar, survey and assay tables, a wireframe per lens, and nothing else.
 # `Drillholes` desurveys the holes. The collars sample the ground, so `topography` triangulates them into a surface
 # and flags any collar that sits off the surface through its neighbors
-# ([topography](../../examples/02-data-and-geometry/19-topography/example_02_19.md)).
+# ([topography](../../examples/03-geometry-and-block-models/12-topography/example_03_12.md)).
 
 # %%
 data = bt.datasets.stacked_sulphide_lenses()
@@ -50,7 +50,7 @@ save(fig, "topography")
 #
 # Each assay takes the name of the lens around its midpoint, or `host`. Compositing to 2 m gives every sample the
 # same support, and `domain="LENS"` stops a composite at a lens contact, so no composite mixes ore with host rock
-# ([compositing](../../examples/02-data-and-geometry/03-compositing/example_02_03.md)).
+# ([compositing](../../examples/02-drillholes-and-samples/04-compositing/example_02_04.md)).
 
 # %%
 lenses = {name: data[name] for name in ("lens_1", "lens_2", "lens_3")}
@@ -71,7 +71,7 @@ print(f"{len(composites):,} composites of 2 m, {len(ore):,} inside a lens")
 # The lenses dip 55° to the east-southeast, so the model's parent blocks of 10 m are rotated with them. `from_meshes`
 # splits each parent that a wireframe cuts into 2.5 m sub-blocks and keeps only blocks inside a lens. The model's
 # volume matches the wireframes'
-# ([sub-blocks](../../examples/02-data-and-geometry/06-sub-blocks/example_02_06.md)).
+# ([sub-blocks](../../examples/03-geometry-and-block-models/04-sub-blocks/example_03_04.md)).
 
 # %%
 rotation = (22.5, 0.0, 55.0)
@@ -165,7 +165,7 @@ save(fig, "variogram")
 #
 # Kriging each lens from its own composites assumes the grade drops sharply at the lens contact. `contact` checks
 # that assumption: it averages zinc by distance to the contact, down every hole that crosses one
-# ([contact analysis](../../examples/03-exploratory-analysis/07-contacts/example_03_07.md)).
+# ([contact analysis](../../examples/08-domains-and-geology/05-contacts/example_08_05.md)).
 
 # %%
 fig, axes = plt.subplots(1, 3, figsize=(12, 3.4), layout="constrained", sharey=True)
@@ -198,7 +198,7 @@ print(f"host rock: {np.nanmean(host):.2f} % Zn over {np.isfinite(host).sum():,} 
 # the collar topography and keep every cell a lens touches; `Mesh.proportion` gives the share of each cell inside
 # each lens. The collars give no surface outside the drilled outline, so cells there stay. The masked model stores
 # the kept rows alone
-# ([block models from extents](../../examples/02-data-and-geometry/12-block-model-from-extents/example_02_12.md)).
+# ([block models from extents](../../examples/03-geometry-and-block-models/01-block-model-from-extents/example_03_01.md)).
 
 # %%
 summit = [[*lenses["lens_1"].coords.mean(axis=0)[:2], collars.z.max()]]
@@ -288,7 +288,7 @@ print(f"host: {host_zn:.2f} % Zn, {host_density:.2f} t/m³")
 # A kriged SMU is too smooth to say how much ore lies above a cutoff. Turning bands draws 50 realizations of zinc,
 # each lens from its own data, on eight nodes per SMU, and `blocks=` averages each realization over its SMU. Each
 # realization is then diluted like the kriged grades, and the probability that an SMU exceeds 5 % Zn counts the
-# realizations above it ([turning bands](../../examples/08-stochastic-simulation/04-turning-bands/example_08_04.md),
+# realizations above it ([turning bands](../../examples/10-simulation/03-turning-bands/example_10_03.md),
 # [simulation](../05-simulation/learn_05.md)).
 
 # %%
@@ -385,7 +385,7 @@ save(fig, "swath")
 # Simulated values must also reproduce the histogram and the variogram of the data. `check_realizations` compares
 # 20 more realizations, drawn at the centers of the SMUs wholly inside a lens so that their support matches the
 # composites', with the declustered data along strike and down dip
-# ([realization checks](../../examples/10-checking-models/04-realization-checks/example_10_04.md)).
+# ([realization checks](../../examples/11-validation-and-reporting/04-realization-checks/example_11_04.md)).
 
 # %%
 cores = smus.filter(f == 1)
@@ -415,7 +415,7 @@ save(fig, "reproduction")
 # dilution and the 5 m selectivity. Kriged SMUs vary less than real ones, so kriging predicts more tonnes at low
 # cutoffs and fewer at high cutoffs than the mine can deliver. The simulated curve carries its own uncertainty, the
 # band between the 10th and 90th percentile realizations
-# ([recoverable resources](../../examples/09-recoverable-resources/index.md)).
+# ([recoverable resources](../../examples/09-estimation/index.md)).
 
 # %%
 cutoffs = np.arange(0.0, 12.5, 0.5)
@@ -460,9 +460,9 @@ for p, row in (("P10", p10), ("P50", p50), ("P90", p90)):
 # scene holds the collar topography, the drill holes over the lenses, the lens surfaces, the kriged sub-blocks
 # (hidden at first) and every SMU, colored by its probability above 5 % Zn. A filter keeps the SMUs with a
 # probability of 1 % or more, so the shell of SMUs that only graze a lens does not hide the cores
-# ([3D views](../../examples/02-data-and-geometry/11-3d-views/example_02_11.md),
-# [filtering block models](../../examples/02-data-and-geometry/23-filtering-block-models/example_02_23.md),
-# [interactive sections](../../examples/02-data-and-geometry/24-interactive-sections/example_02_24.md)):
+# ([3D views](../../examples/04-viewing/01-3d-views/example_04_01.md),
+# [filtering block models](../../examples/03-geometry-and-block-models/02-filtering-block-models/example_03_02.md),
+# [interactive sections](../../examples/04-viewing/07-interactive-sections/example_04_07.md)):
 #
 # - drag to turn, right-drag to pan, the wheel zooms, double-click a block or a hole to turn around it; `R` fits
 #   the view, `P` looks down in plan, `O` draws it orthographic, at true scale at any depth;

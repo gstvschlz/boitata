@@ -1,0 +1,117 @@
+"""
+# Block kriging
+
+Block kriging estimates the average of `V` over a block instead of its value at the center. The metal survey's true block
+averages are known, so you can check block and point estimates against them for several block sizes.
+"""
+
+# %% [hidden]
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).parent if "__file__" in globals() else Path.cwd()
+sys.path.insert(0, str(HERE.parents[1]))
+
+# %%
+import boitata as bt
+import matplotlib.pyplot as plt
+import numpy as np
+from common import ACCENT, GRAY, HIGHLIGHT, save
+
+samples = bt.datasets.clustered_metal_survey()
+truth = bt.datasets.clustered_metal_survey_exhaustive()["V"].reshape(300, 260)
+
+azimuths = np.arange(0, 180, 22.5)
+directional = [bt.experimental_variogram(samples, "V", 10.0, 120.0, azimuth=a) for a in azimuths]
+model = bt.Variogram.fit_directional(
+    directional, [(a, 0) for a in azimuths], ["spherical", "spherical"], weighting="count/gamma"
+)
+search = bt.Search(radius=80, max_samples=24, min_samples=4, rotation=model.rotation, ratios=(0.5, 1.0))
+
+# %% [markdown]
+# `BlockKriging` averages the variogram between the samples and a grid of points inside each block, `discretization` of
+# them along x, y and z. Its targets are block centers. The truth is the mean of the 100 exhaustive values in each 10 ×
+# 10 m block.
+
+# %%
+blocks = bt.BlockModel(origin=(0, 0), size=(10, 10), count=(26, 30))
+block = bt.BlockKriging(model, search, size=(10, 10), discretization=(5, 5, 1)).fit(samples, "V")
+point = bt.OrdinaryKriging(model, search).fit(samples, "V")
+block_estimate, block_variance = block.predict(blocks, return_variance=True)
+point_estimate, point_variance = point.predict(blocks, return_variance=True)
+true_blocks = truth.reshape(30, 10, 26, 10).mean(axis=(1, 3)).ravel()
+for name, e, var in (
+    ("block kriging", block_estimate, block_variance),
+    ("point kriging", point_estimate, point_variance),
+):
+    print(
+        f"{name}: RMSE {bt.compare(e, true_blocks)['rmse']:.1f} ppm, mean kriging variance {np.nanmean(var):.0f}"
+    )
+print(
+    f"actual mean squared error of block kriging {bt.compare(block_estimate, true_blocks)['rmse'] ** 2:.0f}"
+)
+
+# %% [markdown]
+# The two estimates are close, and block kriging is a little more accurate against the block averages. The larger
+# difference is in the variance: point kriging reports the error of predicting one point, nugget included, while block
+# kriging reports the error of predicting the block mean, a third of it here. The actual mean squared error of the block
+# estimates, 8 269, is below even that, as the model's variance was pessimistic in
+# [ordinary kriging](../../09-estimation/01-ordinary-kriging/README.md) too.
+
+# %%
+fig, ax = plt.subplots(figsize=(4.8, 4.6), layout="constrained")
+ax.scatter(
+    true_blocks, point_estimate, s=8, color=GRAY, alpha=0.6, linewidths=0, label="Point kriging at center"
+)
+ax.scatter(true_blocks, block_estimate, s=8, color=ACCENT, alpha=0.8, linewidths=0, label="Block kriging")
+ax.plot([0, 1200], [0, 1200], color=HIGHLIGHT, lw=1, ls="--")
+ax.set(xlim=(0, 1200), ylim=(0, 1200), xlabel="True 10 × 10 m block average (ppm)", ylabel="Estimate (ppm)")
+ax.set_aspect("equal")
+ax.set_title("Estimates against true block averages")
+ax.legend(loc="upper left")
+save(fig, "blocks")
+
+# %% [markdown]
+# ## Block size
+#
+# Larger blocks average more of the short-scale variation away. `diagnostics` reports `support_variance`, the variance
+# of true block values the model predicts (sill minus the mean variogram within the block, nugget excluded), and
+# `estimate_variance`, the variance of the estimates it predicts.
+
+# %%
+sizes = (5, 10, 20)
+rows = []
+for size in sizes:
+    grid = bt.BlockModel(origin=(0, 0), size=(size, size), count=(260 // size, 300 // size))
+    d = bt.BlockKriging(model, search, size=(size, size)).fit(samples, "V").predict(grid, diagnostics=True)
+    true = truth.reshape(300 // size, size, 260 // size, size).mean(axis=(1, 3)).ravel()
+    rows.append(
+        (
+            np.nanvar(d["value"]),
+            np.nanmean(d["estimate_variance"]),
+            true.var(),
+            np.nanmean(d["support_variance"]),
+        )
+    )
+    print(
+        f"{size:>2} m blocks: variance of estimates {rows[-1][0]:6.0f} (model {rows[-1][1]:6.0f}), "
+        f"of true blocks {rows[-1][2]:6.0f} (model {rows[-1][3]:6.0f})"
+    )
+
+fig, ax = plt.subplots(figsize=(5.5, 3.6), layout="constrained")
+rows = np.array(rows)
+ax.plot(sizes, rows[:, 2], "o-", color=HIGHLIGHT, label="True blocks")
+ax.plot(sizes, rows[:, 3], "o--", color=HIGHLIGHT, alpha=0.5, label="True blocks, model")
+ax.plot(sizes, rows[:, 0], "o-", color=ACCENT, label="Block kriging")
+ax.plot(sizes, rows[:, 1], "o--", color=ACCENT, alpha=0.5, label="Block kriging, model")
+ax.set(xlabel="Block size (m)", ylabel="Variance (ppm²)", ylim=(0, None))
+ax.set_xticks(sizes)
+ax.set_title("Variance against block size")
+ax.legend()
+save(fig, "sizes")
+
+# %% [markdown]
+# The variance of true block values falls with block size, from 55 716 for 5 m blocks to 42 878 for 20 m blocks, and the
+# estimates stay below it at every size. Kriging smooths, so selecting blocks on the estimates misclassifies some of
+# them. The gap narrows as the blocks grow, one reason not to estimate blocks much smaller than the data spacing. The
+# model overstates both variances, the true one most for small blocks, but gets their order and trend right.

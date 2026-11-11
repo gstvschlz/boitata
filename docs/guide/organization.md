@@ -22,17 +22,44 @@ grid = bt.BlockModel(origin=(2.5, 2.5), size=(5, 5), count=(52, 60))  # 2. a con
 kriging = bt.OrdinaryKriging(variogram, search).fit(samples, "V")  # 3. an estimator
 grid = grid.with_column("V", kriging.predict(grid))  # results back on the container
 fig, ax = bt.plot.histogram("V", data=grid)  # 4. a plot
+print(samples)
+print(grid)
 ```
 
 ```text
-PointSet(470 points, crs: none)
-  ID: Float64
-  V: Float64
-  U: Float64
-  T: Float64
-BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0], rotation [0.0, 0.0, 0.0])
-  V: Float64
+PointSet  470 points
+  bounds  x 8 to 252, y 8 to 292, z 0 to 0
+  column  type     unit  nulls  min   mean     max
+  ID      float64            0    1  235.5     470
+  V       float64            0    0  427.7  1547.1
+  U       float64          195  2.5  883.2    8839
+  T       float64            0    1  1.819       2
+BlockModel  regular, 3,120 blocks
+  count   52 × 60 × 1
+  size    5 × 5 × 1
+  origin  2.5, 2.5, 0
+  bounds  x 2.5 to 262.5, y 2.5 to 302.5, z 0 to 1
+  column  type     unit  nulls     min  mean   max
+  V       float64            0  0.2893   290  1050
 ```
+
+## Printing an object
+
+`print` writes a card: what the object is, its main properties and, for a container, each column with its unit, null count and range. A notebook shows the same card as a table when an object ends a cell. Inside a list or a dict, in an f-string and at the plain Python prompt, an object shows as one line instead:
+
+```python
+print([samples, variogram, search, kriging])
+print(kriging)
+```
+
+```text
+[PointSet(470 points, 4 columns), Variogram([('spherical', 48957.13457196875, 62.19381478589624)], nugget=27913.68340954646), Search(60.0, max_samples=24, min_samples=4), OrdinaryKriging(fitted on 470 samples, nugget 27913.7 + spherical(48957.1, 62.19), radius 60, 4 to 24 samples)]
+OrdinaryKriging  fitted on 470 samples
+  variogram  nugget 27913.7 + spherical(48957.1, 62.19)
+  search     radius 60, 4 to 24 samples
+```
+
+The line of a `Variogram`, `Structure`, `Search`, `HighGrade`, `Categories`, `LocalGrid` or `Transiogram` is the call that builds it, with the arguments you left at their defaults dropped, so you can paste it back into a script. A transform or an estimator starts its line with `fitted` or `not fitted`, then the options you set, and its card adds what the fit learned, such as the caps of a `Capping`. A container above a million rows prints its columns without the null count and range, which would take a pass over every column.
 
 ## Five kinds of object
 

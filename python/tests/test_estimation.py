@@ -35,6 +35,29 @@ def test_simple_kriging_reverts_to_the_mean_far_away():
     assert sk.predict([[400.0, 400.0]])[0] == pytest.approx(7.0)
 
 
+def test_simple_kriging_rejects_a_variogram_without_a_sill():
+    power = bt.Variogram([("power", 1.0, 1.5)])
+    with pytest.raises(bt.InvalidInput, match="simple kriging needs a variogram with a sill"):
+        bt.SimpleKriging(power, bt.Search(radius=1000), mean=1.0)
+    assert np.isfinite(
+        bt.OrdinaryKriging(power, bt.Search(radius=1000)).fit(coords, values).predict([[50.0, 50.0]])[0]
+    )
+
+
+def test_near_duplicate_samples_share_their_weight_whatever_the_neighborhood_size():
+    lattice = np.array([[x, y] for x in range(0, 100, 11) for y in range(0, 100, 11)], float)
+    pair = np.array([[50.5, 50.5], [50.5 + 1e-9, 50.5]])
+    xy = np.vstack([pair, lattice])
+    z = np.r_[1.0, 5.0, np.sin(lattice[:, 0] / 17.0) + 3.0]
+    exact = bt.Variogram([("spherical", 1.0, 50.0)])
+    target = [[52.0, 51.0]]
+    out = [
+        bt.OrdinaryKriging(exact, bt.Search(radius=1e3, max_samples=n)).fit(xy, z).predict(target)[0]
+        for n in (64, 65)
+    ]
+    assert np.all(np.isfinite(out))
+
+
 def test_indicator_kriging_gives_probabilities():
     ik = bt.IndicatorKriging(model, search, threshold=float(np.median(values))).fit(coords, values)
     p = ik.predict(rng.uniform(0, 100, (50, 2)))
@@ -118,11 +141,67 @@ def test_nearest_and_inverse_distance():
     assert np.all((est >= values.min()) & (est <= values.max()))
 
 
+@pytest.mark.parametrize(
+    "make",
+    [
+        lambda: bt.UniversalKriging(model, search, degree=3),
+        lambda: bt.ExternalDriftKriging(model, search, "d", degree=3),
+        lambda: bt.BayesianKriging(model, search, [0.0] * 10, [1.0] * 10, degree=3),
+        lambda: bt.LocalLeastSquares(search, degree=3),
+        lambda: bt.DualKriging(model, degree=3),
+    ],
+)
+def test_drift_degree_above_two_is_invalid(make):
+    with pytest.raises(bt.InvalidInput, match="degree must be 0, 1 or 2; got 3"):
+        make()
+
+
+@pytest.mark.parametrize("power", [float("nan"), -2.0, float("inf")])
+def test_inverse_distance_power_must_be_finite_and_non_negative(power):
+    with pytest.raises(bt.InvalidInput, match="power must be finite and >= 0"):
+        bt.InverseDistance(search, power=power)
+
+
+@pytest.mark.parametrize(
+    ("structures", "nugget", "match"),
+    [([5], False, "0 to 0"), ([0, 0], False, "distinct"), ([], False, "at least one")],
+)
+def test_factorial_structures_must_be_distinct_indices(structures, nugget, match):
+    v = bt.Variogram([("spherical", 0.8, 50.0)], nugget=0.2)
+    with pytest.raises(bt.InvalidInput, match=match):
+        bt.FactorialKriging(v, search, structures, nugget=nugget)
+
+
+@pytest.mark.parametrize(("mean", "variance"), [(100.0, -5.0), (100.0, float("nan")), (float("nan"), 1.0)])
+def test_bayesian_prior_must_be_finite_with_non_negative_variance(mean, variance):
+    with pytest.raises(bt.InvalidInput, match="prior_"):
+        bt.BayesianKriging(model, search, [mean], [variance])
+
+
 def test_cross_validation_summary():
     cv = bt.OrdinaryKriging(model, search).fit(coords, values).cross_validate()
     assert cv.estimate.shape == values.shape
     assert abs(cv.mean_error) < 0.1 and cv.correlation > 0.8
     assert np.isfinite(cv.standardized_squared_error)
+
+
+@pytest.mark.parametrize(
+    "rule",
+    [
+        bt.Search(radius=50, max_samples=4, octant=True, max_per_sector=1),
+        bt.Search(radius=50, max_samples=6, sectors=6, max_per_sector=1, max_empty_sectors=2),
+        bt.Search(radius=50, max_samples=6, max_per_hole=2, min_holes=3),
+    ],
+)
+def test_cross_validation_searches_as_if_the_sample_were_absent(rule):
+    holes = [f"DH{i // 5}" for i in range(len(coords))]
+    cv = bt.OrdinaryKriging(model, rule).fit(coords, values, holes=holes).cross_validate()
+    for i in range(len(coords)):
+        rest = np.arange(len(coords)) != i
+        ok = bt.OrdinaryKriging(model, rule).fit(
+            coords[rest], values[rest], holes=list(np.array(holes)[rest])
+        )
+        np.testing.assert_allclose(cv.estimate[i], ok.predict(coords[i : i + 1])[0], rtol=1e-9, atol=1e-12)
 
 
 def test_search_passes_fill_what_earlier_passes_left():
@@ -772,6 +851,20 @@ def test_search_getters():
     assert bt.Search(radius=50, soft=pairs).soft == pairs
 
 
+def test_max_samples_beyond_the_data_takes_them_all():
+    rng = np.random.default_rng(3)
+    xyz = rng.uniform(0, 100, (40, 3))
+    model = bt.Variogram([("spherical", 1.0, 40.0)])
+    for octant in (False, True):
+        search = bt.Search(radius=500, max_samples=1 << 40, octant=octant)
+        d = (
+            bt.OrdinaryKriging(model, search)
+            .fit(xyz, rng.normal(size=40))
+            .predict(xyz[:5] + 1.0, diagnostics=True)
+        )
+        assert np.all(np.asarray(d["n_samples"]) == 40)
+
+
 def test_plane_sectors():
     s = bt.Search(radius=50, max_samples=24, sectors=6)
     assert (s.sectors, s.max_per_sector, bt.Search(radius=50).sectors) == (6, 4, None)
@@ -780,6 +873,7 @@ def test_plane_sectors():
         {"sectors": 4, "octant": True},
         {"max_per_sector": 2},
         {"sectors": 4, "max_per_sector": 0},
+        {"sectors": 1 << 40},
     ):
         with pytest.raises(bt.InvalidInput):
             bt.Search(radius=50, **bad)
@@ -928,6 +1022,34 @@ def gaussian_field(n=300, seed=11):
 
 
 blocks = bt.BlockModel(origin=(5.0, 5.0), size=(10, 10), count=(20, 20))
+
+
+def test_block_kriging_with_one_node_is_point_kriging():
+    vg = bt.Variogram([("spherical", 0.7, 100.0)], nugget=0.3)
+    one = bt.Search(radius=1e4, max_samples=1)
+    at, z = [[50.0, 0.0]], [1.0]
+    point = bt.OrdinaryKriging(vg, one).fit(at, z).predict([[0.0, 0.0]], diagnostics=True)
+    block = (
+        bt.BlockKriging(vg, one, size=(10, 10, 10), discretization=(1, 1, 1))
+        .fit(at, z)
+        .predict([[0.0, 0.0]], diagnostics=True)
+    )
+    assert point["variance"][0] == pytest.approx(2 * vg.gamma([50.0])[0], abs=1e-9)
+    assert block["variance"][0] == pytest.approx(point["variance"][0], abs=1e-9)
+
+
+@pytest.mark.parametrize(
+    ("options", "match"),
+    [
+        ({"discretization": (0, 4, 1)}, "discretization"),
+        ({"size": (10, float("nan"))}, "size"),
+        ({"size": (10, 0)}, "size"),
+        ({"size": (10, -1, 5)}, "size"),
+    ],
+)
+def test_block_kriging_rejects_bad_support(options, match):
+    with pytest.raises(bt.InvalidInput, match=match):
+        bt.BlockKriging(model, search, **{"size": (10, 10), **options})
 
 
 def test_calibration_block_variance_excludes_the_nugget():
@@ -1296,3 +1418,34 @@ def test_block_kriging_follows_a_rotated_model():
     model = bt.BlockModel((0, 0, 0), (50, 5, 1), (1, 1, 1), rotation=(90, 0, 0))
     block = lambda size, targets: bt.BlockKriging(vg, search, size).fit(xy, z).predict(targets)
     assert block((50, 5, 1), model) == pytest.approx(block((5, 50, 1), model.coords))
+
+
+def test_hole_distance_int_and_float_domain_labels_pair():
+    targets = coords[:5] + 1.0
+    holes = np.arange(len(coords))
+    ints = (np.ones(5, dtype=int), np.ones(len(coords), dtype=int))
+    expected = bt.hole_distance(targets, coords, holes, 2, domains=ints)
+    assert np.all(np.isfinite(expected))
+    mixed = bt.hole_distance(targets, coords, holes, 2, domains=(ints[0], np.ones(len(coords))))
+    np.testing.assert_allclose(mixed, expected)
+    unlabelled = np.r_[np.nan, np.ones(len(coords) - 1)]
+    out = bt.hole_distance(targets, coords, holes, 2, domains=(np.r_[np.nan, ints[0][1:]], unlabelled))
+    assert out[0] == np.inf and np.all(np.isfinite(out[1:]))
+
+
+@pytest.mark.parametrize("missing", [None, np.nan])
+def test_missing_hole_ids_count_as_their_own_hole(missing):
+    holes = np.array([missing] * len(coords), dtype=object)
+    targets = coords[:3] + 1.0
+    np.testing.assert_allclose(
+        bt.hole_distance(targets, coords, holes, 2),
+        bt.hole_distance(targets, coords, np.arange(len(coords)), 2),
+    )
+    est = bt.OrdinaryKriging(model, bt.Search(radius=200, max_samples=12, min_holes=2))
+    out = est.fit(coords, values, holes=holes).predict(targets)
+    np.testing.assert_allclose(out, est.fit(coords, values).predict(targets))
+
+
+def test_hole_ids_must_be_finite_labels():
+    with pytest.raises(bt.InvalidInput, match="holes must be a 1-D sequence of labels"):
+        bt.hole_distance(coords[:3], coords, np.full(len(coords), np.inf), 2)

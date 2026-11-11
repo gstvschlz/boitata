@@ -167,18 +167,6 @@ impl PyHighGrade {
                     == b.anisotropy.as_ref().map(|x| &x.angles)
         })
     }
-
-    fn __repr__(&self) -> String {
-        let extent = match self.ranges() {
-            Some(r) => format!("{r:?}, rotation={:?}", self.rotation().unwrap_or_default()),
-            None => format!("{}", self.0.radius),
-        };
-        format!(
-            "HighGrade({}, {extent}, mode={:?})",
-            self.0.threshold,
-            self.mode()
-        )
-    }
 }
 
 /// Neighborhood: `radius` is in meters along the major axis of the
@@ -190,8 +178,8 @@ impl PyHighGrade {
 /// the target, split along the ellipsoid's axes; with 2D data (one elevation)
 /// the sectors are the ellipse's four quadrants, `max_samples / 4` each.
 /// `sectors` instead splits the plane of the ellipsoid's major and
-/// semi-major axes into that many equal angles, the first starting at the
-/// major axis. Either takes at most `max_per_sector` samples from each
+/// semi-major axes into that many (2 to 360) equal angles, the first
+/// starting at the major axis. Either takes at most `max_per_sector` samples from each
 /// (`max_samples` over the number of sectors, rounded up, by default).
 /// `min_sectors` leaves a target unestimated by this pass unless that many
 /// octants or sectors hold a sample, and `max_empty_sectors` when more than
@@ -703,17 +691,6 @@ impl Search {
         let a = &self.core.anisotropy.as_ref()?.angles;
         Some((a.semi, a.minor))
     }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "Search(radius={}, max_samples={}, min_samples={}, octant={}, sectors={:?})",
-            self.core.radius,
-            self.core.max_samples,
-            self.core.min_samples,
-            self.core.octant,
-            self.sectors()
-        )
-    }
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -788,7 +765,7 @@ impl Method {
         };
         match self {
             Method::Kriging(kind) => krige(*kind, t, s, vg()),
-            Method::Universal(degree) => krige_universal(t, s, &drift(*degree), vg(), None),
+            Method::Universal(degree) => krige_universal(t, s, &drift(*degree)?, vg(), None),
             Method::ExternalDrift { .. } => Err(estimation::EstimError::InvalidParameters(
                 "external-drift kriging needs covariates; only predict() supports it".into(),
             )),
@@ -817,6 +794,25 @@ impl Method {
             Method::LocalLeastSquares(degree) => {
                 interp(estimation::local_least_squares(t, s, *degree, &opts))
             }
+        }
+    }
+
+    /// An error when the parameters of this method are out of range.
+    fn check(&self, vg: Option<&CoreVariogram>) -> estimation::Result<()> {
+        match self {
+            Method::Universal(degree)
+            | Method::ExternalDrift { degree, .. }
+            | Method::LocalLeastSquares(degree) => estimation::check_degree(*degree),
+            Method::Bayesian { degree, mean, var } => {
+                estimation::check_degree(*degree)?;
+                estimation::check_prior_values(mean, var)
+            }
+            Method::Factorial { nugget, structures } => match vg {
+                Some(vg) => estimation::check_factorial(vg, *nugget, structures),
+                None => Ok(()),
+            },
+            Method::InverseDistance(power) => estimation::check_power(*power),
+            _ => Ok(()),
         }
     }
 
@@ -863,9 +859,14 @@ impl Method {
         let (rhs, drift, support) = match self {
             Method::Kriging(Kind::Simple { .. }) => (rhs(), DriftSpec::simple(s.len()), None),
             Method::Kriging(_) => (rhs(), DriftSpec::ordinary(s.len()), None),
-            Method::Universal(degree) => (rhs(), DriftSpec::polynomial(&locs(), t, *degree), None),
+            Method::Universal(degree) => match DriftSpec::polynomial(&locs(), t, *degree) {
+                Ok(drift) => (rhs(), drift, None),
+                Err(_) => return (s.len(), None),
+            },
             Method::ExternalDrift { degree, .. } => {
-                let drift = DriftSpec::polynomial(&locs(), t, *degree);
+                let Ok(drift) = DriftSpec::polynomial(&locs(), t, *degree) else {
+                    return (s.len(), None);
+                };
                 let drift = match external {
                     Some((rows, at)) => drift.with_external(rows, at),
                     None => drift,
@@ -1111,6 +1112,10 @@ pub fn samples_from(found: &Found) -> PyResult<Vec<Sample>> {
 }
 
 impl Tabular for Estimator {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(Vec::len)
+    }
+
     fn columns(&self) -> Option<Columns> {
         let mut columns = sample_columns(self.samples.as_deref()?);
         for (j, col) in self.drift_data.iter().enumerate() {
@@ -1132,6 +1137,10 @@ impl Tabular for Estimator {
 }
 
 impl Tabular for Dual {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(Vec::len)
+    }
+
     fn columns(&self) -> Option<Columns> {
         self.samples.as_deref().map(sample_columns)
     }
@@ -1374,8 +1383,22 @@ impl Estimator {
                     .extract()?;
                 let (nx, ny, nz): (usize, usize, usize) =
                     get("discretization")?.map_or(Ok((4, 4, 1)), |v| v.extract())?;
+                if nx == 0 || ny == 0 || nz == 0 {
+                    return Err(invalid(format!(
+                        "discretization must be at least 1 per axis, got ({nx}, {ny}, {nz})"
+                    )));
+                }
+                let size = triple(size, 1.0, "size")?;
+                if ![size.0, size.1, size.2]
+                    .iter()
+                    .all(|v| v.is_finite() && *v > 0.0)
+                {
+                    return Err(invalid(format!(
+                        "size must be finite and > 0, got {size:?}"
+                    )));
+                }
                 Method::Block {
-                    size: triple(size, 1.0, "size")?,
+                    size,
                     disc: Discretization { nx, ny, nz },
                     rotation: [0.0; 3],
                 }
@@ -1399,6 +1422,16 @@ impl Estimator {
         if method.kriging() && variogram.is_none() {
             return Err(invalid("kriging needs a variogram"));
         }
+        if matches!(method, Method::Kriging(Kind::Simple { .. }))
+            && variogram.as_ref().is_some_and(|v| !v.0.is_stationary())
+        {
+            return Err(invalid(
+                "simple kriging needs a variogram with a sill: every structure must be stationary (not power); use ordinary kriging",
+            ));
+        }
+        method
+            .check(variogram.as_ref().map(|v| &v.0))
+            .map_err(invalid)?;
         method.calibrates(&search)?;
         Ok(Self {
             method,
@@ -1628,10 +1661,18 @@ impl Estimator {
                                         self.method.calibrated(search, t, s, vg, Some((cov, e)));
                                     let (s, cov) = (&s[..n], &cov[..n]);
                                     let locs: Vec<Point> = s.iter().map(|x| x.loc).collect();
-                                    let drift = DriftSpec::polynomial(&locs, t, *degree)
-                                        .with_external(cov, e);
-                                    let kriged =
-                                        krige_universal(t, s, &drift, vg.expect("kriging"), None);
+                                    let kriged = DriftSpec::polynomial(&locs, t, *degree).and_then(
+                                        |drift| {
+                                            let drift = drift.with_external(cov, e);
+                                            krige_universal(
+                                                t,
+                                                s,
+                                                &drift,
+                                                vg.expect("kriging"),
+                                                None,
+                                            )
+                                        },
+                                    );
                                     used(t, s, kriged, met)
                                 },
                             ))
@@ -1780,13 +1821,17 @@ impl Estimator {
         persist::state("_Estimator", self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta("_Estimator", self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
         persist::from_state("_Estimator", meta, columns)
     }
 }
 
-/// Global dual kriging with a polynomial drift of `degree` (no search).
+/// Global dual kriging with a polynomial drift of `degree` (0, 1 or 2; no search).
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "DualKriging")]
 pub struct Dual {
@@ -1803,13 +1848,14 @@ pub struct Dual {
 impl Dual {
     #[new]
     #[pyo3(signature = (variogram, *, degree=0))]
-    fn new(variogram: Variogram, degree: usize) -> Self {
-        Self {
+    fn new(variogram: Variogram, degree: usize) -> PyResult<Self> {
+        estimation::check_degree(degree).map_err(invalid)?;
+        Ok(Self {
             variogram: variogram.0,
             degree,
             unit: None,
             samples: None,
-        }
+        })
     }
 
     fn fit<'py>(
@@ -1858,6 +1904,10 @@ impl Dual {
 
     fn _state(&self) -> PyResult<(String, Option<Columns>)> {
         persist::state(<Self as PyClass>::NAME, self)
+    }
+
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta(<Self as PyClass>::NAME, self)
     }
 
     #[staticmethod]
@@ -1930,7 +1980,8 @@ fn neighborhood_stats(
 ///     Sample coordinates, (n, 2) or (n, 3).
 /// holes : array_like or str
 ///     Hole id of each sample, or the column of `coords` holding them;
-///     samples of one hole count once.
+///     samples of one hole count once, and one without an id (None or NaN)
+///     counts as its own hole.
 /// n : int or sequence of int
 ///     Number of holes averaged; one per class.
 /// search : Search, optional
@@ -1939,7 +1990,8 @@ fn neighborhood_stats(
 ///     omitted.
 /// domains : tuple of array_like, optional
 ///     ``(target_domains, sample_domains)``: each target only sees samples of
-///     its own domain.
+///     its own domain, ``1`` and ``1.0`` being one domain; a target or sample
+///     without one (None or NaN) is in none.
 /// domain_column : str or tuple of str, optional
 ///     The column of `targets` and `coords` holding their domains, or one
 ///     name for each; instead of `domains`.
@@ -2017,9 +2069,8 @@ fn hole_distance<'py>(
     };
     let targets = self::targets(targets)?;
     let labels = |obj: &Bound<PyAny>, len: usize| {
-        args::holes(Some(obj), len)
+        args::row_labels(obj, len, "domains")
             .map_err(|_| invalid("domains must be two 1-D sequences of labels"))
-            .map(|l| l.expect("given").0)
     };
     let groups: Vec<(Vec<usize>, Vec<usize>)> = match &domains {
         None => vec![((0..targets.len()).collect(), (0..locs.len()).collect())],
@@ -2028,10 +2079,12 @@ fn hole_distance<'py>(
             let mut by: std::collections::BTreeMap<&str, (Vec<usize>, Vec<usize>)> =
                 Default::default();
             for (i, d) in at.iter().enumerate() {
-                by.entry(d).or_default().0.push(i);
+                if let Some(d) = d {
+                    by.entry(d).or_default().0.push(i);
+                }
             }
             for (i, d) in of.iter().enumerate() {
-                if let Some(g) = by.get_mut(d.as_str()) {
+                if let Some(g) = d.as_deref().and_then(|d| by.get_mut(d)) {
                     g.1.push(i);
                 }
             }

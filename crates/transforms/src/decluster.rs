@@ -35,9 +35,15 @@ pub fn cell_weights(
     if locations.len() != values.len() {
         return Err(TransformError::InvalidParameters("length mismatch".into()));
     }
-    if cell_size <= 0.0 {
+    if !(cell_size > 0.0 && cell_size.is_finite()) {
         return Err(TransformError::InvalidParameters(
-            "cell_size must be > 0".into(),
+            "cell_size must be finite and > 0".into(),
+        ));
+    }
+    let finite = |p: &(f64, f64, f64)| p.0.is_finite() && p.1.is_finite() && p.2.is_finite();
+    if !finite(&origin) || !locations.iter().all(finite) {
+        return Err(TransformError::InvalidParameters(
+            "locations and origin must be finite".into(),
         ));
     }
 
@@ -353,5 +359,30 @@ mod tests {
         assert!((w.declustered_mean - naive).abs() < 1e-12);
         assert_eq!(w.declustered_mean, m);
         assert!((w.weights.iter().sum::<f64>() - 40.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn non_finite_cell_size_or_coordinates_are_rejected() {
+        let mut p = Vec::new();
+        let mut v = Vec::new();
+        for i in 0..10 {
+            for j in 0..10 {
+                p.push((i as f64 * 10.0, j as f64 * 10.0, 0.0));
+                v.push(1.0);
+            }
+        }
+        for k in 0..50 {
+            p.push((1.0 + (k % 7) as f64 * 0.5, 1.0 + (k / 7) as f64 * 0.5, 0.0));
+            v.push(5.0);
+        }
+        let o = (0.0, 0.0, 0.0);
+        assert!(cell_weights(&p, &v, f64::NAN, o).is_err());
+        assert!(cell_weights(&p, &v, f64::INFINITY, o).is_err());
+        assert!(cell_weights(&p, &v, 10.0, (f64::NAN, 0.0, 0.0)).is_err());
+        assert!(optimal_cell_size(&p, &v, &[f64::NAN, 5.0], 1, false).is_err());
+        let mut q = p.clone();
+        q[0].0 = f64::INFINITY;
+        assert!(cell_weights(&q, &v, 10.0, o).is_err());
+        assert!(cell_weights(&p, &v, 10.0, o).is_ok());
     }
 }

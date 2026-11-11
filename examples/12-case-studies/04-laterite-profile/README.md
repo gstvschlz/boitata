@@ -105,7 +105,10 @@ save(fig, "bedrock")
 </details>
 
 ```text
-Variogram(nugget=0, structures=[Structure("spherical", sill=365.53369434127086, range=700.3291439038595)], rotation=(0.0, 0.0, 0.0), ratios=(1.0, 1.0))
+Variogram  sill 370.6, 1 structure
+  structure   sill  range
+  nugget         0
+  spherical  370.6  712.5
 kriged at the infill: mean error -0.29 m, RMSE 5.60 m
 topography less the mean depth: RMSE 5.86 m
 ```
@@ -161,16 +164,16 @@ print(f"{len(blocks)} blocks and sub-blocks")
 </details>
 
 ```text
-saprolite at least 1.0 m thick
-FERR: 1.58 Mm³
-LIM: 4.99 Mm³
-SAP: 7.95 Mm³
-27004 blocks and sub-blocks
+saprolite at least 0.6 m thick
+FERR: 1.57 Mm³
+LIM: 5.00 Mm³
+SAP: 7.94 Mm³
+27024 blocks and sub-blocks
 ```
 
-The kriged saprolite never thins below 1.0 m, so the bedrock, kriged on its own, never cuts into the limonite. The
-volumes match the logged thicknesses over the 0.7 km² of the model: 1.58 Mm³ of ferricrete, 4.99 of limonite and
-7.95 of saprolite.
+The kriged saprolite never thins below 0.6 m, so the bedrock, kriged on its own, never cuts into the limonite. The
+volumes match the logged thicknesses over the 0.7 km² of the model: 1.57 Mm³ of ferricrete, 5.00 of limonite and
+7.94 of saprolite.
 
 ## Ni and Co by horizon
 
@@ -337,17 +340,17 @@ for name in names[:3]:
 
 ```text
                     Mt   Ni %   Co %   kt Ni  kt Co
-FERR all          3.47   0.36  0.027    12.5   0.95
-LIM  all          7.49   1.07  0.114    80.2   8.51
-LIM  ≥ 1.5 % Ni   0.20   1.58  0.198     3.1   0.39
-SAP  all         12.72   1.65  0.040   209.3   5.14
-SAP  ≥ 1.5 % Ni   7.37   1.93  0.047   142.4   3.43
+FERR all          3.46   0.36  0.027    12.5   0.95
+LIM  all          7.50   1.07  0.114    80.3   8.52
+LIM  ≥ 1.5 % Ni   0.19   1.58  0.199     3.1   0.38
+SAP  all         12.71   1.65  0.040   209.3   5.14
+SAP  ≥ 1.5 % Ni   7.38   1.93  0.047   142.6   3.44
 ```
 
 The block grades of each horizon reproduce its composites: 0.36 against 0.35 % Ni in the ferricrete, 1.07 against
 1.08 in the limonite, 1.65 against 1.69 in the saprolite. The saprolite holds 12.7 Mt at 1.65 % Ni, 209 kt of
-nickel, and 7.37 Mt of it lie above 1.5 % Ni. The limonite, 7.49 Mt at 1.07 % Ni, is poorer in nickel, but at 0.114 % Co it holds
-8.51 of the 14.6 kt of cobalt. The ferricrete, 3.47 Mt at 0.36 % Ni, is overburden. Every tonne scales with the
+nickel, and 7.38 Mt of it lie above 1.5 % Ni. The limonite, 7.50 Mt at 1.07 % Ni, is poorer in nickel, but at 0.114 % Co it holds
+8.52 of the 14.6 kt of cobalt. The ferricrete, 3.46 Mt at 0.36 % Ni, is overburden. Every tonne scales with the
 assumed densities: a saprolite at 1.4 instead of 1.6 t/m³ would lose an eighth of its tonnes and metal.
 
 Full script: [`example_12_04.py`](example_12_04.py)

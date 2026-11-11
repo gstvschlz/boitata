@@ -130,7 +130,12 @@ save(fig, "variogram")
 
 ```text
 trend: -0.15 m per km east, +0.05 m per km north
-Variogram(nugget=0.15060548317928024, structures=[Structure("spherical", sill=0.1374775885006841, range=3473.262956247401)], rotation=(53.47257207054628, 0.0, 0.0), ratios=(0.5455824960050881, 1.0))
+Variogram  sill 0.2881, 1 structure
+  rotation  azimuth 53.47°, dip 0°, rake 0°
+  ratios    semi/major 0.5456, minor/major 1
+  structure    sill   major  semi   minor
+  nugget     0.1506
+  spherical  0.1375  3473.3  1895  3473.3
 ```
 
 ![variogram](variogram.png)
@@ -284,7 +289,12 @@ save(fig, "tonnes")
 </details>
 
 ```text
-Variogram(nugget=0.32246559795714036, structures=[Structure("spherical", sill=0.6775344020428596, range=1521.0260000387461)], rotation=(36.48403111889925, 0.0, 0.0), ratios=(0.3921850057886436, 1.0))
+Variogram  sill 1, 1 structure
+  rotation  azimuth 36.48°, dip 0°, rake 0°
+  ratios    semi/major 0.3922, minor/major 1
+  structure    sill  major   semi  minor
+  nugget     0.3225
+  spherical  0.6775   1521  596.5   1521
 total: P10 174.0 Mt, P50 176.5 Mt, P90 179.2 Mt; kriged 176.8 Mt
 P10-P90 spread ±1.5% of P50
 ```
@@ -338,7 +348,7 @@ indicated: 57.3% of the lease,  91.5 Mt, mean 1.58 m
 
 Measured cells, a quarter of the lease, sit on the infill where the seam is thickest, 2.39 m on average, and hold
 62.6 Mt. Indicated cells cover the regional grid, 91.5 Mt; inferred ones, 22.7 Mt, lie at the edges of the lease
-beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../10-checking-models/05-classification/README.md) classifies
+beyond the last holes, and where the regional grid has gaps. Spacing ignores the variogram; [classification](../../11-validation-and-reporting/05-classification/README.md) classifies
 from the kriging itself.
 
 `Scene.add` encodes a text `values` column itself, so the 3D layer takes the class labels directly rather than

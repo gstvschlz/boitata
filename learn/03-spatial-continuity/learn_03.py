@@ -278,8 +278,8 @@ save(fig, "anisotropy")
 #     before you fit, and fit one model whose ellipse explains all of them.
 #
 # The long range stops at 115 m, a little below the largest lag of 120 m; beyond the data, the fit has nothing to
-# hold it. Reading such limits is part of the job: [experimental variograms](../../examples/05-spatial-continuity/01-experimental-variograms/example_05_01.md)
-# and [variogram fitting](../../examples/05-spatial-continuity/02-variogram-fitting/example_05_02.md) walk through
+# hold it. Reading such limits is part of the job: [experimental variograms](../../examples/07-variography/01-experimental-variograms/example_07_01.md)
+# and [variogram fitting](../../examples/07-variography/02-variogram-fitting/example_07_02.md) walk through
 # them.
 #
 # A `Variogram` serializes to JSON and back without loss, so a model fitted today can travel with a report or feed
@@ -326,9 +326,9 @@ for name, covariance in (("straight line to the sill", straight), ("spherical", 
 #     - Why can't you use any curve that fits the experimental points as a variogram model?
 #
 # !!! seealso "See also"
-#     - Examples: [experimental variograms](../../examples/05-spatial-continuity/01-experimental-variograms/example_05_01.md),
-#       [variogram fitting](../../examples/05-spatial-continuity/02-variogram-fitting/example_05_02.md),
-#       [nugget inference](../../examples/05-spatial-continuity/11-nugget-inference/example_05_11.md).
+#     - Examples: [experimental variograms](../../examples/07-variography/01-experimental-variograms/example_07_01.md),
+#       [variogram fitting](../../examples/07-variography/02-variogram-fitting/example_07_02.md),
+#       [nugget inference](../../examples/07-variography/10-nugget-inference/example_07_10.md).
 #     - API: [`experimental_variogram`](../../api/variography/experimental_variogram.md),
 #       [`ExperimentalVariogram`](../../api/variography/ExperimentalVariogram.md),
 #       [`variogram_map`](../../api/variography/variogram_map.md),

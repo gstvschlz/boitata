@@ -94,25 +94,21 @@ pub fn transform_censored(
         i = j;
     }
 
-    let w: Vec<f64> = match weights {
-        Some(w) => {
-            let s: f64 = w.iter().sum();
-            if s <= 0.0 || s.is_nan() || w.iter().any(|&x| x < 0.0) {
-                return Err(TransformError::InvalidParameters(
-                    "weights must not be negative and must sum to more than 0".into(),
-                ));
-            }
-            w.iter().map(|x| x / s).collect()
-        }
-        None => vec![1.0 / n as f64; n],
-    };
+    let mut w = normalized_weights(weights, n)?;
+    // Samples without weight are left out of the CDF, as in GSLIB, and scored from it.
+    let floor = 1e-10 * w.iter().copied().fold(0.0, f64::max);
+    let kept: Vec<usize> = order.iter().copied().filter(|&i| w[i] > floor).collect();
+    if kept.len() < n {
+        let total: f64 = kept.iter().map(|&i| w[i]).sum();
+        w.iter_mut().for_each(|x| *x /= total);
+    }
 
     // Cumulative probability at the midpoint of each ordered sample's weight.
     let mut scores = vec![0.0f64; n];
     let mut cum = 0.0;
-    let mut table_vals = Vec::with_capacity(n);
-    let mut table_scores = Vec::with_capacity(n);
-    for &idx in &order {
+    let mut table_vals = Vec::with_capacity(kept.len());
+    let mut table_scores = Vec::with_capacity(kept.len());
+    for &idx in &kept {
         let wi = w[idx];
         let p = cum + wi / 2.0;
         cum += wi;
@@ -121,15 +117,35 @@ pub fn transform_censored(
         table_vals.push(values[idx]);
         table_scores.push(z);
     }
+    let (lo, hi) = (table_vals[0], table_vals[kept.len() - 1]);
+    let table = NormalScoreTable {
+        tails: (lo, hi),
+        values: table_vals,
+        scores: table_scores,
+    };
+    if kept.len() < n {
+        for &idx in &order {
+            if w[idx] <= floor {
+                scores[idx] = table.forward(values[idx].clamp(lo, hi));
+            }
+        }
+    }
 
-    Ok(NormalScore {
-        scores,
-        table: NormalScoreTable {
-            tails: (table_vals[0], table_vals[n - 1]),
-            values: table_vals,
-            scores: table_scores,
-        },
-    })
+    Ok(NormalScore { scores, table })
+}
+
+/// Weights scaled to sum to 1, equal when `weights` is `None`.
+pub(crate) fn normalized_weights(weights: Option<&[f64]>, n: usize) -> Result<Vec<f64>> {
+    let Some(w) = weights else {
+        return Ok(vec![1.0 / n as f64; n]);
+    };
+    let s: f64 = w.iter().sum();
+    if !s.is_finite() || s <= 0.0 || w.iter().any(|&x| !x.is_finite() || x < 0.0) {
+        return Err(TransformError::InvalidParameters(
+            "weights must be finite and >= 0, with a finite sum > 0".into(),
+        ));
+    }
+    Ok(w.iter().map(|x| x / s).collect())
 }
 
 /// A continuous distribution to take normal scores against, in place of the
@@ -367,5 +383,40 @@ mod tests {
         assert_eq!(a.scores, b.scores);
         assert_eq!(a.table.values, b.table.values);
         assert_eq!(a.table.scores, b.table.scores);
+    }
+
+    #[test]
+    fn zero_weight_samples_are_scored_from_the_positive_weight_cdf() {
+        let vals: Vec<f64> = (1..=10).map(|i| i as f64).collect();
+        let mut w = vec![1.0; 10];
+        w[0] = 0.0;
+        w[5] = 0.0;
+        let ns = transform(&vals, Some(&w)).unwrap();
+        let kept: Vec<f64> = vals
+            .iter()
+            .zip(&w)
+            .filter(|p| *p.1 > 0.0)
+            .map(|p| *p.0)
+            .collect();
+        let reference = transform(&kept, None).unwrap();
+        assert_eq!(ns.table.values, reference.table.values);
+        assert_eq!(ns.table.scores, reference.table.scores);
+        assert_eq!(ns.scores[0], reference.scores[0]);
+        assert_eq!(ns.scores[5], ns.table.forward(6.0));
+        assert!(ns.scores[4] < ns.scores[5] && ns.scores[5] < ns.scores[6]);
+        assert!(ns.table.back(-3.0) >= 2.0);
+    }
+
+    #[test]
+    fn rejects_non_finite_weights_and_overflowing_sums() {
+        let vals = [1.0, 2.0, 3.0, 4.0, 5.0];
+        for w in [
+            [1e308, 1e308, 1.0, 1.0, 1.0],
+            [f64::INFINITY, 1.0, 1.0, 1.0, 1.0],
+            [f64::NAN, 1.0, 1.0, 1.0, 1.0],
+            [0.0; 5],
+        ] {
+            assert!(transform(&vals, Some(&w)).is_err());
+        }
     }
 }

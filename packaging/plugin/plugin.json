@@ -1,0 +1,29 @@
+{
+  "$schema": "https://antigravity.google/schemas/v1/plugin.json",
+  "name": "boitata",
+  "displayName": "boitatá",
+  "version": "0.7.0",
+  "description": "How to write correct boitatá code: the kinds of object, the calls each one takes, and where to look up a signature in the installed package.",
+  "author": { "name": "Gustavo Pretto Scholze" },
+  "homepage": "https://gstvschlz.github.io/boitata/",
+  "repository": "https://github.com/gstvschlz/boitata",
+  "license": "MIT",
+  "keywords": ["geostatistics", "kriging", "variogram", "mining", "python"],
+  "suggestedPrompts": [
+    "Krige the clustered metal survey dataset with boitatá and cross-validate the plan",
+    "Fit a variogram to my composites with boitatá and plot it",
+    "Simulate grades with SGS in boitatá and check the histogram and the variogram"
+  ],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "boitatá",
+        "shortDescription": "Correct boitatá geostatistics",
+        "longDescription": "How to write correct boitatá code: the kinds of object, the calls each one takes, and where to look up a signature in the installed package.",
+        "developerName": "Gustavo Pretto Scholze",
+        "category": "Coding",
+        "websiteURL": "https://gstvschlz.github.io/boitata/"
+      }
+    }
+  }
+}

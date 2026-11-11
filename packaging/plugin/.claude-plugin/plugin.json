@@ -1,0 +1,10 @@
+{
+  "name": "boitata",
+  "version": "0.7.0",
+  "description": "How to write correct boitatá code: the kinds of object, the calls each one takes, and where to look up a signature in the installed package.",
+  "author": { "name": "Gustavo Pretto Scholze" },
+  "homepage": "https://gstvschlz.github.io/boitata/",
+  "repository": "https://github.com/gstvschlz/boitata",
+  "license": "MIT",
+  "keywords": ["geostatistics", "kriging", "variogram", "mining", "python"]
+}

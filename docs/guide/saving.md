@@ -72,8 +72,14 @@ print(back.crs, back.size, back.count)
 ```
 
 ```text
-BlockModel(regular, 3120 of 3120 cells, count [52, 60, 1], size [5.0, 5.0, 1.0], rotation [0.0, 0.0, 0.0])
-  V: Float64
+BlockModel  regular, 3,120 blocks
+  count   52 × 60 × 1
+  size    5 × 5 × 1
+  origin  2.5, 2.5, 0
+  crs     EPSG:32611
+  bounds  x 2.5 to 262.5, y 2.5 to 302.5, z 0 to 1
+  column  type     unit  nulls  min    mean   max
+  V       float64            0    0  1559.5  3119
 EPSG:32611 [5.0, 5.0, 1.0] [52, 60, 1]
 ```
 
@@ -105,4 +111,4 @@ True
 !!! pitfall "Pitfall"
     `write_csv` keeps the block centers and the columns and drops block size, rotation, CRS and layout. Use CSV to hand data to someone else, and Parquet to keep your own work.
 
-The first-steps examples rerun [a saved five-piece workflow](../examples/01-first-steps/03-saving-and-loading/example_01_03.md) to the same estimate and [store masked models, fitted estimators, categorical results and polylines in Parquet](../examples/01-first-steps/04-parquet/example_01_04.md). [Models larger than memory](../examples/02-data-and-geometry/10-large-models/example_02_10.md) processes a Parquet block model chunk by chunk, and [mesh files](../examples/02-data-and-geometry/07-mesh-files/example_02_07.md) covers OBJ, STL, PLY, OFF, MSH and DXF.
+The getting-started examples rerun [a saved five-piece workflow](../examples/01-getting-started/03-saving-and-loading/example_01_03.md) to the same estimate and [store masked models, fitted estimators, categorical results and polylines in Parquet](../examples/01-getting-started/04-parquet/example_01_04.md). [Models larger than memory](../examples/03-geometry-and-block-models/03-large-models/example_03_03.md) processes a Parquet block model chunk by chunk, and [mesh files](../examples/03-geometry-and-block-models/13-mesh-files/example_03_13.md) covers OBJ, STL, PLY, OFF, MSH and DXF.

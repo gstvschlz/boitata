@@ -7,17 +7,19 @@
 //! are justified.
 //!
 //! Algorithm (Barnett, Manchuk & Deutsch, 2014):
-//! 0. optionally normal-score each variable (weighted),
+//! 0. optionally normal-score each variable,
 //! 1. center and sphere (whiten) the data via the covariance eigendecomposition,
 //! 2. repeatedly find the most non-Gaussian 1-D projection and Gaussianize it
 //!    (normal-score along that direction),
-//! 3. store the direction + 1-D map at each step so the transform is invertible.
+//! 3. store the direction + 1-D map at each step so the transform is invertible,
+//! 4. with declustering weights, weighted normal-score each factor (a last step
+//!    along each axis), so the factors are standard normal under the weights.
 //!
 //! Non-Gaussianity is scored by the FastICA negentropy proxy
 //! `J ≈ m₃²/12 + (m₄−3)²/48`. Candidate directions are drawn from a deterministic
 //! LCG (reproducible, no `rand` dependency).
 
-use crate::error::{Result, TransformError};
+use crate::error::Result;
 use crate::normal::probit;
 use crate::normal_score::{NormalScoreTable, transform as normal_score_table};
 use crate::pca::check_rows;
@@ -74,20 +76,15 @@ impl Default for PpmtParams {
 
 impl Ppmt {
     /// Fit a PPMT to `data` (`n` rows of `dim` columns); `weights` (e.g.
-    /// declustering) shape the marginal normal scores.
+    /// declustering) apply to the final normal score of each factor.
     pub fn fit(data: &[Vec<f64>], weights: Option<&[f64]>, params: &PpmtParams) -> Result<Self> {
         let (n, dim) = (data.len(), check_rows(data, weights)?);
-        if weights.is_some() && !params.marginal {
-            return Err(TransformError::InvalidParameters(
-                "weights need the marginal step".into(),
-            ));
-        }
         let mut x = DMatrix::from_row_iterator(n, dim, data.iter().flat_map(|r| r.iter().copied()));
         let mut marginals = Vec::new();
         if params.marginal {
             for k in 0..dim {
                 let column: Vec<f64> = x.column(k).iter().copied().collect();
-                let ns = normal_score_table(&column, weights)?;
+                let ns = normal_score_table(&column, None)?;
                 x.set_column(k, &DVector::from_vec(ns.scores));
                 marginals.push(ns.table);
             }
@@ -149,6 +146,20 @@ impl Ppmt {
                 values: sorted_vals,
                 scores: sorted_scores,
             });
+        }
+        if weights.is_some() {
+            for k in 0..dim {
+                let column: Vec<f64> = z.column(k).iter().copied().collect();
+                let ns = normal_score_table(&column, weights)?;
+                z.set_column(k, &DVector::from_vec(ns.scores));
+                let mut direction = vec![0.0; dim];
+                direction[k] = 1.0;
+                steps.push(Step {
+                    direction,
+                    values: ns.table.values,
+                    scores: ns.table.scores,
+                });
+            }
         }
 
         Ok(Self {
@@ -394,5 +405,47 @@ mod tests {
         let m1 = g.iter().map(|r| r[1]).sum::<f64>() / n;
         let cov = g.iter().map(|r| (r[0] - m0) * (r[1] - m1)).sum::<f64>() / n;
         assert!(cov.abs() < 0.15, "residual correlation {cov}");
+    }
+
+    /// Declustering weights down-weight the high tail of `a`; the factors must
+    /// be standard normal under those weights (GSLIB PPMT final step).
+    #[test]
+    fn weighted_factors_are_standard_normal_under_the_weights() {
+        let mut rng = Lcg::new(3);
+        let (mut data, mut w) = (Vec::new(), Vec::new());
+        for _ in 0..1000 {
+            let a = probit(rng.next_uniform());
+            let b = probit(rng.next_uniform());
+            data.push(vec![a.exp(), 0.7 * a + 0.7 * b + 0.3 * a * a]);
+            w.push(if a > 0.5 { 0.2 } else { 1.0 });
+        }
+        for marginal in [true, false] {
+            let params = PpmtParams {
+                marginal,
+                ..PpmtParams::default()
+            };
+            let ppmt = Ppmt::fit(&data, Some(&w), &params).unwrap();
+            let g = ppmt.forward(&data);
+            let ws: f64 = w.iter().sum();
+            for k in 0..2 {
+                let m = g.iter().zip(&w).map(|(r, wi)| wi * r[k]).sum::<f64>() / ws;
+                let v = g
+                    .iter()
+                    .zip(&w)
+                    .map(|(r, wi)| wi * (r[k] - m).powi(2))
+                    .sum::<f64>()
+                    / ws;
+                assert!(
+                    m.abs() < 0.05 && (v - 1.0).abs() < 0.1,
+                    "factor {k}: {m} {v}"
+                );
+            }
+            let back = ppmt.back(&g);
+            for (orig, rec) in data.iter().zip(&back) {
+                for (x, y) in orig.iter().zip(rec) {
+                    assert!((x - y).abs() < 1e-6, "round trip {x} {y}");
+                }
+            }
+        }
     }
 }

@@ -65,7 +65,7 @@ If a file marks missing values some other way, pass `nodata=`. It replaces the d
 
 A column can carry a unit. `read_csv` reads one from a header such as `Au [g/t]` or `Au (g/t)`, `units=` gives one to a column the file leaves bare, and `bt.set_units(columns={"Au": "g/t"})` declares them once for a project. `with_units` sets them by hand, and `convert_units` rescales a column within its kind. Grades, ratios, metal, ore mass and each currency are separate kinds, so converting `%` to `ratio%` or `kg metal` to `t` raises `InvalidInput`. Coordinates carry a `length_unit` too, and `to_length_unit` converts them.
 
-A parameter takes a number in the unit of the data, or text such as `"150 ft"` or `"0.5 g/t"` converted to it: the `Search` radius, `Variogram` ranges, `experimental_variogram` lags, `composite` lengths, `runs` lengths, block sizes of `from_extents`, `swath` widths, declustering cells, cutoffs of `grade_tonnage`, `compare_models`, `runs`, `spatial_bootstrap`, indicator and multigaussian kriging and the simulations, `Capping` caps, the `IndicatorKriging` threshold and densities such as `"2.7 t/m3"`. The [units example](../examples/02-data-and-geometry/25-units/example_02_25.md) walks through them.
+A parameter takes a number in the unit of the data, or text such as `"150 ft"` or `"0.5 g/t"` converted to it: the `Search` radius, `Variogram` ranges, `experimental_variogram` lags, `composite` lengths, `runs` lengths, block sizes of `from_extents`, `swath` widths, declustering cells, cutoffs of `grade_tonnage`, `compare_models`, `runs`, `spatial_bootstrap`, indicator and multigaussian kriging and the simulations, `Capping` caps, the `IndicatorKriging` threshold and densities such as `"2.7 t/m3"`. The [units example](../examples/02-drillholes-and-samples/09-units/example_02_09.md) walks through them.
 
 !!! pitfall "Pitfall"
     Statistics such as `describe` skip nulls, but estimators, transforms and variograms refuse them: `fit` raises `InvalidInput: values must be finite; drop missing values first`. Keep the rows that have a value before you fit:
@@ -103,10 +103,12 @@ print(samples)
 ```
 
 ```text
-PointSet(3 points, crs: none)
-  Au: Float64
-  ROCK: Utf8
-  Au_log: Float64
+PointSet  3 points
+  bounds  x 0 to 10, y 0 to 10, z 0 to 0
+  column  type     unit  nulls      min    mean     max
+  Au      float64            1      0.4     0.8     1.2
+  ROCK    str                1  2 unique: oxide, fresh
+  Au_log  float64            1  -0.9163  -0.367  0.1823
 ```
 
 `with_columns` adds several at once from a dict or a data frame.
@@ -152,7 +154,12 @@ print(model.coords[:2].round(2))
 ```
 
 ```text
-BlockModel(regular, 12 of 12 cells, count [4, 3, 1], size [10.0, 10.0, 5.0], rotation [30.0, 0.0, 0.0])
+BlockModel  regular, 12 blocks
+  count     4 × 3 × 1
+  size      10 × 10 × 5
+  origin    0, 0, 0
+  rotation  azimuth 30°, dip 0°, rake 0°
+  bounds    x 0 to 49.64, y -20 to 25.98, z 0 to 5
 [[ 6.83  1.83  2.5 ]
  [15.49 -3.17  2.5 ]]
 ```
@@ -182,10 +189,15 @@ print(rich.index)
 ```
 
 ```text
-BlockModel(masked, 11 of 12 cells, count [4, 3, 1], size [10.0, 10.0, 5.0], rotation [30.0, 0.0, 0.0])
+BlockModel  masked, 11 of 12 blocks
+  count     4 × 3 × 1
+  size      10 × 10 × 5
+  origin    0, 0, 0
+  rotation  azimuth 30°, dip 0°, rake 0°
+  bounds    x 5 to 49.64, y -20 to 25.98, z 0 to 5
 [ 1  2  3  4  5  6  7  8  9 10 11]
 ```
 
 Block 0 has its center at x = 6.83, so the mask drops it and keeps the other 11; `index` lists the block numbers kept. You convert between layouts explicitly: `to_regular()` puts a masked model back on the full grid, and `regularize(target)` averages one model onto the blocks of another, such as sub-blocks onto their parents.
 
-The examples go further with [block models](../examples/01-first-steps/02-block-models/example_01_02.md), [sub-blocks](../examples/02-data-and-geometry/06-sub-blocks/example_02_06.md), [models larger than memory](../examples/02-data-and-geometry/10-large-models/example_02_10.md) and [storing containers in Parquet](../examples/01-first-steps/04-parquet/example_01_04.md); [saving models](saving.md) and the [containers and I/O API](../api/containers/index.md) cover the rest.
+The examples go further with [block models](../examples/01-getting-started/02-block-models/example_01_02.md), [sub-blocks](../examples/03-geometry-and-block-models/04-sub-blocks/example_03_04.md), [models larger than memory](../examples/03-geometry-and-block-models/03-large-models/example_03_03.md) and [storing containers in Parquet](../examples/01-getting-started/04-parquet/example_01_04.md); [saving models](saving.md) and the [containers and I/O API](../api/containers/index.md) cover the rest.

@@ -124,8 +124,8 @@ for name, codes in domains.items():
 # ## Log-ratios, PPMT and simulation
 #
 # The isometric log-ratio (ilr) maps each 7-part composition to 6 unconstrained coordinates, and any 6 coordinates
-# back to a composition summing to 100 %. PPMT turns the coordinates into independent Gaussian factors ([compositional data](../../04-transforms/04-compositional/README.md) and
-# [multivariate transforms](../../04-transforms/05-multivariate-transforms/README.md)), each simulated on its own by turning bands with the omnidirectional variogram of its scores. Per domain,
+# back to a composition summing to 100 %. PPMT turns the coordinates into independent Gaussian factors ([compositional data](../../06-transforms/04-compositional/README.md) and
+# [multivariate transforms](../../06-transforms/05-multivariate-transforms/README.md)), each simulated on its own by turning bands with the omnidirectional variogram of its scores. Per domain,
 # `MultivariateSimulation` simulates 30 realizations on 12.5 × 12.5 × 6 m nodes, eight per block, and at every
 # blasthole. The factors come back as ilr coordinates, turned into oxides at the nodes; blocks average their nodes
 # only after that, since the log-ratio is not linear.
@@ -268,12 +268,12 @@ save(fig, "reconciliation")
 # %% [markdown]
 # Per domain the simulation sits near the drilling in the window, not the blastholes: 87 composites from 8 holes,
 # against 1953 blastholes. Hematite blocks come out 4.5 % Fe poorer than the blastholes say, compact itabirite blocks
-# 2.9 % richer; friable itabirite is close. The spreads order as the supports do: 139 at 6 m points, 99 for the
-# 12 m blastholes, 80 for the mean of about six blastholes per block, 40 for simulated blocks. The mean of six
+# 2.0 % richer; friable itabirite is close. The spreads order as the supports do: 142 at 6 m points, 99 for the
+# 12 m blastholes, 80 for the mean of about six blastholes per block, 42 for simulated blocks. The mean of six
 # blastholes still carries their analytical error and short-scale variation, so it varies more than the block
 # itself would.
 #
-# Blocks rank well (r 0.74), but the blasthole means spread 1.58 times as far as the simulated means: with holes
+# Blocks rank well (r 0.76), but the blasthole means spread 1.55 times as far as the simulated means: with holes
 # 100 m apart, the model cannot place the 25 m contrasts between hematite and itabirite that grade control sees. Grade
 # control drills blastholes to close that gap.
 #

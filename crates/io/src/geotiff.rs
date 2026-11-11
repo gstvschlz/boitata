@@ -19,6 +19,21 @@ use tiff::tags::{ExtraSamples, Tag};
 use crate::{Error, Result};
 
 const GDAL_METADATA: Tag = Tag::Unknown(42112);
+/// Above the largest DEFLATE (1032:1) and LZW expansion of stored bytes.
+const MAX_EXPANSION: u64 = 4096;
+const MIN_BUDGET: usize = 16 << 20;
+
+/// Zero-extends `values` to `len`, reporting allocation failure as an error
+/// instead of aborting the process.
+fn grow(values: &mut Vec<f64>, len: usize) -> Result<()> {
+    if let Some(more) = len.checked_sub(values.len()) {
+        values
+            .try_reserve(more)
+            .map_err(|_| bad(format!("cannot allocate {len} samples")))?;
+        values.resize(len, 0.0);
+    }
+    Ok(())
+}
 
 fn bad(message: impl Into<String>) -> Error {
     Error::GeoTiff(message.into())
@@ -41,9 +56,9 @@ fn tiff_error(e: TiffError) -> Error {
 /// tie points. An EPSG code in the GeoKeys becomes `EPSG:<code>`, otherwise the
 /// citation is the CRS. Band names come from GDAL's band descriptions.
 pub fn read_geotiff(path: impl AsRef<Path>, nodata: Option<f64>) -> Result<BlockModel> {
-    let mut tif = Decoder::new(BufReader::new(File::open(path)?))
-        .map_err(tiff_error)?
-        .with_limits(Limits::unlimited());
+    let file = File::open(path)?;
+    let file_size = file.metadata()?.len();
+    let mut tif = Decoder::new(BufReader::new(file)).map_err(tiff_error)?;
     let (w, h) = tif.dimensions().map_err(tiff_error)?;
     let (w, h) = (w as usize, h as usize);
     let bands = tif
@@ -100,7 +115,51 @@ pub fn read_geotiff(path: impl AsRef<Path>, nodata: Option<f64>) -> Result<Block
         n if n == per_plane * bands => 1,
         _ => return Err(bad("unexpected number of strips or tiles")),
     };
-    let mut values = vec![0.0; w * h * bands];
+    let bits = tif
+        .find_tag_unsigned_vec::<usize>(Tag::BitsPerSample)
+        .map_err(tiff_error)?
+        .and_then(|b| b.into_iter().max())
+        .unwrap_or(1);
+    let byte_counts = match tif.get_chunk_type() {
+        ChunkType::Strip => Tag::StripByteCounts,
+        ChunkType::Tile => Tag::TileByteCounts,
+    };
+    let stored = tif
+        .find_tag_unsigned_vec::<u64>(byte_counts)
+        .map_err(tiff_error)?
+        .unwrap_or_default()
+        .into_iter()
+        .fold(0u64, u64::saturating_add)
+        .min(file_size);
+    let compressed = tif
+        .find_tag_unsigned::<u16>(Tag::Compression)
+        .map_err(tiff_error)?
+        .is_some_and(|c| c != 1);
+    let expansion = if compressed { MAX_EXPANSION } else { 1 };
+    let budget = usize::try_from(stored.saturating_mul(expansion))
+        .unwrap_or(usize::MAX)
+        .max(MIN_BUDGET);
+    let n_samples = w
+        .checked_mul(h)
+        .and_then(|n| n.checked_mul(bands))
+        .filter(|n| n.checked_mul(bits).is_some_and(|b| b.div_ceil(8) <= budget))
+        .ok_or_else(|| {
+            bad(format!(
+                "the header declares {w} x {h} pixels of {bands} {bits}-bit bands, more than \
+                 the {stored} bytes of image data in the file can hold (compressed data is \
+                 assumed to expand at most {MAX_EXPANSION}x, with a {MIN_BUDGET}-byte floor)"
+            ))
+        })?;
+    // The tiff crate checks decoded chunks in their result type (12-bit samples
+    // decode to u16), so scale the stored-bits budget up to that width.
+    let decoded_bits = bits.next_power_of_two().clamp(8, 64);
+    let mut limits = Limits::default();
+    limits.decoding_buffer_size = (budget / bits.max(1)).saturating_mul(decoded_bits);
+    limits.intermediate_buffer_size = usize::try_from(file_size).unwrap_or(usize::MAX);
+    let mut tif = tif.with_limits(limits);
+    // Grown as chunks decode, so memory follows the data actually decompressed
+    // rather than what the header claims.
+    let mut values = Vec::new();
     let mut single = false;
     for k in 0..chunks {
         let (plane, at) = (k / per_plane, k % per_plane);
@@ -129,11 +188,15 @@ pub fn read_geotiff(path: impl AsRef<Path>, nodata: Option<f64>) -> Result<Block
                 let x = x0 + c;
                 if y < h && x < w {
                     let at = (y * w + x) * bands + plane;
+                    if values.len() < at + per_pixel {
+                        grow(&mut values, at + per_pixel)?;
+                    }
                     values[at..at + per_pixel].copy_from_slice(pixel);
                 }
             }
         }
     }
+    grow(&mut values, n_samples)?;
     let nodata = nodata.map(|v| if single { v as f32 as f64 } else { v });
 
     let key = |id: u16| {
@@ -678,5 +741,75 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A float32 GeoTIFF of one strip holding one pixel, declaring `w` x `h`.
+    fn tiny_tiff(w: u32, h: u32, compression: u16) -> Vec<u8> {
+        let tags: [(u16, u16, u32, u32); 12] = [
+            (256, 4, 1, w),
+            (257, 4, 1, h),
+            (258, 3, 1, 32),
+            (259, 3, 1, u32::from(compression)),
+            (262, 3, 1, 1),
+            (273, 4, 1, 0),
+            (277, 3, 1, 1),
+            (278, 4, 1, h),
+            (279, 4, 1, 4),
+            (339, 3, 1, 3),
+            (33550, 12, 3, 0),
+            (33922, 12, 6, 0),
+        ];
+        let scale_at = (8 + 2 + 12 * tags.len() + 4) as u32;
+        let (tie_at, strip_at) = (scale_at + 24, scale_at + 72);
+        let mut out = b"II*\0".to_vec();
+        out.extend(8u32.to_le_bytes());
+        out.extend((tags.len() as u16).to_le_bytes());
+        for (tag, kind, count, value) in tags {
+            let value = match tag {
+                273 => strip_at,
+                33550 => scale_at,
+                33922 => tie_at,
+                _ => value,
+            };
+            out.extend(tag.to_le_bytes());
+            out.extend(kind.to_le_bytes());
+            out.extend(count.to_le_bytes());
+            if kind == 3 {
+                out.extend((value as u16).to_le_bytes());
+                out.extend([0, 0]);
+            } else {
+                out.extend(value.to_le_bytes());
+            }
+        }
+        out.extend(0u32.to_le_bytes());
+        for v in [1.0f64, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] {
+            out.extend(v.to_le_bytes());
+        }
+        out.extend(1.5f32.to_le_bytes());
+        out
+    }
+
+    #[test]
+    fn raster_larger_than_its_data_is_an_error() {
+        let path = dir("declared").join("one.tif");
+        std::fs::write(&path, tiny_tiff(1, 1, 1)).unwrap();
+        assert_eq!(
+            read_geotiff(&path, None).unwrap().geometry().count,
+            [1, 1, 1]
+        );
+        for (w, h, compression) in [
+            (200_000, 200_000, 1),
+            (200_000, 200_000, 8),
+            (3000, 3000, 1),
+        ] {
+            std::fs::write(&path, tiny_tiff(w, h, compression)).unwrap();
+            let err = read_geotiff(&path, None).unwrap_err();
+            assert!(
+                err.to_string().contains("bytes of image data"),
+                "{w} x {h}: {err}"
+            );
+        }
+        std::fs::write(&path, tiny_tiff(u32::MAX, u32::MAX, 1)).unwrap();
+        assert!(read_geotiff(&path, None).is_err());
     }
 }

@@ -251,6 +251,10 @@ impl MultigaussianKriging {
         persist::state(<Self as pyo3::PyClass>::NAME, self)
     }
 
+    fn _meta(&self) -> PyResult<String> {
+        persist::meta(<Self as pyo3::PyClass>::NAME, self)
+    }
+
     #[staticmethod]
     fn _from_state(meta: &str, columns: Option<Columns>) -> PyResult<Self> {
         persist::from_state(<Self as pyo3::PyClass>::NAME, meta, columns)
@@ -266,6 +270,10 @@ impl MultigaussianKriging {
 }
 
 impl Tabular for MultigaussianKriging {
+    fn rows(&self) -> Option<usize> {
+        self.samples.as_ref().map(|s| s.0.len())
+    }
+
     fn columns(&self) -> Option<Columns> {
         self.samples.as_ref().map(|(samples, weights)| {
             let mut columns = sample_columns(samples);

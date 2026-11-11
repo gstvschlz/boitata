@@ -157,6 +157,11 @@ fn read_data(
         ints.get(1).copied().unwrap_or(1),
         ints.get(2).copied().unwrap_or(0),
     );
+    if !(1..=9).contains(&components) {
+        return Err(bad(format!(
+            "data `{name}` has {components} components; from 1 to 9 are read"
+        )));
+    }
     if c.binary {
         c.rest_of_line();
     }
@@ -656,6 +661,11 @@ mod tests {
         assert_eq!(physical(&m), [Some("top".into()), Some("top".into())]);
         assert_eq!(values(&m, false, "v_1"), [Some(-2.0); 2]);
         assert!(parse_msh(text.replace("1 2 3 4\n", "1 2 3 9\n").as_bytes()).is_err());
+        for components in ["0", "10", "1000000"] {
+            let data = text.replace("3\n0\n2\n1\n", &format!("3\n0\n{components}\n1\n"));
+            let err = parse_msh(data.as_bytes()).unwrap_err();
+            assert!(err.to_string().contains("from 1 to 9"), "{err}");
+        }
         assert!(parse_msh(b"$MeshFormat\n4.0 0 8\n$EndMeshFormat\n").is_err());
         assert!(parse_msh(b"garbage").is_err());
     }

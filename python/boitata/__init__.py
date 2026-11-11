@@ -3,7 +3,8 @@ import copyreg as _copyreg
 from boitata import (  # noqa: F401
     _boitata,
     _containers,
-    _html,
+    _display,
+    _display_models,
     datasets,
     plot,
     plot3d,

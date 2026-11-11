@@ -1,0 +1,19 @@
+name: Documentation
+description: Report a mistake or a gap in the README, a docstring or an example.
+title: "DOC: <write a short title after the 'DOC: ' prefix>"
+labels: [documentation]
+
+body:
+- type: textarea
+  attributes:
+    label: "Issue with current documentation:"
+    description: >
+      Link the page or name the function, and say what is wrong or missing.
+  validations:
+    required: true
+
+- type: textarea
+  attributes:
+    label: "Idea or request for content:"
+    description: >
+      What should the documentation say instead?

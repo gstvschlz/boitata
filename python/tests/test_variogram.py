@@ -63,6 +63,19 @@ def test_nested_fit_with_fixed_and_bounded_parameters():
         exp.fit(nugget=(0.3, 0.1))
 
 
+def test_default_fit_solves_the_nugget():
+    r = np.random.default_rng(0)
+    phi, z = np.exp(-1 / 20), np.zeros(2000)
+    for i in range(1, z.size):
+        z[i] = phi * z[i - 1] + np.sqrt(1 - phi * phi) * r.normal()
+    values = z + np.sqrt(0.3) * r.normal(size=z.size)
+    x = np.arange(z.size, dtype=float)
+    exp = bt.experimental_variogram(np.c_[x, 0 * x], values, lag=2, max_lag=100)
+    fitted = exp.fit("exponential")
+    assert fitted.nugget == pytest.approx(0.3, abs=0.05)
+    assert repr(fitted) == repr(exp.fit("exponential", nugget=(0.0, np.inf)))
+
+
 def test_directional_fit_finds_the_anisotropy():
     xy = np.stack(np.meshgrid(np.arange(0, 80, 2.0), np.arange(0, 80, 2.0)), -1).reshape(-1, 2)
     t = np.radians(30)
@@ -504,3 +517,59 @@ def test_covariance_does_not_depend_on_row_order(estimator):
     sorted_rows = run(np.argsort(xy[:, 0]))
     assert run(r.permutation(40)) == pytest.approx(sorted_rows)
     assert run(np.arange(40)) == pytest.approx(sorted_rows)
+
+
+@pytest.mark.parametrize(("lag", "max_lag"), [(10.0, np.inf), (1e-300, 1.0), (np.nan, 10.0), (1.0, 1e9)])
+def test_unbounded_lag_counts_raise_invalid_input(lag, max_lag):
+    xy = rng.uniform(0, 50, (50, 2))
+    z = rng.normal(size=50)
+    cats = np.arange(50) % 2
+    with pytest.raises(bt.errors.InvalidInput):
+        bt.experimental_variogram(xy, z, lag, max_lag)
+    with pytest.raises(bt.errors.InvalidInput):
+        bt.variogram_map(xy, z, lag, max_lag)
+    with pytest.raises(bt.errors.InvalidInput):
+        bt.experimental_transiogram(xy, cats, lag, max_lag)
+
+
+@pytest.mark.parametrize(
+    "kw", [{"nugget": np.nan}, {"ratios": (np.nan, 1.0)}, {"rotation": (np.nan, 0.0, 0.0)}]
+)
+def test_variogram_rejects_nan_parameters(kw):
+    with pytest.raises(bt.InvalidInput):
+        bt.Variogram([("spherical", 1.0, 50.0)], **kw)
+
+
+@pytest.mark.parametrize("sill, range_", [(np.nan, 50.0), (1.0, np.nan), (1.0, np.inf)])
+def test_structure_rejects_non_finite(sill, range_):
+    with pytest.raises(bt.InvalidInput):
+        bt.Structure("spherical", sill, range_)
+
+
+@pytest.mark.parametrize("range_", [-50.0, 0.0, np.nan])
+def test_coregionalization_rejects_bad_range(range_):
+    with pytest.raises(bt.InvalidInput):
+        bt.Coregionalization([[0, 0], [0, 0]], structures=[("spherical", range_, [[1, 0.5], [0.5, 1]])])
+
+
+@pytest.mark.parametrize("kw", [{"tolerance": np.nan}, {"tolerance": 91.0}, {"bandwidth": -1.0}])
+def test_experimental_variogram_rejects_bad_direction(kw):
+    t = np.arange(50.0)
+    xy = np.column_stack([(t * 37.3) % 50, (t * 17.9) % 50])
+    with pytest.raises(bt.InvalidInput):
+        bt.experimental_variogram(xy, np.sin(t * 0.7), 10.0, 50.0, azimuth=0.0, **kw)
+
+
+def test_transiogram_validation():
+    with pytest.raises(bt.InvalidInput):
+        bt.Transiogram([1.5, -0.5], 10.0)
+    with pytest.raises(bt.InvalidInput):
+        bt.Transiogram([0.5, 0.5], np.nan)
+    t = bt.Transiogram([0.5, 0.5], 10.0)
+    np.testing.assert_array_equal(t.matrix(-20.0), t.matrix(20.0))
+    with pytest.raises(bt.InvalidInput):
+        t.matrix(np.nan)
+    x = np.arange(50.0)
+    xy = np.column_stack([(x * 37.3) % 50, (x * 17.9) % 50])
+    with pytest.raises(bt.InvalidInput):
+        bt.experimental_transiogram(xy, np.arange(50) % 2, np.nan, 50.0)

@@ -844,15 +844,6 @@ impl BlockModelFile {
     fn __len__(&self) -> usize {
         self.0.len()
     }
-
-    fn __repr__(&self) -> String {
-        format!(
-            "BlockModelFile({} blocks, count {:?}, columns {:?})",
-            self.0.len(),
-            self.0.geometry().count,
-            self.0.column_names()
-        )
-    }
 }
 
 #[pyclass(module = "boitata", unsendable)]

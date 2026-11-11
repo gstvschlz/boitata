@@ -765,6 +765,10 @@ class Structure:
     def sill(self) -> float: ...
     @property
     def range(self) -> float: ...
+    @property
+    def order(self) -> float | None: ...
+    @property
+    def exponent(self) -> float | None: ...
 
 class Variogram:
     def __init__(
@@ -1189,6 +1193,12 @@ class SGS:
     ) -> None: ...
     @property
     def correlation(self) -> float | None: ...
+    @property
+    def variogram(self) -> Variogram: ...
+    @property
+    def search(self) -> list[Search]: ...
+    @property
+    def n_samples(self) -> int | None: ...
     def fit(
         self,
         coords: ArrayLike | PointSet | BlockModel,
@@ -1234,6 +1244,7 @@ class SGS:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
+        memory: float | None = None,
     ) -> SimulationSummary: ...
 
 class DSS:
@@ -1243,6 +1254,12 @@ class DSS:
     def __init__(self, variogram: Variogram, search: Search | Sequence[Search]) -> None: ...
     @property
     def correlation(self) -> float | None: ...
+    @property
+    def variogram(self) -> Variogram: ...
+    @property
+    def search(self) -> list[Search]: ...
+    @property
+    def n_samples(self) -> int | None: ...
     def fit(
         self,
         coords: ArrayLike | PointSet | BlockModel,
@@ -1284,6 +1301,7 @@ class DSS:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
+        memory: float | None = None,
     ) -> SimulationSummary: ...
 
 class TurningBands:
@@ -1299,6 +1317,14 @@ class TurningBands:
         search: Search | None = None,
         classes: int = 10,
     ) -> None: ...
+    @property
+    def variogram(self) -> Variogram: ...
+    @property
+    def search(self) -> Search | None: ...
+    @property
+    def bands(self) -> int: ...
+    @property
+    def n_samples(self) -> int | None: ...
     def fit(
         self,
         coords: ArrayLike | PointSet | BlockModel,
@@ -1330,6 +1356,7 @@ class TurningBands:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
+        memory: float | None = None,
     ) -> SimulationSummary: ...
     def simulate_to_parquet(
         self,
@@ -1346,6 +1373,7 @@ class TurningBands:
         domain_column: Column | None = None,
         trend: Column | None = None,
         discretization: tuple[int, int, int] | None = None,
+        memory: float | None = None,
     ) -> dict[str, npt.NDArray[np.float64]]: ...
 
 class MultivariateSimulation:
@@ -1377,6 +1405,7 @@ class MultivariateSimulation:
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
+        memory: float | None = None,
     ) -> list[SimulationSummary]: ...
 
 class SIS:
@@ -1401,6 +1430,7 @@ class SIS:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary: ...
 
 class Plurigaussian:
@@ -1436,6 +1466,7 @@ class Plurigaussian:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary: ...
 
 class SimulationSummary:
@@ -2562,6 +2593,7 @@ class SNESIM:
         anisotropy: LocalAnisotropy | None = None,
         domains: Label | Labels | None = None,
         domain_column: str | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary | SimulationSummary: ...
 
 # Image quilting.
@@ -2596,4 +2628,5 @@ class ImageQuilting:
         keep: bool | Sequence[int] = False,
         soft: Sequence[Column] | ArrayLike | None = None,
         secondary: ArrayLike | Column | None = None,
+        memory: float | None = None,
     ) -> CategoricalSummary | SimulationSummary: ...

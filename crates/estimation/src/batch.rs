@@ -173,23 +173,15 @@ where
     F: Fn(&(f64, f64, f64), &[Sample]) -> Result<T> + Sync,
     T: Send,
 {
-    let wider = Search {
-        max_samples: search.max_samples + 1,
-        ..search.clone()
-    };
-    let tree = SearchTree::new(samples, &wider, vg);
+    let tree = SearchTree::new(samples, search, vg);
     which
         .par_iter()
         .map(|&i| {
             let target = &samples[i].loc;
-            let mut chosen = tree
+            let chosen = tree
                 .neighbors_around(target, samples[i].domain, Some(i))
-                .unwrap_or_default();
-            chosen.retain(|&j| j != i);
-            chosen.truncate(search.max_samples);
-            if chosen.len() < search.min_samples.max(1) {
-                return None;
-            }
+                .ok()
+                .filter(|c| !c.is_empty())?;
             let chosen = tree.balanced(target, None, chosen);
             let selected = tree.take(target, None, &chosen, samples);
             estimator(target, &selected).ok()
@@ -341,6 +333,19 @@ mod tests {
     }
 
     #[test]
+    fn leave_one_out_takes_any_max_samples() {
+        let samples = samples();
+        let search = Search {
+            min_samples: 1,
+            max_samples: usize::MAX,
+            radius: 30.0,
+            ..Default::default()
+        };
+        let got = leave_one_out_many(&samples, &search, None, |_, s| Ok(s.len()));
+        assert!(got.iter().flatten().any(|&n| n > 1));
+    }
+
+    #[test]
     fn k_fold_with_one_sample_per_fold_is_leave_one_out() {
         let samples = samples();
         let vg = Variogram::single(Model::Spherical, 1.0, 40.0);
@@ -365,6 +370,93 @@ mod tests {
             assert_eq!(a.estimate.to_bits(), b.estimate.to_bits());
         }
         assert!(k_fold_at(1, &all, &samples, &search, Some(&vg), krige_with(&vg)).is_err());
+    }
+
+    #[test]
+    fn leave_one_out_neighbors_are_those_of_the_search_without_the_sample() {
+        let grid: Vec<Sample> = (0..49)
+            .map(|k| {
+                let f = k as f64;
+                let x = (k / 7) as f64 * 10.0 + (f * 0.37).sin().abs() * 1.5;
+                let y = (k % 7) as f64 * 10.0 + (f * 0.71).cos().abs() * 1.5;
+                Sample::new((x, y, 0.0), f)
+            })
+            .collect();
+        let holes: Vec<Sample> = (0..50)
+            .map(|k| {
+                let (h, d) = (k / 5, k % 5);
+                let loc = (
+                    (h % 5) as f64 * 12.0 + 0.3 * d as f64,
+                    (h / 5) as f64 * 15.0,
+                    d as f64 * 2.0,
+                );
+                Sample::with_hole(loc, k as f64, h as u32)
+            })
+            .collect();
+        let base = Search {
+            min_samples: 1,
+            max_samples: 4,
+            radius: 1000.0,
+            ..Default::default()
+        };
+        let cases = [
+            (
+                &grid,
+                Search {
+                    octant: true,
+                    max_per_octant: Some(1),
+                    ..base.clone()
+                },
+            ),
+            (
+                &grid,
+                Search {
+                    octant: true,
+                    min_sectors: Some(4),
+                    ..base.clone()
+                },
+            ),
+            (
+                &grid,
+                Search {
+                    sectors: Some(crate::search::PlaneSectors {
+                        count: 6,
+                        max_per_sector: 1,
+                    }),
+                    max_empty_sectors: Some(2),
+                    ..base.clone()
+                },
+            ),
+            (
+                &holes,
+                Search {
+                    max_samples: 6,
+                    max_per_hole: Some(2),
+                    ..base.clone()
+                },
+            ),
+            (
+                &holes,
+                Search {
+                    max_per_hole: Some(1),
+                    min_holes: Some(4),
+                    ..base.clone()
+                },
+            ),
+        ];
+        for (samples, search) in cases {
+            let all: Vec<usize> = (0..samples.len()).collect();
+            let values = |s: &[Sample]| s.iter().map(|s| s.value).collect::<Vec<_>>();
+            let loo = leave_one_out_at(&all, samples, &search, None, |_, s| Ok(values(s)));
+            for (i, got) in loo.iter().enumerate() {
+                let mut rest = samples.clone();
+                let target = rest.remove(i).loc;
+                let want = crate::search::neighbors(&target, &rest, &search, None)
+                    .ok()
+                    .map(|idx| idx.iter().map(|&j| rest[j].value).collect());
+                assert_eq!(got, &want, "sample {i} with {search:?}");
+            }
+        }
     }
 
     #[test]

@@ -80,8 +80,50 @@ pub fn desurvey_wellbore(
         }
     }
 
-    let mut sorted = stations.to_vec();
-    sorted.sort_by(|a, b| a.depth.partial_cmp(&b.depth).unwrap());
+    if ![collar.east, collar.north, collar.collar_elev]
+        .iter()
+        .all(|v| v.is_finite())
+    {
+        return Err(DrillholeError::InvalidCollar(format!(
+            "collar of hole {} must have finite east, north and elevation, got ({}, {}, {})",
+            collar.hole_id, collar.east, collar.north, collar.collar_elev
+        )));
+    }
+    for s in stations {
+        if !(s.depth.is_finite() && s.azimuth.is_finite() && s.inclination.is_finite()) {
+            return Err(DrillholeError::InvalidSurveyStation(format!(
+                "depth, azimuth and inclination of hole {} must be finite, got ({}, {}, {})",
+                s.hole_id, s.depth, s.azimuth, s.inclination
+            )));
+        }
+        if s.depth < 0.0 {
+            return Err(DrillholeError::InvalidSurveyStation(format!(
+                "survey depth of hole {} must be >= 0, got {}",
+                s.hole_id, s.depth
+            )));
+        }
+    }
+
+    let mut by_depth = stations.to_vec();
+    by_depth.sort_by(|a, b| a.depth.total_cmp(&b.depth));
+    let direction = |s: &SurveyStation| tangent(s.azimuth.to_radians(), s.inclination.to_radians());
+    let mut sorted: Vec<SurveyStation> = Vec::with_capacity(by_depth.len());
+    for s in by_depth {
+        if let Some(prev) = sorted.last()
+            && s.depth - prev.depth <= 1e-9 * s.depth.max(1.0)
+        {
+            let (a, b) = (direction(prev), direction(&s));
+            if (0..3).any(|k| (a[k] - b[k]).abs() > 1e-9) {
+                return Err(DrillholeError::InvalidSurveyStation(format!(
+                    "hole {} has two survey stations at depth {} with different directions \
+                     (azimuth {}, inclination {} and azimuth {}, inclination {})",
+                    s.hole_id, s.depth, prev.azimuth, prev.inclination, s.azimuth, s.inclination
+                )));
+            }
+            continue;
+        }
+        sorted.push(s);
+    }
 
     let mut points = vec![WellborePoint {
         measured_depth: 0.0,
@@ -297,21 +339,34 @@ pub fn mesh_intervals(
     step: f64,
     tolerance: f64,
     inside: impl Fn([f64; 3]) -> bool,
-) -> Vec<(f64, f64, bool)> {
+) -> Result<Vec<(f64, f64, bool)>> {
+    if step.is_nan() || step <= 0.0 {
+        return Err(DrillholeError::InvalidParameter(format!(
+            "step must be > 0, got {step}"
+        )));
+    }
     let Some(total) = path.last().map(|p| p.measured_depth) else {
-        return vec![];
+        return Ok(vec![]);
     };
     let at = |depth: f64| {
         let (x, y, z) = position_at(path, depth);
         inside([x, y, z])
     };
-    let step = if step > 0.0 { step } else { total.max(1.0) };
 
-    let mut depths = vec![0.0];
-    let mut d = step;
-    while d < total {
-        depths.push(d);
-        d += step;
+    let samples = (total / step).ceil();
+    if samples > MAX_SAMPLES {
+        return Err(DrillholeError::InvalidParameter(format!(
+            "step must be at least {} for a hole {total} long ({MAX_SAMPLES} samples at most), \
+             got {step}",
+            total / MAX_SAMPLES
+        )));
+    }
+    let mut depths: Vec<f64> = (0..samples as usize)
+        .map(|k| k as f64 * step)
+        .take_while(|&d| d < total)
+        .collect();
+    if depths.is_empty() {
+        depths.push(0.0);
     }
     if total > 0.0 {
         depths.push(total);
@@ -345,8 +400,13 @@ pub fn mesh_intervals(
         }
     }
     runs.push((start, total, current));
-    runs
+    Ok(runs)
 }
+
+/// Most depth samples or composites one hole may produce, so a step or
+/// composite length far below the depth range fails instead of exhausting
+/// memory.
+const MAX_SAMPLES: f64 = 1e7;
 
 /// Wellbore point (3D location at measured depth).
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -501,6 +561,25 @@ pub fn composite_intervals(
         }
     }
 
+    if params.intervals.is_none() && params.composite_length.is_finite() {
+        let deepest = assays
+            .iter()
+            .map(|a| a.1.abs().max(a.0.abs()))
+            .fold(0.0, f64::max);
+        let sampled: f64 = assays.iter().map(|a| a.1 - a.0).sum();
+        if deepest + params.composite_length <= deepest
+            || sampled / params.composite_length > MAX_SAMPLES
+        {
+            return Err(DrillholeError::CompositeError(format!(
+                "composite length must be at least {} for hole {hole_id} \
+                 ({sampled} sampled, {MAX_SAMPLES} composites at most, depths to {deepest}), \
+                 got {}",
+                (sampled / MAX_SAMPLES).max(deepest * f64::EPSILON),
+                params.composite_length
+            )));
+        }
+    }
+
     let mut sorted = assays.to_vec();
     // total_cmp, not partial_cmp().unwrap() — the latter panics on a NaN depth,
     // which is a data problem the caller should see as an error. (Depths are
@@ -523,6 +602,13 @@ pub fn composite_intervals(
             if params.intervals.is_none() {
                 let take = (params.composite_length - builder.length()).min(*to - cursor);
                 builder.accumulate(cursor, take, attrs);
+                if cursor + take <= cursor {
+                    return Err(DrillholeError::CompositeError(format!(
+                        "composite length {} is below the depth resolution at {cursor} \
+                         in hole {hole_id}",
+                        params.composite_length
+                    )));
+                }
                 cursor += take;
                 if builder.length() >= params.composite_length - LENGTH_EPS {
                     builder.flush();
@@ -890,7 +976,7 @@ mod tests {
         // boundary at elevation -40, i.e. depth 40.
         let path = hole(&[(0.0, 0.0, 0.0), (100.0, 0.0, 0.0)]);
         let tolerance = 0.01;
-        let runs = mesh_intervals(&path, 1.0, tolerance, |p| p[2] < -40.0);
+        let runs = mesh_intervals(&path, 1.0, tolerance, |p| p[2] < -40.0).unwrap();
 
         assert_eq!(runs.len(), 2);
         assert!(!runs[0].2 && runs[1].2);
@@ -900,6 +986,117 @@ mod tests {
             assert_eq!(w[0].1, w[1].0, "runs must be contiguous");
         }
         assert!((runs[0].1 - 40.0).abs() < tolerance);
+    }
+
+    fn station(depth: f64, azimuth: f64, inclination: f64) -> SurveyStation {
+        SurveyStation {
+            hole_id: "H".into(),
+            depth,
+            azimuth,
+            inclination,
+        }
+    }
+
+    fn collar_h() -> Collar {
+        Collar {
+            hole_id: "H".into(),
+            east: 0.0,
+            north: 0.0,
+            collar_elev: 100.0,
+        }
+    }
+
+    fn finishes_within<T: Send + 'static>(secs: f64, f: impl FnOnce() -> T + Send + 'static) -> T {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(f());
+        });
+        rx.recv_timeout(std::time::Duration::from_secs_f64(secs))
+            .unwrap_or_else(|_| panic!("did not finish within {secs}s"))
+    }
+
+    #[test]
+    fn non_finite_survey_or_collar_is_an_error() {
+        let m = DesurveyMethod::MinimumCurvature;
+        let c = collar_h();
+        for bad in [
+            [station(0.0, 0.0, 0.0), station(f64::NAN, 0.0, 0.0)],
+            [station(0.0, 0.0, 0.0), station(50.0, f64::NAN, 10.0)],
+            [station(0.0, 0.0, 0.0), station(50.0, 0.0, f64::INFINITY)],
+        ] {
+            assert!(matches!(
+                desurvey_wellbore(&c, &bad, m),
+                Err(DrillholeError::InvalidSurveyStation(_))
+            ));
+        }
+        for k in 0..3 {
+            let mut c = collar_h();
+            *[&mut c.east, &mut c.north, &mut c.collar_elev][k] = f64::NAN;
+            assert!(matches!(
+                desurvey_wellbore(&c, &[station(0.0, 0.0, 0.0)], m),
+                Err(DrillholeError::InvalidCollar(_))
+            ));
+        }
+    }
+
+    #[test]
+    fn negative_survey_depth_is_an_error() {
+        let r = desurvey_wellbore(
+            &collar_h(),
+            &[station(-10.0, 0.0, 90.0), station(50.0, 0.0, 0.0)],
+            DesurveyMethod::MinimumCurvature,
+        );
+        assert!(matches!(r, Err(DrillholeError::InvalidSurveyStation(_))));
+    }
+
+    #[test]
+    fn conflicting_stations_at_one_depth_are_an_error_and_equal_ones_merge() {
+        let m = DesurveyMethod::MinimumCurvature;
+        let c = collar_h();
+        let a = [
+            station(0.0, 0.0, 0.0),
+            station(50.0, 0.0, 45.0),
+            station(50.0, 90.0, 45.0),
+        ];
+        let b = [
+            station(0.0, 0.0, 0.0),
+            station(50.0, 90.0, 45.0),
+            station(50.0, 0.0, 45.0),
+        ];
+        assert!(desurvey_wellbore(&c, &a, m).is_err());
+        assert!(desurvey_wellbore(&c, &b, m).is_err());
+
+        let once = [station(0.0, 0.0, 0.0), station(50.0, 30.0, 45.0)];
+        let twice = [
+            station(0.0, 0.0, 0.0),
+            station(50.0, 30.0, 45.0),
+            station(50.0, 390.0, 45.0),
+        ];
+        assert_eq!(
+            desurvey_wellbore(&c, &once, m).unwrap(),
+            desurvey_wellbore(&c, &twice, m).unwrap()
+        );
+    }
+
+    #[test]
+    fn mesh_intervals_reject_a_step_below_the_depth_resolution() {
+        let path = desurvey_wellbore(
+            &collar_h(),
+            &[station(0.0, 0.0, 0.0), station(25.0, 0.0, 0.0)],
+            DesurveyMethod::MinimumCurvature,
+        )
+        .unwrap();
+        let p = path.clone();
+        let r = finishes_within(5.0, move || {
+            mesh_intervals(&p, 1e-300, 0.01, |p| p[2] < 90.0)
+        });
+        assert!(matches!(r, Err(DrillholeError::InvalidParameter(_))));
+        for step in [0.0, -1.0, f64::NAN] {
+            assert!(mesh_intervals(&path, step, 0.01, |p| p[2] < 90.0).is_err());
+        }
+        let whole = mesh_intervals(&path, f64::INFINITY, 0.01, |p| p[2] < 90.0).unwrap();
+        assert_eq!(whole.first().unwrap().0, 0.0);
+        assert_eq!(whole.last().unwrap().1, 25.0);
     }
 
     #[test]
@@ -1290,6 +1487,20 @@ mod tests {
         let assays = vec![assay(0.0, 1.0, "g", Some(1.0))];
         assert!(composite_intervals("BH001", &assays, &params(0.0)).is_err());
         assert!(composite_intervals("BH001", &assays, &params(-1.0)).is_err());
+    }
+
+    #[test]
+    fn test_composite_length_below_the_depth_resolution_is_an_error() {
+        let r = finishes_within(5.0, || {
+            let assays = vec![assay(1000.0, 1001.0, "g", Some(1.0))];
+            composite_intervals("BH001", &assays, &params(1e-14)).map(|c| c.len())
+        });
+        assert!(matches!(r, Err(DrillholeError::CompositeError(_))));
+        let r = finishes_within(5.0, || {
+            let assays = vec![assay(0.0, 1000.0, "g", Some(1.0))];
+            composite_intervals("BH001", &assays, &params(1e-6)).map(|c| c.len())
+        });
+        assert!(matches!(r, Err(DrillholeError::CompositeError(_))));
     }
 
     #[test]

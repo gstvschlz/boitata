@@ -70,6 +70,21 @@ pub trait Tabular: Serialize + DeserializeOwned {
     /// None before `fit`.
     fn columns(&self) -> Option<Columns>;
     fn restore(&mut self, columns: Found) -> PyResult<()>;
+    /// Rows of `columns`, for display; an object that can count them without
+    /// building the columns overrides this.
+    fn rows(&self) -> Option<usize> {
+        self.columns()
+            .map(|c| c.first().map_or(0, |(_, v)| v.len()))
+    }
+}
+
+/// Parameters of `value` and its number of fitted rows, for display.
+pub fn meta<T: Tabular>(name: &str, value: &T) -> PyResult<String> {
+    let rows = match value.rows() {
+        Some(n) => format!(r#","rows":{n}"#),
+        None => r#","rows":null"#.into(),
+    };
+    envelope(name, value, &rows)
 }
 
 /// Parameters and arrays of `value`, the state its pickle carries.

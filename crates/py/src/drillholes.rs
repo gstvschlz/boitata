@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use arrow_array::cast::AsArray;
@@ -220,6 +220,12 @@ impl Drillholes {
         Some((h.clone(), f.clone(), t.clone()))
     }
 
+    /// The interval table as given, for display.
+    #[getter]
+    fn _intervals(&self) -> Option<Table> {
+        self.intervals.as_ref().map(|i| Table(i.0.clone()))
+    }
+
     /// Desurveyed stations: hole (named as in the constructor), depth, x, y, z.
     fn paths(&self) -> PyResult<Table> {
         let rows: Vec<(&String, &WellborePoint)> = self
@@ -321,7 +327,7 @@ impl Drillholes {
     ///     applies.
     /// categories : sequence of str
     ///     Categorical columns, composited to the value covering the most
-    ///     length.
+    ///     length; on a tie, the value first in sorted order.
     #[pyo3(signature = (
         length, grades, *, domain=None, intervals=None, residual="keep", min_fraction=0.5,
         categories=vec![]
@@ -365,20 +371,25 @@ impl Drillholes {
         let mut labels: Vec<Vec<String>> = vec![vec![]; categories.len()];
         let mut codes: Vec<Vec<Option<f64>>> = Vec::new();
         for (c, name) in categories.iter().enumerate() {
-            let mut index: HashMap<String, usize> = HashMap::new();
-            let column = text(batch, name)?
+            let column = text(batch, name)?;
+            labels[c] = column
+                .iter()
+                .flatten()
+                .cloned()
+                .collect::<BTreeSet<_>>()
                 .into_iter()
-                .map(|v| {
-                    v.map(|v| {
-                        let n = index.len();
-                        *index.entry(v.clone()).or_insert_with(|| {
-                            labels[c].push(v);
-                            n
-                        }) as f64
-                    })
-                })
                 .collect();
-            codes.push(column);
+            let index: HashMap<&str, usize> = labels[c]
+                .iter()
+                .enumerate()
+                .map(|(i, l)| (l.as_str(), i))
+                .collect();
+            codes.push(
+                column
+                    .iter()
+                    .map(|v| v.as_deref().map(|v| index[v] as f64))
+                    .collect(),
+            );
         }
         let mut per_hole: BTreeMap<&str, Vec<(f64, f64, String, HashMap<String, f64>)>> =
             BTreeMap::new();
@@ -666,7 +677,8 @@ impl Drillholes {
     /// mesh : Mesh
     ///     A closed mesh.
     /// step : float
-    ///     Sampling step down each hole, in meters.
+    ///     Sampling step down each hole, in meters; finite and > 0, with at
+    ///     most 1e7 samples per hole.
     /// tolerance : float
     ///     Depth tolerance the crossing is refined to, in meters.
     ///
@@ -687,23 +699,26 @@ impl Drillholes {
         if !(tolerance.is_finite() && tolerance >= 0.0) {
             return Err(invalid("tolerance must be finite and not negative"));
         }
+        if !(step.is_finite() && step > 0.0) {
+            return Err(invalid(format!("step must be finite and > 0, got {step}")));
+        }
         boitata_core::crs::same_crs(
             ("drill holes", self.crs.as_deref()),
             ("the mesh", mesh.mesh.crs.as_deref()),
         )
         .map_err(invalid)?;
         let solid = mesh.solid()?;
-        let runs: Vec<(&String, Vec<(f64, f64, bool)>)> = py.detach(|| {
-            self.paths
-                .par_iter()
-                .map(|(id, path)| {
-                    (
-                        id,
-                        drillholes::mesh_intervals(path, step, tolerance, |p| solid.contains(p)),
-                    )
-                })
-                .collect()
-        });
+        let runs: Vec<(&String, Vec<(f64, f64, bool)>)> = py
+            .detach(|| {
+                self.paths
+                    .par_iter()
+                    .map(|(id, path)| {
+                        drillholes::mesh_intervals(path, step, tolerance, |p| solid.contains(p))
+                            .map(|r| (id, r))
+                    })
+                    .collect::<Result<_, _>>()
+            })
+            .map_err(invalid)?;
         let rows: Vec<(&str, (f64, f64, bool))> = runs
             .iter()
             .flat_map(|(id, r)| r.iter().map(move |&run| (id.as_str(), run)))
@@ -729,16 +744,6 @@ impl Drillholes {
 
     fn __len__(&self) -> usize {
         self.paths.len()
-    }
-
-    fn __repr__(&self) -> String {
-        let (n, columns) = self.intervals.as_ref().map_or((0, String::new()), |i| {
-            (i.0.num_rows(), crate::table::describe(&i.0))
-        });
-        format!(
-            "Drillholes({} holes, {n} intervals){columns}",
-            self.paths.len()
-        )
     }
 }
 
@@ -1089,9 +1094,9 @@ fn json<T: serde::Serialize>(value: &T) -> PyResult<String> {
 /// max_deviation : float
 ///     Largest angle, in degrees, between the directions of consecutive
 ///     survey stations. A single wrong station is flagged twice: on itself
-///     and on the station below.
+///     and on the station below. Finite and >= 0.
 /// tolerance : float
-///     Depth tolerance of gaps, overlaps and ``past_depth``.
+///     Depth tolerance of gaps, overlaps and ``past_depth``. Finite and >= 0.
 ///
 /// Returns
 /// -------
@@ -1158,6 +1163,11 @@ fn check_drillholes<'py>(
     max_deviation: f64,
     tolerance: f64,
 ) -> PyResult<(Bound<'py, PyDict>, Table, Table)> {
+    for (name, v) in [("max_deviation", max_deviation), ("tolerance", tolerance)] {
+        if !(v.is_finite() && v >= 0.0) {
+            return Err(invalid(format!("{name} must be finite and >= 0, got {v}")));
+        }
+    }
     let s = &nodata;
     let collar = to_batch(collar)?;
     let collar_ids = text(&collar, hole)?;

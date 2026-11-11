@@ -15,6 +15,7 @@
 pub mod batch;
 pub mod block;
 pub mod categorical;
+mod coincident;
 pub mod cokrige;
 pub mod disjunctive;
 pub mod error;
@@ -46,9 +47,9 @@ pub use indicator::{
 };
 pub use krige::{Estimate, Kind, krige};
 pub use kriging_algebra::{
-    DriftSpec, DualKriging, Quality, calibrated_count, check_bayesian_prior, krige_bayesian,
-    krige_bayesian_polynomial, krige_calibrated, krige_factorial, krige_ordinary, krige_universal,
-    prefix_quality,
+    DriftSpec, DualKriging, Quality, calibrated_count, check_bayesian_prior, check_degree,
+    check_factorial, check_prior_values, krige_bayesian, krige_bayesian_polynomial,
+    krige_calibrated, krige_factorial, krige_ordinary, krige_universal, prefix_quality,
 };
 pub use multigaussian::Multigaussian;
 pub use neighborhood::{NeighborhoodStats, hole_distance, neighborhood_stats};
@@ -57,8 +58,8 @@ pub use search::{
     neighborhood_groups, neighbors, neighbors_in, same_neighborhood, take,
 };
 pub use simple_interp::{
-    InterpEstimate, InterpOptions, inverse_distance, inverse_distance_weights, local_least_squares,
-    moving_average, moving_median, nearest_index,
+    InterpEstimate, InterpOptions, check_power, inverse_distance, inverse_distance_weights,
+    local_least_squares, moving_average, moving_median, nearest_index,
 };
 pub use validate::{CvRecord, CvSummary, k_fold, leave_one_out};
 
@@ -108,7 +109,7 @@ mod tests {
     use variogram::{Model, Variogram};
 
     #[test]
-    fn dropping_twins_restores_kriging() {
+    fn twins_krige_as_one_sample() {
         let locs = [
             (0.0, 0.0, 0.0),
             (10.0, 0.0, 0.0),
@@ -117,11 +118,21 @@ mod tests {
             (5.0, 5.0, 0.0),
         ];
         let vg = Variogram::single(Model::Spherical, 1.0, 50.0);
-        let samples: Vec<Sample> = locs.iter().map(|&l| Sample::new(l, 1.0)).collect();
+        let samples: Vec<Sample> = locs
+            .iter()
+            .zip([1.0, 2.0, 3.0, 4.0, 6.0])
+            .map(|(&l, v)| Sample::new(l, v))
+            .collect();
         let target = (2.0, 2.0, 0.0);
-        assert!(krige(Kind::Ordinary, &target, &samples, &vg).is_err());
-        let kept: Vec<Sample> = [0, 1, 3].iter().map(|&i| samples[i].clone()).collect();
-        let est = krige(Kind::Ordinary, &target, &kept, &vg).unwrap();
-        assert!((est.value - 1.0).abs() < 1e-9);
+        let est = krige(Kind::Ordinary, &target, &samples, &vg).unwrap();
+        let kept: Vec<Sample> = [(0, 2.0), (1, 2.0), (3, 5.0)]
+            .iter()
+            .map(|&(i, v)| Sample::new(locs[i], v))
+            .collect();
+        let one = krige(Kind::Ordinary, &target, &kept, &vg).unwrap();
+        assert!((est.value - one.value).abs() < 1e-12);
+        assert!((est.variance - one.variance).abs() < 1e-12);
+        assert_eq!(est.weights[0], est.weights[2]);
+        assert_eq!(est.weights[3], est.weights[4]);
     }
 }

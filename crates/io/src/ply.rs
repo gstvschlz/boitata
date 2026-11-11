@@ -112,6 +112,17 @@ fn float_column(values: Vec<f64>) -> ArrayRef {
     )
 }
 
+fn index(v: f64, what: &str) -> Result<u32> {
+    if v.fract() == 0.0 && (0.0..=f64::from(u32::MAX)).contains(&v) {
+        Ok(v as u32)
+    } else {
+        Err(bad(format!(
+            "PLY {what} {v} is not a whole number from 0 to {}",
+            u32::MAX
+        )))
+    }
+}
+
 /// Fan triangles of a polygon of vertex indices.
 fn fan(polygon: &[u32]) -> impl Iterator<Item = [u32; 3]> + '_ {
     (1..polygon.len().saturating_sub(1)).map(|k| [polygon[0], polygon[k], polygon[k + 1]])
@@ -168,6 +179,50 @@ pub(crate) fn parse_ply(bytes: &[u8]) -> Result<Mesh> {
         }
     }
     let rest = &bytes[start..];
+    for e in &elements {
+        if e.name == "vertex"
+            && e.count > 0
+            && !["x", "y", "z"]
+                .iter()
+                .all(|a| e.properties.iter().any(|p| p.name == *a))
+        {
+            return Err(bad("PLY vertex element needs properties x, y and z"));
+        }
+        if e.count > 0 && e.properties.is_empty() {
+            return Err(bad(format!(
+                "PLY element `{}` has {} rows but no properties",
+                e.name, e.count
+            )));
+        }
+    }
+    let ascii = format == "ascii";
+    let available = if ascii {
+        rest.split(u8::is_ascii_whitespace)
+            .filter(|t| !t.is_empty())
+            .count()
+    } else {
+        rest.len()
+    };
+    let needed = elements.iter().try_fold(0usize, |total, e| {
+        let row: usize = e
+            .properties
+            .iter()
+            .map(|p| {
+                if ascii {
+                    1
+                } else {
+                    p.list.unwrap_or(p.kind).size()
+                }
+            })
+            .sum();
+        e.count.checked_mul(row)?.checked_add(total)
+    });
+    if needed.is_none_or(|n| n > available) {
+        return Err(bad(format!(
+            "PLY header declares more rows than the {} bytes after it hold",
+            rest.len()
+        )));
+    }
     let mut body = match format {
         "ascii" => Body::Ascii(
             std::str::from_utf8(rest)
@@ -203,14 +258,18 @@ pub(crate) fn parse_ply(bytes: &[u8]) -> Result<Mesh> {
             let mut row = Vec::with_capacity(columns.len());
             for p in &e.properties {
                 if let Some(count) = p.list {
-                    let n = body.read(count)? as usize;
-                    let items = (0..n)
-                        .map(|_| body.read(p.kind).map(|i| i as u32))
-                        .collect::<Result<Vec<_>>>()?;
+                    let n = index(body.read(count)?, "list count")?;
                     if role == "face"
                         && matches!(p.name.as_str(), "vertex_indices" | "vertex_index")
                     {
-                        polygon = items;
+                        polygon = (0..n)
+                            .map(|_| index(body.read(p.kind)?, "vertex index"))
+                            .collect::<Result<Vec<_>>>()?;
+                    } else {
+                        // Other lists (wedge texcoords, ...) are read past, not kept.
+                        for _ in 0..n {
+                            body.read(p.kind)?;
+                        }
                     }
                     continue;
                 }
@@ -504,6 +563,72 @@ mod tests {
         assert_eq!(values(m.face_attributes(), "id"), [Some(-3.0); 2]);
         assert!(parse_ply(&bytes[..bytes.len() - 12]).is_err());
         assert!(parse_ply(b"garbage").is_err());
+    }
+
+    fn ply_with_faces(faces: &str) -> String {
+        format!(
+            "ply\nformat ascii 1.0\nelement vertex 4\nproperty float x\nproperty float y\n\
+             property float z\nelement face 1\nproperty list uchar int vertex_indices\n\
+             end_header\n0 0 0\n1 0 0\n0 1 0\n0 0 1\n{faces}\n"
+        )
+    }
+
+    #[test]
+    fn negative_fractional_and_nan_face_indices_are_errors() {
+        assert_eq!(
+            parse_ply(ply_with_faces("3 1 2 3").as_bytes())
+                .unwrap()
+                .triangles(),
+            &[[1, 2, 3]]
+        );
+        for faces in [
+            "3 1 2 -1",
+            "3 1.9 2 3",
+            "3 1 nan 3",
+            "2.5 1 2 3",
+            "-3 1 2 3",
+        ] {
+            let err = parse_ply(ply_with_faces(faces).as_bytes()).unwrap_err();
+            assert!(err.to_string().contains("whole number"), "{faces}: {err}");
+        }
+        let mut bytes = b"ply\nformat binary_little_endian 1.0\nelement vertex 3\n\
+            property float x\nproperty float y\nproperty float z\nelement face 1\n\
+            property list uchar int vertex_indices\nend_header\n"
+            .to_vec();
+        (0..9).for_each(|_| bytes.extend(0f32.to_le_bytes()));
+        bytes.push(3);
+        [1i32, 2, -1]
+            .iter()
+            .for_each(|i| bytes.extend(i.to_le_bytes()));
+        assert!(parse_ply(&bytes).is_err());
+    }
+
+    #[test]
+    fn non_index_lists_may_hold_fractions() {
+        // MeshLab writes per-face wedge texcoords as a float list.
+        let text = "ply\nformat ascii 1.0\nelement vertex 3\nproperty float x\n\
+            property float y\nproperty float z\nelement face 1\n\
+            property list uchar int vertex_indices\nproperty list uchar float texcoord\n\
+            end_header\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2 6 0.25 0.5 0.75 0.125 -0.5 nan\n";
+        let mesh = parse_ply(text.as_bytes()).unwrap();
+        assert_eq!(mesh.triangles(), &[[0, 1, 2]]);
+    }
+
+    #[test]
+    fn element_counts_beyond_the_data_are_errors() {
+        let header =
+            |element: &str| format!("ply\nformat ascii 1.0\n{element}\nend_header\n").into_bytes();
+        for element in [
+            "element foo 1000000000000",
+            "element vertex 1000000000000",
+            "element vertex 2\nproperty float x\nproperty float y\nproperty float z",
+            "element vertex 1\nproperty float x\nproperty float y",
+        ] {
+            assert!(parse_ply(&header(element)).is_err(), "{element}");
+        }
+        let binary = b"ply\nformat binary_little_endian 1.0\nelement vertex 18446744073709551615\n\
+            property double x\nproperty double y\nproperty double z\nend_header\n";
+        assert!(parse_ply(binary).is_err());
     }
 
     #[test]
