@@ -89,13 +89,13 @@ run = "git-cliff -o CHANGELOG.md"
 [tasks.bench]
 description = "Criterion benches for the simulation crate. Pass a filter, for example scenario."
 usage = 'arg "[filter]" default="" help="Criterion filter, for example scenario or scenario/sgs-shared"'
-run = "cargo bench -p simulation --bench simulation -- {{usage.filter}}"
+run = "cargo bench -p simulation --bench simulation -- '{{usage.filter}}'"
 
 [tasks.profile]
 description = "Profile one simulation bench for 10s and print the top-15 self-time table."
 usage = 'arg "<filter>" help="Criterion filter, for example scenario/sis"'
 run = [
-  "cargo bench -p simulation --bench simulation -- --profile-time 10 {{usage.filter}}",
+  "cargo bench -p simulation --bench simulation -- --profile-time 10 '{{usage.filter}}'",
   "find target/criterion -name top.txt -path '*{{usage.filter}}*' -exec echo {} \\; -exec cat {} \\;",
 ]
 
