@@ -21,6 +21,7 @@ use crate::gibbs::{GibbsParams, GibbsSystem};
 use crate::turning_bands::{FieldMachine, TurningBandsParams};
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 use transforms::normal::{phi, probit};
 use variogram::Variogram;
@@ -655,16 +656,24 @@ impl LatentFields {
         grid: &[(f64, f64, f64)],
         params: &PgsParams,
     ) -> Result<Vec<Vec<f64>>> {
+        let draws: Result<Vec<Vec<f64>>> = self
+            .which
+            .par_iter()
+            .enumerate()
+            .map(|(k, &model)| {
+                let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k]).collect();
+                let g = GibbsParams {
+                    seed: boitata_core::rng::realization_seed(params.seed, 2 * k as u64),
+                    ..params.gibbs.clone()
+                };
+                self.systems[model].sample(&bounds, &g)
+            })
+            .collect();
+        let draws = draws?;
         let mut rng = StdRng::seed_from_u64(params.seed);
         let mut values = vec![Vec::with_capacity(self.which.len()); grid.len()];
         for (k, &model) in self.which.iter().enumerate() {
-            let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k]).collect();
-            let g = GibbsParams {
-                seed: boitata_core::rng::realization_seed(params.seed, 2 * k as u64),
-                ..params.gibbs.clone()
-            };
-            let at_data = self.systems[model].sample(&bounds, &g)?;
-            let field = self.machines[model].realize(&at_data, grid, &mut rng)?;
+            let field = self.machines[model].realize(&draws[k], grid, &mut rng)?;
             for (v, y) in values.iter_mut().zip(field) {
                 v.push(y);
             }
