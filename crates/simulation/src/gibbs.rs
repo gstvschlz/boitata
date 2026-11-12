@@ -17,7 +17,7 @@ use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use transforms::normal::{phi, probit};
-use variogram::Variogram;
+use variogram::{Anisotropy, Variogram};
 
 /// Gibbs sampler parameters.
 #[derive(Debug, Clone)]
@@ -50,6 +50,35 @@ pub(crate) struct GibbsSystem {
 
 impl GibbsSystem {
     pub(crate) fn new(locs: &[(f64, f64, f64)], vg: &Variogram) -> Result<Self> {
+        Self::assemble(locs, vg, None)
+    }
+
+    /// As [`Self::new`], with the covariance between sites `i` and `j` the
+    /// average of the variogram covariances in `anisotropy[i]` and
+    /// `anisotropy[j]`. The average is symmetric. It is the covariance locally
+    /// varying anisotropy kriging uses for a pair when both sites share one
+    /// anisotropy: that kriging reads every pair of a target in the target's
+    /// anisotropy, and here each site is the target at its own location.
+    /// When the average is not positive definite its eigenvalues are
+    /// floored, so the sampler always has positive conditional variances.
+    pub(crate) fn with_anisotropy(
+        locs: &[(f64, f64, f64)],
+        vg: &Variogram,
+        anisotropy: &[Anisotropy],
+    ) -> Result<Self> {
+        if anisotropy.len() != locs.len() {
+            return Err(SimError::InvalidParameters(
+                "one anisotropy per site".into(),
+            ));
+        }
+        Self::assemble(locs, vg, Some(anisotropy))
+    }
+
+    fn assemble(
+        locs: &[(f64, f64, f64)],
+        vg: &Variogram,
+        anisotropy: Option<&[Anisotropy]>,
+    ) -> Result<Self> {
         let n = locs.len();
         if n == 0 {
             return Err(SimError::InsufficientData("no sites".into()));
@@ -58,9 +87,24 @@ impl GibbsSystem {
         let mut sigma = DMatrix::<f64>::zeros(n, n);
         for i in 0..n {
             for j in 0..n {
-                sigma[(i, j)] = vg.cov_points(&locs[i], &locs[j]) / sill;
+                let cov = match anisotropy {
+                    None => vg.cov_points(&locs[i], &locs[j]),
+                    Some(a) => {
+                        0.5 * (vg.cov(a[i].lag(&locs[i], &locs[j]))
+                            + vg.cov(a[j].lag(&locs[i], &locs[j])))
+                    }
+                };
+                sigma[(i, j)] = cov / sill;
             }
             sigma[(i, i)] += 1e-9; // jitter
+        }
+        // Averaging covariances read in different anisotropies is symmetric but
+        // not always positive definite; floor the spectrum so no conditional
+        // variance of the sampler turns negative.
+        if anisotropy.is_some() && sigma.clone().cholesky().is_none() {
+            let e = sigma.symmetric_eigen();
+            let floored = e.eigenvalues.map(|l| l.max(1e-9));
+            sigma = &e.eigenvectors * DMatrix::from_diagonal(&floored) * e.eigenvectors.transpose();
         }
         let p = sigma
             .try_inverse()
@@ -212,5 +256,90 @@ mod tests {
             den += (yi - m).powi(2);
         }
         assert!(num / den > 0.2, "lag-1 corr {}", num / den);
+    }
+
+    #[test]
+    fn constant_anisotropy_matches_the_variogram_and_a_mix_still_draws() {
+        let locs = [
+            (0.0, 0.0, 0.0),
+            (4.0, 0.0, 0.0),
+            (0.0, 6.0, 0.0),
+            (3.0, 5.0, 1.0),
+        ];
+        let same = Anisotropy::new(variogram::Angles {
+            azimuth: 25.0,
+            dip: 10.0,
+            rake: 5.0,
+            major: 1.0,
+            semi: 0.4,
+            minor: 0.2,
+        })
+        .unwrap();
+        let vg = Variogram::single(Model::Exponential, 2.0, 12.0).with_anisotropy(same.clone());
+        let repeated = vec![same.clone(); locs.len()];
+        let params = GibbsParams {
+            iterations: 40,
+            burn_in: 10,
+            seed: 9,
+        };
+        let bounds = vec![(f64::NEG_INFINITY, 0.5); locs.len()];
+        let plain = GibbsSystem::new(&locs, &vg)
+            .unwrap()
+            .sample(&bounds, &params)
+            .unwrap();
+        let local = GibbsSystem::with_anisotropy(&locs, &vg, &repeated)
+            .unwrap()
+            .sample(&bounds, &params)
+            .unwrap();
+        assert_eq!(plain, local);
+        let other = Anisotropy::new(variogram::Angles {
+            azimuth: 110.0,
+            dip: 0.0,
+            rake: 40.0,
+            major: 2.0,
+            semi: 0.8,
+            minor: 0.3,
+        })
+        .unwrap();
+        let mut mixed = repeated;
+        mixed[1] = other;
+        let draw = GibbsSystem::with_anisotropy(&locs, &vg, &mixed)
+            .unwrap()
+            .sample(&bounds, &params)
+            .unwrap();
+        assert_ne!(draw, plain);
+        assert!(draw.iter().all(|y| y.is_finite() && *y <= 0.5));
+        assert!(GibbsSystem::with_anisotropy(&locs, &vg, &mixed[..2]).is_err());
+    }
+
+    #[test]
+    fn mixed_anisotropies_keep_every_conditional_variance_positive() {
+        let locs: Vec<_> = (0..40)
+            .map(|i| ((i * 7 % 20) as f64, (i * 13 % 20) as f64, 0.0))
+            .collect();
+        let anisotropy: Vec<_> = (0..40)
+            .map(|i| {
+                Anisotropy::new(variogram::Angles {
+                    azimuth: (i * 37 % 180) as f64,
+                    dip: 0.0,
+                    rake: 0.0,
+                    major: 1.0,
+                    semi: 0.05,
+                    minor: 0.05,
+                })
+                .unwrap()
+            })
+            .collect();
+        let vg = Variogram::single(Model::Gaussian, 1.0, 15.0);
+        let system = GibbsSystem::with_anisotropy(&locs, &vg, &anisotropy).unwrap();
+        assert!((0..40).all(|i| system.precision[i * 40 + i] > 0.0));
+        let params = GibbsParams {
+            iterations: 30,
+            burn_in: 5,
+            seed: 3,
+        };
+        let bounds = vec![(f64::NEG_INFINITY, f64::INFINITY); 40];
+        let draw = system.sample(&bounds, &params).unwrap();
+        assert!(draw.iter().all(|y| y.is_finite()));
     }
 }

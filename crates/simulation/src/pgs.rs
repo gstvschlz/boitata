@@ -13,17 +13,23 @@
 //! 2. a Gibbs sweep ([`crate::gibbs`]) draws consistent Gaussian values at the
 //!    data honoring those intervals + the spatial correlation;
 //! 3. each field is conditioned to those values by turning bands
-//!    ([`crate::turning_bands::conditional_gaussian_field`]);
+//!    ([`crate::turning_bands::conditional_gaussian_field`]), or, when a local
+//!    anisotropy is given, by sequential Gaussian simulation
+//!    ([`crate::sgs::sequential`]) whose search and simple kriging use the
+//!    anisotropy of the node;
 //! 4. the truncation rule classifies each grid node.
 
 use crate::error::{Result, SimError};
 use crate::gibbs::{GibbsParams, GibbsSystem};
+use crate::sgs::{self, SgsParams, Space};
 use crate::turning_bands::{FieldMachine, TurningBandsParams};
+use estimation::lva::LocalAnisotropy;
+use estimation::search::Search;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
 use serde::{Deserialize, Serialize};
 use transforms::normal::{phi, probit};
-use variogram::Variogram;
+use variogram::{Anisotropy, Variogram};
 
 const ANY: (f64, f64) = (f64::NEG_INFINITY, f64::INFINITY);
 
@@ -514,10 +520,11 @@ fn same_variogram(a: &Variogram, b: &Variogram) -> bool {
 /// Latent fields of one plurigaussian model, factored once for every
 /// realization on the grid given to [`LatentFields::new`].
 ///
-/// The Gibbs precision, turning-band layout and simple-kriging weights depend
-/// only on the data locations, that grid and the variograms. The band count
-/// and the search are those of `new`; each draw uses its own seed and Gibbs
-/// settings.
+/// The Gibbs precision and, without local anisotropy, the turning-band layout
+/// depend only on the data locations, that grid and the variograms. The band
+/// count and the search are those of `new`; each draw uses its own seed and
+/// Gibbs settings. With local anisotropy, each draw simulates the latent
+/// fields sequentially from the Gibbs values.
 #[doc(hidden)]
 pub struct LatentFields {
     systems: Vec<GibbsSystem>,
@@ -527,6 +534,17 @@ pub struct LatentFields {
     n_data: usize,
     n_fields: usize,
     nodes: usize,
+    local: Option<PreparedLocal>,
+}
+
+/// Sequential latent engine: Gibbs at the data, then one SGS per field.
+struct PreparedLocal {
+    locs: Vec<(f64, f64, f64)>,
+    /// One variogram per Gibbs system, in `systems` order.
+    variograms: Vec<Variogram>,
+    /// One anisotropy per grid node.
+    anisotropy: LocalAnisotropy,
+    search: Search,
 }
 
 impl LatentFields {
@@ -552,6 +570,7 @@ impl LatentFields {
                 n_data: data_locs.len(),
                 n_fields: variograms.len(),
                 nodes: 0,
+                local: None,
             });
         }
         let mut systems = Vec::new();
@@ -578,6 +597,78 @@ impl LatentFields {
             n_data: data_locs.len(),
             n_fields: variograms.len(),
             nodes: grid.len(),
+            local: None,
+        })
+    }
+
+    /// As [`Self::new`], for a local anisotropy with one entry per grid node.
+    ///
+    /// Each latent field is a sequential Gaussian simulation conditioned on
+    /// the Gibbs sample. The covariance between two data is the average of
+    /// the variogram covariances in each datum's anisotropy, and a node's
+    /// search and simple kriging use that node's anisotropy. A datum takes
+    /// the anisotropy of the nearest grid node.
+    pub fn with_anisotropy(
+        data_locs: &[(f64, f64, f64)],
+        grid: &[(f64, f64, f64)],
+        variograms: &[Variogram],
+        bands: &TurningBandsParams,
+        local: &LocalAnisotropy,
+    ) -> Result<Self> {
+        if data_locs.is_empty() {
+            return Err(SimError::InsufficientData("no conditioning data".into()));
+        }
+        if variograms.is_empty() {
+            return Err(invalid(
+                "the rule thresholds 0 fields but 0 variograms were given",
+            ));
+        }
+        if local.len() != grid.len() {
+            return Err(invalid("one local anisotropy per grid node"));
+        }
+        if grid.is_empty() {
+            return Ok(Self {
+                systems: vec![],
+                machines: vec![],
+                which: vec![],
+                n_data: data_locs.len(),
+                n_fields: variograms.len(),
+                nodes: 0,
+                local: None,
+            });
+        }
+        let at_data = local.at(data_locs);
+        let data_aniso: Vec<Anisotropy> = (0..data_locs.len())
+            .map(|i| at_data.anisotropy(i))
+            .collect();
+        let mut systems = Vec::new();
+        let mut reps = Vec::new();
+        let mut which = Vec::with_capacity(variograms.len());
+        for vg in variograms {
+            let group = reps.iter().position(|r| same_variogram(r, vg));
+            let group = match group {
+                Some(group) => group,
+                None => {
+                    systems.push(GibbsSystem::with_anisotropy(data_locs, vg, &data_aniso)?);
+                    reps.push(vg.clone());
+                    reps.len() - 1
+                }
+            };
+            which.push(group);
+        }
+        Ok(Self {
+            systems,
+            machines: vec![],
+            which,
+            n_data: data_locs.len(),
+            n_fields: variograms.len(),
+            nodes: grid.len(),
+            local: Some(PreparedLocal {
+                locs: data_locs.to_vec(),
+                variograms: reps,
+                anisotropy: local.clone(),
+                search: bands.search.clone(),
+            }),
         })
     }
 
@@ -655,6 +746,9 @@ impl LatentFields {
         grid: &[(f64, f64, f64)],
         params: &PgsParams,
     ) -> Result<Vec<Vec<f64>>> {
+        if let Some(local) = &self.local {
+            return values_local(local, &self.systems, &self.which, intervals, grid, params);
+        }
         let mut rng = StdRng::seed_from_u64(params.seed);
         let mut values = vec![Vec::with_capacity(self.which.len()); grid.len()];
         for (k, &model) in self.which.iter().enumerate() {
@@ -673,10 +767,148 @@ impl LatentFields {
     }
 }
 
+/// Gibbs values at the data, then sequential Gaussian simulation. The values
+/// are already standard normal, so the kriging space leaves them as they are.
+fn values_local(
+    local: &PreparedLocal,
+    systems: &[GibbsSystem],
+    which: &[usize],
+    intervals: &[Vec<(f64, f64)>],
+    grid: &[(f64, f64, f64)],
+    params: &PgsParams,
+) -> Result<Vec<Vec<f64>>> {
+    let mut values = vec![Vec::with_capacity(which.len()); grid.len()];
+    for (k, &model) in which.iter().enumerate() {
+        let bounds: Vec<(f64, f64)> = intervals.iter().map(|b| b[k]).collect();
+        let g = GibbsParams {
+            seed: boitata_core::rng::realization_seed(params.seed, 2 * k as u64),
+            ..params.gibbs.clone()
+        };
+        let mut at_data = systems[model].sample(&bounds, &g)?;
+        // A facies interval is (lo, hi]. Gibbs clamps onto [lo, hi], so a draw
+        // can sit on lo and classify as the previous facies.
+        for (y, bound) in at_data.iter_mut().zip(&bounds) {
+            *y = open_interval(*y, *bound);
+        }
+        let field = latent_field(
+            &local.locs,
+            &at_data,
+            grid,
+            &local.variograms[model],
+            &local.search,
+            &local.anisotropy,
+            boitata_core::rng::realization_seed(params.seed, 2 * k as u64 + 1),
+        )?;
+        for (v, y) in values.iter_mut().zip(field) {
+            v.push(y);
+        }
+    }
+    Ok(values)
+}
+
+fn open_interval(y: f64, (lo, hi): (f64, f64)) -> f64 {
+    if y > lo && y <= hi {
+        return y;
+    }
+    if lo.is_finite() {
+        let up = lo.next_up();
+        if up <= hi {
+            return up;
+        }
+    }
+    if hi.is_finite() && hi > lo {
+        return hi;
+    }
+    if y.is_finite() { y } else { 0.0 }
+}
+
+/// An infinite turning-bands radius would visit every node. The practical
+/// range is the farthest lag that still has covariance.
+fn neighborhood(base: &Search, vg: &Variogram) -> Search {
+    if base.radius.is_finite() {
+        return base.clone();
+    }
+    let range = vg.structures.iter().map(|s| s.range).fold(0.0, f64::max);
+    Search {
+        radius: range.max(f64::MIN_POSITIVE),
+        ..base.clone()
+    }
+}
+
+struct Latent<'a> {
+    vg: &'a Variogram,
+}
+
+impl Space for Latent<'_> {
+    fn neighbor(&self, value: f64, _trend: f64, _domain: Option<u32>) -> f64 {
+        value
+    }
+
+    fn variogram(&self, _: Option<u32>) -> &Variogram {
+        self.vg
+    }
+
+    fn mean(&self, _: Option<u32>) -> f64 {
+        0.0
+    }
+
+    fn draw(
+        &self,
+        mean: f64,
+        variance: f64,
+        _node: usize,
+        _domain: Option<u32>,
+        _trend: f64,
+        z: f64,
+    ) -> (f64, f64) {
+        let y = mean + variance.sqrt() * z;
+        (y, y)
+    }
+
+    fn marginal(&self, _node: usize, _domain: Option<u32>, _trend: f64, z: f64) -> (f64, f64) {
+        (z, z)
+    }
+}
+
+fn latent_field(
+    locs: &[(f64, f64, f64)],
+    values: &[f64],
+    grid: &[(f64, f64, f64)],
+    vg: &Variogram,
+    search: &Search,
+    local: &LocalAnisotropy,
+    seed: u64,
+) -> Result<Vec<f64>> {
+    let vg = sgs::unit_sill(vg);
+    let params = SgsParams {
+        search: vec![neighborhood(search, &vg)],
+        seed,
+    };
+    let space = Latent { vg: &vg };
+    sgs::sequential(
+        &space,
+        values.to_vec(),
+        locs,
+        values,
+        vec![None; locs.len()],
+        None,
+        None,
+        grid,
+        &vg,
+        &params,
+        Some(local),
+        None,
+        |_, _, _, _| {},
+    )
+    .map(|r| r.values)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use estimation::lva::LocalAnisotropy;
     use variogram::model::Model;
+    use variogram::{Angles, Anisotropy};
 
     fn split(field: usize, children: Vec<Hierarchy>) -> Hierarchy {
         Hierarchy::Split { field, children }
@@ -1027,5 +1259,205 @@ mod tests {
         assert_eq!(rule.classify(&[-1.0, 5.0]), 0);
         assert_eq!(rule.classify(&[1.0, -1.0]), 1);
         assert_eq!(rule.classify(&[1.0, 1.0]), 2);
+    }
+
+    fn stretched() -> (Variogram, impl Fn(&[(f64, f64, f64)]) -> LocalAnisotropy) {
+        let aniso = Anisotropy::new(Angles {
+            azimuth: 35.0,
+            dip: 0.0,
+            rake: 0.0,
+            major: 1.0,
+            semi: 0.45,
+            minor: 0.25,
+        })
+        .unwrap();
+        let vg = Variogram::single(Model::Spherical, 1.0, 6.0).with_anisotropy(aniso);
+        let field = |grid: &[(f64, f64, f64)]| {
+            LocalAnisotropy::new(
+                grid.to_vec(),
+                vec![[35.0, 0.0, 0.0]; grid.len()],
+                vec![[0.45, 0.25]; grid.len()],
+            )
+            .unwrap()
+        };
+        (vg, field)
+    }
+
+    fn lva_params(seed: u64) -> PgsParams {
+        PgsParams {
+            bands: TurningBandsParams {
+                n_bands: 40,
+                seed,
+                ..Default::default()
+            },
+            gibbs: GibbsParams {
+                iterations: 20,
+                burn_in: 5,
+                seed,
+            },
+            seed,
+        }
+    }
+
+    #[test]
+    fn constant_local_anisotropy_reproduces_proportions_and_honors_data() {
+        let (vg, field) = stretched();
+        let n = 24;
+        let grid = plane(n);
+        let local = field(&grid);
+        let tree = split(0, vec![leaf(0), split(1, vec![leaf(1), leaf(2)])]);
+        let p = [0.5, 0.3, 0.2];
+        let rule = tree.rule(&p);
+        let vgs = vec![vg; 2];
+        let data = vec![grid[n * 12 + 12]];
+        let bands = &TurningBandsParams::default();
+        let prepared = LatentFields::with_anisotropy(&data, &grid, &vgs, bands, &local).unwrap();
+        let plain = plurigaussian(&data, &[1], &grid, &vgs, &rule, &lva_params(2)).unwrap();
+        let once = prepared
+            .categories(&[1], &grid, &rule, &lva_params(2))
+            .unwrap();
+        assert_ne!(plain, once);
+        assert_eq!(once[n * 12 + 12], 1);
+        let mut share = [0.0; 3];
+        let reals = 12;
+        for seed in 0..reals {
+            let f = prepared
+                .categories(&[1], &grid, &rule, &lva_params(seed))
+                .unwrap();
+            assert_eq!(f[n * 12 + 12], 1, "seed {seed}");
+            for &c in &f {
+                share[c] += 1.0 / (grid.len() * reals as usize) as f64;
+            }
+        }
+        for (s, q) in share.iter().zip(p) {
+            assert!((s - q).abs() < 0.06, "shares {share:?} vs {p:?}");
+        }
+        let short =
+            LocalAnisotropy::new(vec![grid[0]], vec![[0.0, 0.0, 0.0]], vec![[1.0, 1.0]]).unwrap();
+        let Err(err) = LatentFields::with_anisotropy(&data, &grid, &vgs, bands, &short) else {
+            panic!("expected a length error");
+        };
+        assert!(
+            err.to_string()
+                .contains("one local anisotropy per grid node"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn local_anisotropy_honors_every_datum() {
+        let (vg, field) = stretched();
+        let n = 12;
+        let grid = plane(n);
+        let local = field(&grid);
+        let corners = [0, n - 1, n * (n - 1), n * n - 1];
+        let data: Vec<_> = corners.map(|i| grid[i]).into();
+        let facies = [0usize, 1, 2, 0];
+        let rule = split(0, vec![leaf(0), split(1, vec![leaf(1), leaf(2)])]).rule(&[0.4, 0.3, 0.3]);
+        let vgs = [vg.clone(), vg];
+        let prepared = LatentFields::with_anisotropy(
+            &data,
+            &grid,
+            &vgs,
+            &TurningBandsParams::default(),
+            &local,
+        )
+        .unwrap();
+        for seed in 0..4 {
+            let f = prepared
+                .categories(&facies, &grid, &rule, &lva_params(seed))
+                .unwrap();
+            for (&i, c) in corners.iter().zip(facies) {
+                assert_eq!(f[i], c, "seed {seed} node {i}");
+            }
+        }
+    }
+
+    #[test]
+    fn local_anisotropy_follows_local_proportions() {
+        let (vg, field) = stretched();
+        let n = 20;
+        let grid = plane(n);
+        let local = field(&grid);
+        let tree = split(0, vec![leaf(0), split(1, vec![leaf(1), leaf(2)])]);
+        let at = |x: f64| {
+            let p0 = 0.8 - 0.6 * x / (n - 1) as f64;
+            vec![p0, (1.0 - p0) / 2.0, (1.0 - p0) / 2.0]
+        };
+        let props: Vec<Vec<f64>> = grid.iter().map(|g| at(g.0)).collect();
+        let data = vec![(10.0, 10.0, 0.0)];
+        let vgs = vec![vg; 2];
+        let prepared = LatentFields::with_anisotropy(
+            &data,
+            &grid,
+            &vgs,
+            &TurningBandsParams::default(),
+            &local,
+        )
+        .unwrap();
+        let (mut west, mut east) = (0.0, 0.0);
+        let reals = 8;
+        for seed in 0..reals {
+            let f = prepared
+                .categories_local(&[1], &grid, &tree, &[at(10.0)], &props, &lva_params(seed))
+                .unwrap();
+            for (g, &c) in grid.iter().zip(&f) {
+                let share = (c == 0) as u8 as f64 / (reals as f64 * (n * n / 4) as f64);
+                if g.0 < 5.0 {
+                    west += share;
+                } else if g.0 >= 15.0 {
+                    east += share;
+                }
+            }
+        }
+        let expect = |x0: usize| (x0..x0 + 5).map(|x| at(x as f64)[0]).sum::<f64>() / 5.0;
+        assert!(
+            (west - expect(0)).abs() < 0.08,
+            "west {west} vs {}",
+            expect(0)
+        );
+        assert!(
+            (east - expect(15)).abs() < 0.08,
+            "east {east} vs {}",
+            expect(15)
+        );
+    }
+
+    #[test]
+    fn local_anisotropy_depends_on_the_seed_not_the_thread_count() {
+        let vg = Variogram::single(Model::Spherical, 1.0, 5.0);
+        let n = 16;
+        let grid = plane(n);
+        let angles: Vec<[f64; 3]> = grid
+            .iter()
+            .map(|g| [g.0 / n as f64 * 120.0, 0.0, 0.0])
+            .collect();
+        let local =
+            LocalAnisotropy::new(grid.clone(), angles, vec![[0.4, 1.0]; grid.len()]).unwrap();
+        let rule =
+            split(0, vec![leaf(0), split(1, vec![leaf(1), leaf(2)])]).rule(&[0.4, 0.35, 0.25]);
+        let data = vec![grid[0], grid[n * 8 + 4], grid[n * n - 1]];
+        let vgs = vec![vg; 2];
+        let prepared = LatentFields::with_anisotropy(
+            &data,
+            &grid,
+            &vgs,
+            &TurningBandsParams::default(),
+            &local,
+        )
+        .unwrap();
+        let run = |threads: usize, seed: u64| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(threads)
+                .build()
+                .unwrap()
+                .install(|| {
+                    prepared
+                        .categories(&[0, 1, 2], &grid, &rule, &lva_params(seed))
+                        .unwrap()
+                })
+        };
+        assert_eq!(run(1, 5), run(4, 5));
+        assert_ne!(run(4, 5), run(4, 6));
     }
 }
