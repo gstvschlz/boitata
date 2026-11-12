@@ -254,6 +254,96 @@ impl Grid {
         release(&mut heap, f64::INFINITY, &mut visit);
     }
 
+    /// Calls `visit(d2, i)` for every point within `radius2` of `q`, in no
+    /// particular order, until it returns true. Only cells overlapping the
+    /// sphere's bounding box are scanned.
+    pub(super) fn within(
+        &self,
+        q: &[f64; 3],
+        radius2: f64,
+        mut visit: impl FnMut(f64, usize) -> bool,
+    ) {
+        let Some((lo, hi)) = self.sphere_cells(q, radius2) else {
+            return;
+        };
+        for z in lo[2]..=hi[2] {
+            for y in lo[1]..=hi[1] {
+                for x in lo[0]..=hi[0] {
+                    if self.visit_cell([x, y, z], q, radius2, &mut visit) {
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Cells overlapping the axis-aligned box of the sphere, or `None` when
+    /// that box misses the grid. An infinite radius is the whole grid.
+    fn sphere_cells(&self, q: &[f64; 3], radius2: f64) -> Option<([i64; 3], [i64; 3])> {
+        if radius2.is_nan() || radius2 < 0.0 {
+            return None;
+        }
+        let full = (
+            [0i64; 3],
+            [self.dims[0] - 1, self.dims[1] - 1, self.dims[2] - 1],
+        );
+        if radius2.is_infinite() {
+            return Some(full);
+        }
+        if q.iter().any(|v| !v.is_finite()) {
+            return None;
+        }
+        let mut lo = [0i64; 3];
+        let mut hi = [0i64; 3];
+        // `sqrt` is correctly rounded and may land one ulp under the radius.
+        let span = radius2.sqrt().next_up();
+        for d in 0..3 {
+            let scale = q[d]
+                .abs()
+                .max(span)
+                .max(self.lo[d].abs())
+                .max(self.hi[d].abs());
+            // The cell index rounds. This slack is many ulps and a small
+            // fraction of any cell this grid builds, so a point on the
+            // sphere stays inside the cells we scan.
+            let edge = scale * 1e-9;
+            let a = q[d] - span - edge;
+            let b = q[d] + span + edge;
+            if !a.is_finite() || !b.is_finite() {
+                lo[d] = 0;
+                hi[d] = self.dims[d] - 1;
+                continue;
+            }
+            let c0 = ((a - self.lo[d]) / self.h).floor() as i64;
+            let c1 = ((b - self.lo[d]) / self.h).floor() as i64;
+            if c1 < 0 || c0 >= self.dims[d] {
+                return None;
+            }
+            lo[d] = c0.clamp(0, self.dims[d] - 1);
+            hi[d] = c1.clamp(0, self.dims[d] - 1);
+        }
+        Some((lo, hi))
+    }
+
+    fn visit_cell(
+        &self,
+        c: [i64; 3],
+        q: &[f64; 3],
+        radius2: f64,
+        visit: &mut impl FnMut(f64, usize) -> bool,
+    ) -> bool {
+        let id = self.id(c);
+        let packed = &self.entries[self.start[id] as usize..self.start[id + 1] as usize];
+        work(packed.len() + self.added[id].len());
+        for e in packed.iter().chain(&self.added[id]) {
+            let d2 = d2(&e.p, q);
+            if d2 <= radius2 && visit(d2, e.i as usize) {
+                return true;
+            }
+        }
+        false
+    }
+
     /// Scans the cells exactly `r` cells from `c` on some axis.
     fn ring(&self, c: [i64; 3], r: i64, q: &[f64; 3], radius2: f64, heap: &mut Heap) {
         let lo = |d: usize| (-r).max(-c[d]);
@@ -394,6 +484,53 @@ mod tests {
                     for radius2 in [400.0, 10_000.0, f64::INFINITY] {
                         assert_eq!(visited(&grid, &q, radius2), brute(&points, &q, radius2));
                     }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn within_returns_the_same_set_as_nearest() {
+        let shapes = [
+            ([1000.0, 1000.0, 100.0], 800usize),
+            ([1000.0, 1000.0, 0.0], 600),
+            ([0.0, 0.0, 500.0], 400),
+            ([3000.0, 20.0, 5.0], 700),
+        ];
+        for (scale, n) in shapes {
+            let mut points = cloud(n, 7, scale);
+            let mut grid = Grid::new(&points);
+            for p in cloud(n / 5, 19, scale) {
+                points.push(p);
+                grid.add(&points);
+            }
+            let mut queries = cloud(16, 11, scale.map(|s| s * 1.6 + 1.0));
+            queries.push(scale.map(|s| -1_000.0 - s));
+            queries.push(scale.map(|s| s + 5_000.0));
+            queries.push([-1.0e6, 0.5 * scale[1], 1.0e6]);
+            let mut radii = vec![0.0, 1.0, 2_500.0, 40_000.0, f64::INFINITY];
+            let mut state = 23u64;
+            for _ in 0..6 {
+                state = state
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let u = (state >> 11) as f64 / (1u64 << 53) as f64;
+                radii.push(u * u * 1.0e8);
+            }
+            for q in &queries {
+                let mut cases = radii.clone();
+                cases.push(d2(&points[0], q));
+                cases.push(d2(&points[n / 2], q));
+                for radius2 in cases {
+                    let mut ordered = visited(&grid, q, radius2);
+                    let mut got = vec![];
+                    grid.within(q, radius2, |d, i| {
+                        got.push((d.to_bits(), i));
+                        false
+                    });
+                    ordered.sort_unstable();
+                    got.sort_unstable();
+                    assert_eq!(ordered, got, "{scale:?} {q:?} {radius2}");
                 }
             }
         }
