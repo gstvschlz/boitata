@@ -41,7 +41,8 @@ pub use error::{Result, SimError};
 pub use gibbs::{GibbsParams, gibbs};
 pub use lattice::{Lattice, Template, default_levels, multigrid_path};
 pub use multivariate::{
-    Decorrelation, factor_seed, multivariate, multivariate_batched, multivariate_bounded,
+    Decorrelation, NodeTrends, condition_variables, factor_seed, multivariate,
+    multivariate_batched, multivariate_bounded,
 };
 pub use objects::{ObjectSet, Param, Shape, object_training_image};
 pub use pgs::{

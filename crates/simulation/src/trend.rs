@@ -6,13 +6,17 @@
 //! [`crate::sgs`] or turning bands, and each node is back-transformed with the
 //! table of its own trend class.
 
+use serde::{Deserialize, Serialize};
 use transforms::StepwiseConditional;
 
 use crate::error::{Result, SimError};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrendConditioning {
     transform: StepwiseConditional,
+    /// Scores of the data. Left out of a saved simulation: the factor columns
+    /// are what gets simulated, and `back` restores each node.
+    #[serde(skip)]
     scores: Vec<f64>,
 }
 

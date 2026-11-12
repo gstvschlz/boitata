@@ -842,6 +842,10 @@ fn classes() -> usize {
     10
 }
 
+fn no_conditioning<C>() -> Vec<Option<C>> {
+    Vec::new()
+}
+
 /// The trend at the `nodes` targets, given or read from the `targets` column
 /// it names, when fitted with a trend.
 fn trend_at(
@@ -4191,12 +4195,95 @@ struct Factors {
     weights: Option<Vec<f64>>,
     holes: Option<Vec<u32>>,
     imputed: Option<(transforms::GaussianImputer, Vec<Vec<f64>>)>,
+    /// One conditioning per variable; empty when none of them has a trend.
+    trends: Vec<Option<simulation::TrendConditioning>>,
+}
+
+/// One trend column per variable: an array or a column name, or None for a
+/// variable without a trend. None for the whole argument when nothing has one.
+fn trend_columns(
+    container: Option<&Bound<PyAny>>,
+    trend: Option<&Bound<PyAny>>,
+    rows: usize,
+    variables: usize,
+) -> PyResult<Option<Vec<Option<Vec<f64>>>>> {
+    let Some(trend) = trend else {
+        return Ok(None);
+    };
+    let items = trend.try_iter().map_err(|_| {
+        invalid(format!(
+            "trend must have {variables} columns, one per variable"
+        ))
+    })?;
+    let items: Vec<Bound<PyAny>> = items.collect::<PyResult<_>>()?;
+    if items.len() != variables {
+        return Err(invalid(format!(
+            "trend must have {variables} columns, one per variable"
+        )));
+    }
+    let mut columns = Vec::with_capacity(variables);
+    for item in &items {
+        if item.is_none() {
+            columns.push(None);
+            continue;
+        }
+        let values = finite(&args::column(container, item, "trend")?, "trend")?;
+        same_length(rows, values.len(), "trend")?;
+        columns.push(Some(values));
+    }
+    Ok(Some(columns))
+}
+
+/// Node trends aligned with `fitted`: None where that variable has no trend.
+fn node_trends(
+    fitted: &[Option<simulation::TrendConditioning>],
+    variables: usize,
+    supplied: Option<Vec<Option<Vec<f64>>>>,
+) -> PyResult<Option<Vec<Option<Vec<f64>>>>> {
+    if !fitted.is_empty() && fitted.len() != variables {
+        return Err(invalid(format!(
+            "trend must have {variables} columns, one per variable"
+        )));
+    }
+    let has: Vec<bool> = if fitted.is_empty() {
+        vec![false; variables]
+    } else {
+        fitted.iter().map(Option::is_some).collect()
+    };
+    let Some(columns) = supplied else {
+        if let Some(j) = has.iter().position(|&needed| needed) {
+            return Err(invalid(format!(
+                "variable {j} was fitted with a trend; give its trend at the targets"
+            )));
+        }
+        return Ok(None);
+    };
+    for (j, (needed, given)) in has.iter().zip(&columns).enumerate() {
+        match (needed, given.is_some()) {
+            (true, false) => {
+                return Err(invalid(format!(
+                    "variable {j} was fitted with a trend; give its trend at the targets"
+                )));
+            }
+            (false, true) => {
+                return Err(invalid(format!(
+                    "a trend for variable {j} at the targets needs one at fit"
+                )));
+            }
+            _ => {}
+        }
+    }
+    if columns.iter().any(Option::is_some) {
+        Ok(Some(columns))
+    } else {
+        Ok(None)
+    }
 }
 
 /// The parameters of a MultivariateSimulation: its template's JSON, its
 /// factors and, once fitted, the fitted transforms.
 #[derive(Serialize, Deserialize)]
-struct MultivariateState<F, D, I> {
+struct MultivariateState<F, D, I, C> {
     transform: serde_json::Value,
     factors: F,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -4205,6 +4292,10 @@ struct MultivariateState<F, D, I> {
     imputer: Option<I>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     units: Vec<Option<String>>,
+    #[serde(default = "classes")]
+    classes: usize,
+    #[serde(default = "no_conditioning", skip_serializing_if = "Vec::is_empty")]
+    trends: Vec<Option<C>>,
 }
 
 impl Serialize for MultivariateSimulation {
@@ -4220,6 +4311,8 @@ impl Serialize for MultivariateSimulation {
             decorrelation: fitted.map(|f| &f.transform),
             imputer: fitted.and_then(|f| f.imputed.as_ref().map(|i| &i.0)),
             units: self.units.clone(),
+            classes: self.classes,
+            trends: fitted.map(|f| f.trends.clone()).unwrap_or_default(),
         }
         .serialize(s)
     }
@@ -4232,6 +4325,7 @@ impl<'de> Deserialize<'de> for MultivariateSimulation {
             Vec<Factor>,
             simulation::Decorrelation,
             transforms::GaussianImputer,
+            simulation::TrendConditioning,
         > = MultivariateState::deserialize(d)?;
         if state.factors.is_empty() {
             return Err(D::Error::custom("need one simulator per factor"));
@@ -4247,12 +4341,14 @@ impl<'de> Deserialize<'de> for MultivariateSimulation {
             weights: None,
             holes: None,
             imputed: state.imputer.map(|i| (i, vec![])),
+            trends: state.trends,
         });
         Ok(Self {
             transform,
             factors: state.factors,
             fitted,
             units: state.units,
+            classes: state.classes,
         })
     }
 }
@@ -4316,6 +4412,13 @@ impl Tabular for MultivariateSimulation {
 /// Every realization simulates each factor with its own seed, back-transforms
 /// the factors together at the nodes, and only then averages to blocks.
 ///
+/// With a trend at `fit`, one column per variable (`None` for a variable
+/// without one), each trended variable is normal-scored within `classes`
+/// equal-probability classes of its own trend, the stepwise conditional
+/// transform SGS uses. The joint transform and the factor simulations run on
+/// those trend-free scores, and each node is back-transformed with its own
+/// trend before any averaging to blocks.
+///
 /// Parameters
 /// ----------
 /// transform : PCA, MAF, StepwiseConditional or PPMT
@@ -4324,7 +4427,10 @@ impl Tabular for MultivariateSimulation {
 ///     weights, is the usual choice.
 /// simulators : sequence of SGS or TurningBands
 ///     One per factor, in factor order, each with the normal-score variogram
-///     of its factor.
+///     of its factor. With a trend, that variogram is of the factor of the
+///     trend-free scores.
+/// classes : int, default 10
+///     Equal-probability classes of each trend, as in SGS.
 #[pyclass(module = "boitata", name = "MultivariateSimulation")]
 pub struct MultivariateSimulation {
     transform: Py<PyAny>,
@@ -4332,6 +4438,7 @@ pub struct MultivariateSimulation {
     fitted: Option<Factors>,
     /// Unit of each fitted variable, carried by its summary.
     units: Vec<Option<String>>,
+    classes: usize,
 }
 
 #[pymethods]
@@ -4363,7 +4470,12 @@ impl MultivariateSimulation {
     }
 
     #[new]
-    fn new(transform: &Bound<PyAny>, simulators: Vec<Bound<PyAny>>) -> PyResult<Self> {
+    #[pyo3(signature = (transform, simulators, *, classes=10))]
+    fn new(
+        transform: &Bound<PyAny>,
+        simulators: Vec<Bound<PyAny>>,
+        classes: usize,
+    ) -> PyResult<Self> {
         if !crate::transforms::is_decorrelation(transform) {
             return Err(invalid(crate::transforms::NOT_DECORRELATION));
         }
@@ -4399,6 +4511,7 @@ impl MultivariateSimulation {
             factors,
             fitted: None,
             units: vec![],
+            classes,
         })
     }
 
@@ -4425,8 +4538,14 @@ impl MultivariateSimulation {
     ///     uncertainty reaches the realizations. Given an imputer, its
     ///     `components`, `spatial` and `neighbors` are used, so with `spatial` the gaps
     ///     also follow nearby samples. The transform is fitted to the complete samples.
-    ///     Samples missing every variable are dropped.
-    #[pyo3(signature = (coords, data, *, weights=None, holes=None, impute=None))]
+    ///     Samples missing every variable are dropped. With a trend, the
+    ///     imputer fills the trend-free scores.
+    /// trend : sequence of array_like or str, optional
+    ///     One trend column per variable at the data, from any model or
+    ///     estimator, or None for a variable without a trend. An entry is an
+    ///     array or the column of `coords` holding it, as `trend` of SGS.
+    ///     `simulate` then needs that variable's trend at the targets.
+    #[pyo3(signature = (coords, data, *, weights=None, holes=None, impute=None, trend=None))]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         coords: &Bound<PyAny>,
@@ -4434,6 +4553,7 @@ impl MultivariateSimulation {
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
         impute: Option<&Bound<PyAny>>,
+        trend: Option<&Bound<PyAny>>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let py = coords.py();
         let template = match impute {
@@ -4480,6 +4600,7 @@ impl MultivariateSimulation {
             same_length(data.len(), w.len(), "weights")?;
         }
         let holes = args::holes(resolve(coords, holes, "holes")?.as_ref(), data.len())?;
+        let trend = trend_columns(Some(coords), trend, data.len(), p)?;
         let complete = |data: &[Vec<f64>]| -> Vec<usize> {
             (0..data.len())
                 .filter(|&i| data[i].iter().all(|v| v.is_finite()))
@@ -4502,6 +4623,21 @@ impl MultivariateSimulation {
         let (data, locs) = (pick(&data, &usable), pick(&locs, &usable));
         let weights = weights.map(|w| pick(&w, &usable));
         let holes = holes.map(|(names, ids)| (pick(&names, &usable), pick(&ids, &usable)));
+        let trend = trend.map(|cols| {
+            cols.into_iter()
+                .map(|c| c.map(|v| pick(&v, &usable)))
+                .collect::<Vec<_>>()
+        });
+        let refs = trend.as_ref().and_then(|cols| {
+            (!data.is_empty() && cols.iter().any(Option::is_some))
+                .then(|| cols.iter().map(|c| c.as_deref()).collect::<Vec<_>>())
+        });
+        let (data, trends) = if let Some(refs) = refs.as_ref() {
+            simulation::condition_variables(&data, refs, weights.as_deref(), slf.classes)
+                .map_err(err)?
+        } else {
+            (data, Vec::new())
+        };
         let full = complete(&data);
         let transform = crate::transforms::decorrelation(
             slf.transform.bind(py),
@@ -4534,6 +4670,7 @@ impl MultivariateSimulation {
             weights: weights.map(|w| pick(&w, &keep)),
             holes: holes.map(|h| pick(&h.1, &keep)),
             imputed,
+            trends,
         });
         Ok(slf)
     }
@@ -4547,13 +4684,17 @@ impl MultivariateSimulation {
     /// memory available now), bounds the realizations simulated at once and
     /// the bands of turning-bands factors; a run that does not fit even one
     /// realization at a time raises InvalidInput. Realizations do not depend
-    /// on `memory`.
+    /// on `memory`. `trend`, one entry per variable, is that variable's trend
+    /// at the targets when it was fitted with one: an array, or the name of a
+    /// column of PointSet or BlockModel targets, and None for a variable
+    /// fitted without one. Each node takes its trend back after the joint
+    /// back-transform and before any averaging.
     ///
     /// Returns
     /// -------
     /// list of SimulationSummary
     ///     One per variable, in column order.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, memory=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=vec![], quantiles=vec![], keep=None, anisotropy=None, blocks=None, trend=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -4566,10 +4707,13 @@ impl MultivariateSimulation {
         keep: Option<&Bound<PyAny>>,
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
+        trend: Option<&Bound<PyAny>>,
         memory: Option<f64>,
     ) -> PyResult<Vec<SimulationSummary>> {
         let f = self.fitted.as_ref().ok_or_else(not_fitted)?;
         let grid = self::targets(targets)?;
+        let supplied = trend_columns(Some(targets), trend, grid.len(), self.factors.len())?;
+        let trend_at = node_trends(&f.trends, self.factors.len(), supplied)?;
         let support = support(targets, &grid, blocks)?;
         if anisotropy.is_some() && self.factors.iter().any(|f| matches!(f, Factor::Bands(..))) {
             return Err(invalid("anisotropy needs SGS for every factor"));
@@ -4649,6 +4793,10 @@ impl MultivariateSimulation {
                     Factor::Sgs(..) => None,
                 })
                 .collect();
+            let node_trends = trend_at.as_ref().map(|at_nodes| simulation::NodeTrends {
+                conditioning: &f.trends,
+                at_nodes,
+            });
             return summaries(py.detach(|| {
                 simulation::multivariate_batched(
                     n,
@@ -4657,6 +4805,7 @@ impl MultivariateSimulation {
                     &options,
                     support.as_ref(),
                     batch,
+                    node_trends.as_ref(),
                     |j, ks| {
                         let (Factor::Bands(variogram, _), Some(params)) =
                             (&self.factors[j], &params[j])
@@ -4716,6 +4865,10 @@ impl MultivariateSimulation {
         // Each realization in flight gets its share of the budget for its
         // bands.
         let share = (budget - fixed) / in_flight as u64 - rows_bytes;
+        let node_trends = trend_at.as_ref().map(|at_nodes| simulation::NodeTrends {
+            conditioning: &f.trends,
+            at_nodes,
+        });
         summaries(py.detach(|| {
             simulation::multivariate_bounded(
                 n,
@@ -4725,6 +4878,7 @@ impl MultivariateSimulation {
                 &options,
                 support.as_ref(),
                 in_flight,
+                node_trends.as_ref(),
                 |k, j, factor| {
                     let drawn: Vec<f64>;
                     let values = match &f.imputed {

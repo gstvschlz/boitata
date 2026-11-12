@@ -536,6 +536,72 @@ def test_multivariate_simulation_reproduces_correlation_and_honors_data():
         np.testing.assert_allclose(s.realizations, expected)
 
 
+def test_multivariate_simulation_with_a_trend_follows_it_and_honors_data(tmp_path):
+    r = np.random.default_rng(4)
+    xy = r.uniform(0, 100, (160, 2))
+    trend = [2 + xy[:, 0] / 100, 2 + 0.7 * xy[:, 1] / 100]
+    g = r.standard_normal((160, 2))
+    data = np.column_stack([trend[0] + 0.2 * g[:, 0], trend[1] + 0.2 * (0.8 * g[:, 0] + 0.6 * g[:, 1])])
+    search = bt.Search(radius=25, max_samples=12)
+    white = bt.Variogram([("spherical", 1.0, 8.0)])
+    simulators = [bt.SGS(white, search), bt.TurningBands(white, bands=40, step=2.0, search=search)]
+    mv = bt.MultivariateSimulation(bt.PPMT(seed=3), simulators, classes=5).fit(xy, data, trend=trend)
+    far = np.column_stack([np.full(80, 250.0), np.arange(80) * 5.0])
+    node_trend = [t[:80] for t in trend]
+    a, b = mv.simulate(far, n=16, seed=2, keep=True, trend=node_trend)
+    for summary, drift in ((a, node_trend[0]), (b, node_trend[1])):
+        along = np.abs(summary.mean - drift).mean()
+        flat = np.abs(summary.mean - summary.mean.mean()).mean()
+        assert along < 0.15 and along < 0.7 * flat
+    want = np.corrcoef(data[:80].T)[0, 1]
+    got = np.mean([np.corrcoef(x, y)[0, 1] for x, y in zip(a.realizations, b.realizations)])
+    assert got == pytest.approx(want, abs=0.15)
+
+    at = mv.simulate(xy[:8], n=3, seed=1, trend=[t[:8] for t in trend])
+    for v, s in enumerate(at):
+        np.testing.assert_allclose(s.mean, data[:8, v], rtol=1e-5)
+        np.testing.assert_allclose(s.variance, 0, atol=1e-8)
+
+    named = bt.PointSet(xy, {"t0": trend[0], "t1": trend[1], "a": data[:, 0], "b": data[:, 1]})
+    by_name = bt.MultivariateSimulation(bt.PCA(standardize=True), simulators, classes=5).fit(
+        named, ["a", "b"], trend=["t0", None]
+    )
+    subset = bt.PointSet(named.coords[:6], {"t0": trend[0][:6]})
+    held = by_name.simulate(subset, n=2, seed=1, trend=["t0", None])
+    np.testing.assert_allclose(held[0].mean, data[:6, 0], rtol=1e-5)
+    np.testing.assert_allclose(held[1].mean, data[:6, 1], rtol=1e-5)
+    plain = bt.MultivariateSimulation(bt.PCA(standardize=True), simulators).fit(xy, data)
+    spot = [[50.0, 50.0], [10.0, 80.0]]
+    np.testing.assert_array_equal(
+        [s.realizations for s in plain.simulate(spot, n=2, seed=1, keep=True)],
+        [s.realizations for s in plain.simulate(spot, n=2, seed=1, keep=True, trend=[None, None])],
+    )
+    holed = data.copy()
+    holed[:6, 1] = np.nan
+    filled = bt.MultivariateSimulation(bt.PPMT(seed=3), simulators, classes=5).fit(
+        xy, holed, trend=[trend[0], None], impute=True
+    )
+    drawn = filled.simulate(xy[:6], n=4, seed=2, keep=True, trend=[trend[0][:6], None])
+    np.testing.assert_allclose(drawn[0].realizations, np.tile(data[:6, 0], (4, 1)), rtol=1e-5)
+    assert np.isfinite(drawn[1].realizations).all() and np.ptp(drawn[1].realizations, axis=0).min() > 0
+
+    path = tmp_path / "trended.parquet"
+    mv.to_parquet(path)
+    back = bt.MultivariateSimulation.from_parquet(path)
+    np.testing.assert_array_equal(
+        back.simulate(far, n=4, seed=2, keep=True, trend=node_trend)[0].realizations,
+        mv.simulate(far, n=4, seed=2, keep=True, trend=node_trend)[0].realizations,
+    )
+    with pytest.raises(bt.InvalidInput, match="give its trend"):
+        mv.simulate(far, n=1)
+    with pytest.raises(bt.InvalidInput, match="needs one at fit"):
+        plain.simulate(far, n=1, trend=node_trend)
+    with pytest.raises(bt.InvalidInput, match="one per variable"):
+        mv.fit(xy, data, trend=trend[:1])
+    with pytest.raises(ValueError):
+        mv.fit(xy, data, trend=[trend[0], trend[1][:-1]])
+
+
 def test_multivariate_simulation_drops_incomplete_samples_and_checks_inputs():
     data = np.column_stack([values, values**0.5])
     data[:4, 1] = np.nan

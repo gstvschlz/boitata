@@ -145,3 +145,53 @@ a, b = (s.realizations for s in simulation.simulate(nodes, n=20, seed=1, keep=Tr
 r = np.mean([np.corrcoef(x, y)[0, 1] for x, y in zip(a, b)])
 print(f"{hidden.sum()} of {len(pair)} composites miss tennantite")
 print(f"r {r:.2f}, tennantite q10, q50, q90: " + ", ".join(f"{v:.2f}" for v in np.quantile(b, qs)))
+
+
+# %% [markdown]
+# ## A trend
+#
+# A trend known at every node can steer each variable. `fit(..., trend=)` takes one trend column per variable at the
+# data, and `None` for a variable that has none. The window here is 2 km, wide enough that every block of this model
+# has composites in it. Each trended variable is normal-scored within `classes`
+# equal-probability classes of its own trend, the stepwise conditional transform SGS uses
+# ([simulation with a trend](../../10-simulation/04-simulation-with-trend/README.md)),
+# and the joint transform runs on those trend-free scores. The factor variograms are the variograms of that
+# transform. `simulate(..., trend=)` puts each variable's trend back at each node, after the back-transform and
+# before any averaging to blocks.
+
+# %%
+classes = 8
+windows = [
+    bt.MovingAverage(bt.Search(radius=2_000, max_samples=80)).fit(coords, pair[:, j]) for j in range(2)
+]
+trends = [window.predict(coords) for window in windows]
+free = []
+for trend, column in zip(trends, pair.T):
+    both = np.column_stack([trend, column])
+    free.append(bt.StepwiseConditional(classes=classes).fit(both, weights=weights).transform(both)[:, 1])
+free = np.column_stack(free)
+f = bt.PPMT(seed=7).fit_transform(free, weights=weights)
+variograms = [bt.experimental_variogram(coords, f[:, j], 25.0, 300.0).fit("spherical") for j in range(2)]
+with_trend = bt.MultivariateSimulation(
+    bt.PPMT(seed=7), [bt.TurningBands(v, search=search) for v in variograms], classes=classes
+).fit(logs, ["chalcocite", "tennantite"], weights=weights, trend=trends)
+node_trends = [window.predict(nodes) for window in windows]
+a, b = (s.realizations for s in with_trend.simulate(nodes, n=8, seed=3, keep=True, trend=node_trends))
+r = np.mean([np.corrcoef(x, y)[0, 1] for x, y in zip(a, b)])
+print(f"correlation {r:.2f}, data {np.corrcoef(pair.T)[0, 1]:.2f}")
+for name, column, trend, at, reals in zip(names, pair.T, trends, node_trends, (a, b)):
+    edges = np.quantile(trend, [0.25, 0.5, 0.75])
+    at_data, at_nodes = np.digitize(trend, edges), np.digitize(at, edges)
+    print(name)
+    print(f"{'':<16}{'data':>8}{'simulated':>12}")
+    for k in range(4):
+        data_mean = np.average(column[at_data == k], weights=weights[at_data == k])
+        print(f"{f'quartile {k + 1}':<16}{data_mean:8.2f}{reals[:, at_nodes == k].mean():12.2f}")
+at_data = with_trend.simulate(coords[:300], n=3, seed=4, trend=[t[:300] for t in trends])
+error = max(np.abs(s.mean - pair[:300, j]).max() for j, s in enumerate(at_data))
+print(f"at 300 composites: largest departure from the data {error:.1e}")
+
+
+# %% [markdown]
+# The simulated correlation, 0.07, is lower than the 0.12 of the composites. Each quartile of the trend keeps the
+# declustered mean of its assays, and at the composites the back-transform returns the assays.
