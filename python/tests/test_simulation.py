@@ -339,6 +339,31 @@ def test_sis_probabilities():
     assert ((s.entropy >= 0) & (s.entropy <= 1)).all()
 
 
+def test_sis_local_anisotropy():
+    cats = (values > np.quantile(values, 0.33)).astype(int) + (values > np.quantile(values, 0.66))
+    targets = rng.uniform(5, 95, (80, 2))
+    search = bt.Search(radius=35, max_samples=12)
+    base = [bt.Variogram([("spherical", 0.22, 24.0 + 4.0 * k)]) for k in range(3)]
+    rotated = [v.with_anisotropy((35.0, 0.0, 0.0), (0.4, 1.0)) for v in base]
+    uniform = bt.LocalAnisotropy([[0.0, 0.0, 0.0]], [[35.0, 0.0, 0.0]], [[0.4, 1.0]])
+    by_lva = (
+        bt.SIS(base, search).fit(coords, cats).simulate(targets, n=6, seed=7, keep=True, anisotropy=uniform)
+    )
+    by_global = bt.SIS(rotated, search).fit(coords, cats).simulate(targets, n=6, seed=7, keep=True)
+    np.testing.assert_array_equal(by_lva.realizations, by_global.realizations)
+    assert ((by_lva.probabilities >= 0.0) & (by_lva.probabilities <= 1.0)).all()
+    np.testing.assert_allclose(by_lva.probabilities.sum(axis=1), 1.0)
+
+    angles = np.c_[targets[:, 0] * 1.5, np.zeros(len(targets)), np.zeros(len(targets))]
+    varying = bt.LocalAnisotropy(targets, angles, np.tile([0.4, 1.0], (len(targets), 1)))
+    by_varying = (
+        bt.SIS(base, search).fit(coords, cats).simulate(targets, n=6, seed=7, keep=True, anisotropy=varying)
+    )
+    assert not np.array_equal(by_varying.realizations, by_lva.realizations)
+    assert ((by_varying.probabilities >= 0.0) & (by_varying.probabilities <= 1.0)).all()
+    np.testing.assert_allclose(by_varying.probabilities.sum(axis=1), 1.0)
+
+
 def test_sis_follows_local_proportions():
     far = np.array([[-1e3, 0.0], [-1e3, 5.0]])
     line = np.c_[np.arange(200) + 0.5, np.zeros(200)]
