@@ -5,11 +5,13 @@
 //! variogram rescaled to the domain's declustered variance, then drawn from
 //! the domain's declustered histogram through a Gaussian `m + s·z`, whose
 //! back-transform has the kriged mean and variance (a lookup table over
-//! `(m, s)`). A kriged pair no draw can reach takes the nearest reachable
-//! one, and is counted.
+//! `(m, s)`). With a trend (a locally varying mean), the residuals
+//! `value - trend` are simple kriged with mean 0 and drawn from the
+//! domain's residual histogram, then added to the node's trend. A kriged
+//! pair no draw can reach takes the nearest reachable one, and is counted.
 
 use crate::error::{Result, SimError};
-use crate::sgs::{Domains, SgsParams, Space, Transform, Transforms, inputs, sequential};
+use crate::sgs::{Domains, SgsParams, Space, Transform, Transforms, Trend, inputs, sequential};
 use estimation::lva::LocalAnisotropy;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use transforms::weighted_mean_variance;
@@ -179,19 +181,18 @@ impl DssSpace<'_> {
         (d.mean + sd * m, sill * v)
     }
 
-    fn drawn(&self, d: &Domain, mean: f64, variance: f64, z: f64) -> (f64, f64) {
+    fn drawn(&self, d: &Domain, mean: f64, variance: f64, z: f64) -> f64 {
         let (m, s, clamped) = d.lookup.query(mean, variance);
         if clamped {
             self.clamped.fetch_add(1, Ordering::Relaxed);
         }
-        let value = d.transform.back(m + s * z, 0.0);
-        (value, value)
+        d.transform.back(m + s * z, 0.0)
     }
 }
 
 impl Space for DssSpace<'_> {
-    fn neighbor(&self, value: f64, _: f64, _: Option<u32>) -> f64 {
-        value
+    fn neighbor(&self, value: f64, trend: f64, _: Option<u32>) -> f64 {
+        value - trend
     }
 
     fn variogram(&self, domain: Option<u32>) -> &Variogram {
@@ -208,22 +209,25 @@ impl Space for DssSpace<'_> {
         variance: f64,
         node: usize,
         domain: Option<u32>,
-        _: f64,
+        trend: f64,
         z: f64,
     ) -> (f64, f64) {
         let d = self.domain(domain);
         let (mean, variance) = self.cokriged(d, mean, variance, node);
-        self.drawn(d, mean, variance, z)
+        let value = self.drawn(d, mean, variance, z);
+        (value, value + trend)
     }
 
-    fn marginal(&self, node: usize, domain: Option<u32>, _: f64, z: f64) -> (f64, f64) {
+    fn marginal(&self, node: usize, domain: Option<u32>, trend: f64, z: f64) -> (f64, f64) {
         let d = self.domain(domain);
-        if self.collocated.is_none() {
-            let value = d.transform.back(z, 0.0);
-            return (value, value);
-        }
-        let (mean, variance) = self.cokriged(d, d.mean, d.vg.total_sill(), node);
-        self.drawn(d, mean, variance, z)
+        let value = match self.collocated {
+            None => d.transform.back(z, 0.0),
+            Some(_) => {
+                let (mean, variance) = self.cokriged(d, d.mean, d.vg.total_sill(), node);
+                self.drawn(d, mean, variance, z)
+            }
+        };
+        (value, value + trend)
     }
 }
 
@@ -253,6 +257,8 @@ pub struct Dss<'a> {
     data_weights: Option<&'a [f64]>,
     data_holes: Option<&'a [u32]>,
     data_domains: Option<&'a [u32]>,
+    data_trend: Option<&'a [f64]>,
+    residuals: Option<Vec<f64>>,
     vg: &'a Variogram,
     /// By domain code; `None` for a domain without data or whose values do
     /// not vary, an error only once a node falls in it.
@@ -260,19 +266,21 @@ pub struct Dss<'a> {
 }
 
 impl<'a> Dss<'a> {
-    /// Fitted to the data, with `data_domains` the domain code of each
-    /// datum.
+    /// Fitted to the data, with `data_domains` the domain code and
+    /// `data_trend` the locally varying mean of each datum.
     ///
-    /// `vg` is the variogram of the values; within each domain its nugget
-    /// and sills are rescaled so the total sill is the domain's declustered
-    /// variance (by `data_weights`), and nodes are simple kriged with the
-    /// domain's declustered mean.
+    /// `vg` is the variogram of the values (or of the residuals
+    /// `value - trend` when `data_trend` is given); within each domain its
+    /// nugget and sills are rescaled so the total sill is the domain's
+    /// declustered variance (by `data_weights`), and nodes are simple kriged
+    /// with the domain's declustered mean (or 0 for residuals).
     pub fn new(
         data_locs: &'a [(f64, f64, f64)],
         data_vals: &'a [f64],
         data_weights: Option<&'a [f64]>,
         data_holes: Option<&'a [u32]>,
         data_domains: Option<&'a [u32]>,
+        data_trend: Option<&'a [f64]>,
         vg: &'a Variogram,
     ) -> Result<Self> {
         let sill = vg.total_sill();
@@ -286,7 +294,30 @@ impl<'a> Dss<'a> {
                 "data value {v} is not finite"
             )));
         }
-        let fitted = Transforms::fit(data_vals, data_weights, data_domains, None)?;
+        let residuals = match data_trend {
+            None => None,
+            Some(trend) => {
+                if trend.len() != data_vals.len() {
+                    return Err(SimError::InvalidParameters(
+                        "one trend value per datum".into(),
+                    ));
+                }
+                if let Some(t) = trend.iter().find(|t| !t.is_finite()) {
+                    return Err(SimError::InvalidParameters(format!(
+                        "trend value {t} is not finite"
+                    )));
+                }
+                Some(
+                    data_vals
+                        .iter()
+                        .zip(trend)
+                        .map(|(&v, &t)| v - t)
+                        .collect::<Vec<_>>(),
+                )
+            }
+        };
+        let kriged = residuals.as_deref().unwrap_or(data_vals);
+        let fitted = Transforms::fit(kriged, data_weights, data_domains, None)?;
         let domains = fitted
             .domains
             .into_iter()
@@ -295,12 +326,12 @@ impl<'a> Dss<'a> {
                 let Some(transform) = transform else {
                     return Ok(None);
                 };
-                let rows: Vec<usize> = (0..data_vals.len())
+                let rows: Vec<usize> = (0..kriged.len())
                     .filter(|&i| data_domains.map_or(0, |c| c[i] as usize) == k)
                     .collect();
                 let pick = |v: &[f64]| rows.iter().map(|&i| v[i]).collect::<Vec<_>>();
                 let (mean, variance) =
-                    weighted_mean_variance(&pick(data_vals), data_weights.map(pick).as_deref())
+                    weighted_mean_variance(&pick(kriged), data_weights.map(pick).as_deref())
                         .map_err(|e| SimError::Transform(e.to_string()))?;
                 if variance <= 0.0 {
                     return Ok(None);
@@ -322,7 +353,7 @@ impl<'a> Dss<'a> {
                     lookup: Lookup::new(&transform),
                     transform,
                     vg,
-                    mean,
+                    mean: if data_trend.is_some() { 0.0 } else { mean },
                 }))
             })
             .collect::<Result<Vec<_>>>()?;
@@ -332,21 +363,29 @@ impl<'a> Dss<'a> {
             data_weights,
             data_holes,
             data_domains,
+            data_trend,
+            residuals,
             vg,
             domains,
         })
     }
 
-    /// One realization over `grid`, with `node_domains` the domain code of
-    /// each node when fitted with domains (see [`crate::sgs_in`]).
+    fn kriged(&self) -> &[f64] {
+        self.residuals.as_deref().unwrap_or(self.data_vals)
+    }
+
+    /// One realization over `grid`, with `node_domains` the domain code and
+    /// `node_trend` the locally varying mean of each node when fitted with
+    /// domains or a trend (see [`crate::sgs_in`]).
     pub fn simulate(
         &self,
         node_domains: Option<&[u32]>,
+        node_trend: Option<&[f64]>,
         grid: &[(f64, f64, f64)],
         params: &SgsParams,
         local: Option<&LocalAnisotropy>,
     ) -> Result<DssRealization> {
-        self.realization(node_domains, grid, params, local, None)
+        self.realization(node_domains, node_trend, grid, params, local, None)
     }
 
     /// The secondary variable `at_data`, one value per datum, standardized
@@ -373,7 +412,7 @@ impl<'a> Dss<'a> {
         }
         let correlation = correlation.unwrap_or_else(|| {
             let (mut primary, mut secondary, mut weights) = (vec![], vec![], vec![]);
-            for (i, (&v, &s)) in self.data_vals.iter().zip(at_data).enumerate() {
+            for (i, (&v, &s)) in self.kriged().iter().zip(at_data).enumerate() {
                 let code = self.data_domains.map_or(0, |c| c[i] as usize);
                 if let Some(d) = &self.domains[code] {
                     primary.push((v - d.mean) / d.vg.total_sill().sqrt());
@@ -401,9 +440,11 @@ impl<'a> Dss<'a> {
     /// of its neighbors and the secondary at the node under the Markov
     /// model, the cross-covariance the correlation times the primary's.
     /// A zero correlation is plain DSS.
+    #[allow(clippy::too_many_arguments)]
     pub fn cosimulate(
         &self,
         node_domains: Option<&[u32]>,
+        node_trend: Option<&[f64]>,
         grid: &[(f64, f64, f64)],
         params: &SgsParams,
         local: Option<&LocalAnisotropy>,
@@ -421,11 +462,12 @@ impl<'a> Dss<'a> {
             ));
         }
         if secondary.correlation == 0.0 {
-            return self.simulate(node_domains, grid, params, local);
+            return self.simulate(node_domains, node_trend, grid, params, local);
         }
         let scores: Vec<f64> = at_nodes.iter().map(|&v| secondary.standardize(v)).collect();
         self.realization(
             node_domains,
+            node_trend,
             grid,
             params,
             local,
@@ -433,9 +475,11 @@ impl<'a> Dss<'a> {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn realization(
         &self,
         node_domains: Option<&[u32]>,
+        node_trend: Option<&[f64]>,
         grid: &[(f64, f64, f64)],
         params: &SgsParams,
         local: Option<&LocalAnisotropy>,
@@ -450,12 +494,32 @@ impl<'a> Dss<'a> {
                 ));
             }
         };
+        let trend = match (self.data_trend, node_trend) {
+            (Some(data), Some(nodes)) => {
+                if let Some(t) = nodes.iter().find(|t| !t.is_finite()) {
+                    return Err(SimError::InvalidParameters(format!(
+                        "trend value {t} is not finite"
+                    )));
+                }
+                Some(Trend {
+                    data,
+                    nodes,
+                    classes: 0,
+                })
+            }
+            (None, None) => None,
+            _ => {
+                return Err(SimError::InvalidParameters(
+                    "trend at both the data and the nodes, or neither".into(),
+                ));
+            }
+        };
         let holes = inputs(
             self.data_locs,
             self.data_vals,
             self.data_holes,
             domains,
-            None,
+            trend,
             grid,
             params,
             local,
@@ -479,12 +543,12 @@ impl<'a> Dss<'a> {
         };
         let realization = sequential(
             &space,
-            self.data_vals.to_vec(),
+            self.kriged().to_vec(),
             self.data_locs,
             self.data_vals,
             holes,
             domains,
-            None,
+            trend,
             grid,
             self.vg,
             params,
@@ -519,9 +583,10 @@ pub fn dss_in(
         data_weights,
         data_holes,
         domains.map(|d| d.0),
+        None,
         vg,
     )?
-    .simulate(domains.map(|d| d.1), grid, params, local)
+    .simulate(domains.map(|d| d.1), None, grid, params, local)
 }
 
 #[cfg(test)]
@@ -851,7 +916,7 @@ mod tests {
             .collect();
         let at_data: Vec<f64> = f.data.iter().map(|&i| secondary[i]).collect();
         let model = vg();
-        let dss = Dss::new(&locs, &f.values, None, None, None, &model).unwrap();
+        let dss = Dss::new(&locs, &f.values, None, None, None, None, &model).unwrap();
         let fitted = dss.secondary(&at_data, None).unwrap();
         let target = correlation(&f.values, &at_data);
         assert!((fitted.correlation - target).abs() < 1e-12);
@@ -860,7 +925,7 @@ mod tests {
         for seed in 0..n {
             let params = SgsParams { seed, ..search() };
             let r = dss
-                .cosimulate(None, &f.grid, &params, None, &fitted, &secondary)
+                .cosimulate(None, None, &f.grid, &params, None, &fitted, &secondary)
                 .unwrap();
             for (&i, &v) in f.data.iter().zip(&f.values) {
                 assert_eq!(r.values[i], v);
@@ -874,9 +939,9 @@ mod tests {
             seed: 3,
             ..search()
         };
-        let plain = dss.simulate(None, &f.grid, &params, None).unwrap();
+        let plain = dss.simulate(None, None, &f.grid, &params, None).unwrap();
         let co = dss
-            .cosimulate(None, &f.grid, &params, None, &zero, &secondary)
+            .cosimulate(None, None, &f.grid, &params, None, &zero, &secondary)
             .unwrap();
         assert_eq!(plain.values, co.values);
 
@@ -885,7 +950,135 @@ mod tests {
         assert!(dss.secondary(&vec![1.0; at_data.len()], None).is_err());
         let short = &secondary[1..];
         assert!(
-            dss.cosimulate(None, &f.grid, &params, None, &fitted, short)
+            dss.cosimulate(None, None, &f.grid, &params, None, &fitted, short)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn dss_with_trend_follows_it_and_reproduces_residuals() {
+        let f = field();
+        let locs: Vec<_> = f.data.iter().map(|&i| f.grid[i]).collect();
+        let (mean, variance) = moments(&f.values);
+        let residuals: Vec<f64> = f.values.iter().map(|&v| v - mean).collect();
+        let node_trend: Vec<f64> = f
+            .grid
+            .iter()
+            .map(|p| 5.0 + 0.08 * p.0 + 0.04 * p.1)
+            .collect();
+        let data_trend: Vec<f64> = f.data.iter().map(|&i| node_trend[i]).collect();
+        let values: Vec<f64> = residuals
+            .iter()
+            .zip(&data_trend)
+            .map(|(&r, &t)| r + t)
+            .collect();
+        let transform = Transforms::fit(&residuals, None, None, None)
+            .unwrap()
+            .domains
+            .remove(0)
+            .unwrap();
+        let model = vg();
+        let dss = Dss::new(&locs, &values, None, None, None, Some(&data_trend), &model).unwrap();
+
+        let probabilities = [0.1, 0.5, 0.9];
+        let n = 60;
+        let (mut quantiles, mut sim_moments) = ([0.0; 3], (0.0, 0.0));
+        let mut ensemble = vec![0.0; f.grid.len()];
+        for seed in 0..n {
+            let params = SgsParams { seed, ..search() };
+            let r = dss
+                .simulate(None, Some(&node_trend), &f.grid, &params, None)
+                .unwrap();
+            for (&i, &v) in f.data.iter().zip(&values) {
+                assert!((r.values[i] - v).abs() < 1e-12);
+            }
+            for (e, &v) in ensemble.iter_mut().zip(&r.values) {
+                *e += v / n as f64;
+            }
+            let sim_res: Vec<f64> = r
+                .values
+                .iter()
+                .zip(&node_trend)
+                .map(|(&v, &t)| v - t)
+                .collect();
+            let (m, v) = moments(&sim_res);
+            sim_moments = (sim_moments.0 + m / n as f64, sim_moments.1 + v / n as f64);
+            let mut sorted = sim_res;
+            sorted.sort_by(f64::total_cmp);
+            for (q, p) in quantiles.iter_mut().zip(probabilities) {
+                *q += sorted[(p * sorted.len() as f64) as usize] / n as f64;
+            }
+        }
+        assert!(sim_moments.0.abs() < 0.05, "{sim_moments:?}");
+        assert!(
+            (sim_moments.1 / variance - 1.0).abs() < 0.06,
+            "{sim_moments:?} vs {variance}"
+        );
+        for (q, p) in quantiles.iter().zip(probabilities) {
+            let target = transform.back(probit(p), 0.0);
+            assert!((q - target).abs() < 0.08, "P{p}: {q} vs {target}");
+        }
+        assert!(correlation(&ensemble, &node_trend) > 0.97);
+
+        // Far from data (beyond the search radius), the ensemble mean
+        // equals the trend within sampling tolerance.
+        let far_grid = vec![(500.0, 500.0, 0.0), (600.0, 200.0, 0.0)];
+        let far_trend = vec![20.0, -5.0];
+        let mut far_mean = [0.0; 2];
+        let m = 400;
+        for seed in 0..m {
+            let params = SgsParams { seed, ..search() };
+            let r = dss
+                .simulate(None, Some(&far_trend), &far_grid, &params, None)
+                .unwrap();
+            far_mean[0] += r.values[0] / m as f64;
+            far_mean[1] += r.values[1] / m as f64;
+        }
+        for (got, want) in far_mean.iter().zip(far_trend) {
+            assert!((got - want).abs() < 0.1, "{got} vs {want}");
+        }
+
+        // Thread-count independence, LVA, and cosimulation with a trend.
+        let lva = LocalAnisotropy::new(
+            f.grid.clone(),
+            vec![[0.0; 3]; f.grid.len()],
+            vec![[1.0; 2]; f.grid.len()],
+        )
+        .unwrap();
+        let secondary = dss.secondary(&data_trend, Some(0.5)).unwrap();
+        let run = |threads| {
+            let pool = rayon::ThreadPoolBuilder::new().num_threads(threads);
+            pool.build().unwrap().install(|| {
+                dss.cosimulate(
+                    None,
+                    Some(&node_trend),
+                    &f.grid,
+                    &search(),
+                    Some(&lva),
+                    &secondary,
+                    &node_trend,
+                )
+                .unwrap()
+                .values
+            })
+        };
+        assert_eq!(run(1), run(4));
+
+        assert!(
+            Dss::new(
+                &locs,
+                &values,
+                None,
+                None,
+                None,
+                Some(&data_trend[1..]),
+                &model,
+            )
+            .is_err()
+        );
+        assert!(dss.simulate(None, None, &f.grid, &search(), None).is_err());
+        assert!(
+            dss.simulate(None, Some(&node_trend[1..]), &f.grid, &search(), None)
                 .is_err()
         );
     }

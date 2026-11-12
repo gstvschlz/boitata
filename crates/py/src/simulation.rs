@@ -816,14 +816,21 @@ struct Data {
 
 impl Data {
     /// Fails where the data cannot be transformed within each domain and
-    /// `classes` trend classes.
-    fn check(&self, classes: usize) -> PyResult<()> {
-        let trend = self.trend.as_deref().map(|t| (t, classes));
+    /// `classes` trend classes (or as residuals when `classes` is `None`).
+    fn check(&self, classes: Option<usize>) -> PyResult<()> {
+        let residuals: Vec<f64>;
+        let values = match (&self.trend, classes) {
+            (Some(t), None) => {
+                residuals = self.values.iter().zip(t).map(|(&v, &t)| v - t).collect();
+                &residuals[..]
+            }
+            _ => &self.values[..],
+        };
         simulation::Transforms::fit(
-            &self.values,
+            values,
             self.weights.as_deref(),
             self.domains.as_deref(),
-            trend,
+            self.trend.as_deref().zip(classes),
         )
         .map(|_| ())
         .map_err(err)
@@ -935,7 +942,7 @@ fn data(
     domains: Option<&Bound<PyAny>>,
     domain_column: Option<&str>,
     secondary: Option<&Bound<PyAny>>,
-    classes: usize,
+    classes: Option<usize>,
     search: &[Search],
 ) -> PyResult<(Data, Option<Vec<Label>>)> {
     let values = finite(&args::column(Some(coords), values, "values")?, "values")?;
@@ -1402,7 +1409,7 @@ impl Sgs {
             domains,
             domain_column,
             secondary,
-            slf.classes,
+            Some(slf.classes),
             &slf.search,
         )?;
         slf.correlation = match &d.secondary {
@@ -1732,10 +1739,15 @@ impl Sgs {
 /// draws and the realizations hold too many extreme grades, which
 /// `correct_distribution` maps back to the histogram.
 ///
-/// `search` is a Search, or a sequence of them as passes, as in SGS. With
-/// `domains` at `fit`, Search.soft lets the raw grades of other domains
-/// inform a node within the soft distance, and `high_grade` compares
-/// grades with its threshold, kriging a clamped neighbor as the threshold.
+/// `search` is a Search, or a sequence of them as passes, as in SGS. With a
+/// `trend` at `fit` (a locally varying mean), the residuals ``values - trend``
+/// are simple kriged with mean 0 and `variogram` is the variogram of those
+/// residuals, rescaled to each domain's declustered residual variance; each
+/// node is drawn from its domain's residual histogram and added to the node's
+/// trend. With `domains` at `fit`, Search.soft lets the raw grades (or
+/// residuals) of other domains inform a node within the soft distance, and
+/// `high_grade` compares grades with its threshold, kriging a clamped
+/// neighbor as the threshold (minus its trend).
 #[derive(Serialize, Deserialize)]
 #[pyclass(module = "boitata", name = "DSS")]
 pub struct Dss {
@@ -1899,13 +1911,16 @@ impl Dss {
     /// ----------
     /// coords : array_like, shape (n, 2) or (n, 3), PointSet or BlockModel
     /// values : array_like, shape (n,), or str
-    ///     Values, or the column of `coords` holding them; so for `weights`
-    ///     and `holes`.
+    ///     Values, or the column of `coords` holding them; so for `weights`,
+    ///     `holes` and `trend`.
     /// weights : array_like or str, optional
     ///     Declustering weights, for each domain's histogram, mean and
     ///     variance.
     /// holes : array_like or str, optional
     ///     Drill-hole ids or names, for `max_per_hole`.
+    /// trend : array_like or str, optional
+    ///     Locally varying mean at the data, from any model or estimator;
+    ///     `simulate` then needs the trend at the targets.
     /// domains : array_like or label, optional
     ///     Domain label of each sample, or one label for all: strings,
     ///     numbers or booleans. Each domain has its own histogram, mean and
@@ -1935,7 +1950,7 @@ impl Dss {
     ///     domain without samples or has no `domains` to work on, both
     ///     `domains` and `domain_column` are given, or `correlation` comes
     ///     without `secondary` or outside [-1, 1].
-    #[pyo3(signature = (coords, values, *, weights=None, holes=None, domains=None, domain_column=None, secondary=None, correlation=None))]
+    #[pyo3(signature = (coords, values, *, weights=None, holes=None, trend=None, domains=None, domain_column=None, secondary=None, correlation=None))]
     #[allow(clippy::too_many_arguments)]
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
@@ -1943,6 +1958,7 @@ impl Dss {
         values: &Bound<PyAny>,
         weights: Option<&Bound<PyAny>>,
         holes: Option<&Bound<PyAny>>,
+        trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
         secondary: Option<&Bound<PyAny>>,
@@ -1967,11 +1983,11 @@ impl Dss {
             values,
             weights,
             holes,
-            None,
+            trend,
             domains,
             domain_column,
             secondary,
-            classes(),
+            None,
             &slf.search,
         )?;
         slf.correlation = match &d.secondary {
@@ -1983,6 +1999,7 @@ impl Dss {
                     d.weights.as_deref(),
                     d.holes.as_deref(),
                     d.domains.as_deref(),
+                    d.trend.as_deref(),
                     &slf.variogram,
                 )
                 .map_err(err)?;
@@ -2026,6 +2043,10 @@ impl Dss {
     /// groups : array_like or str, optional
     ///     Label of each row, or a column name: one summary row per
     ///     distinct label, in ``numpy.unique`` order, as in SGS.simulate.
+    /// trend : array_like or str, optional
+    ///     Needed when fitted with a trend: the locally varying mean at the
+    ///     targets, as an array or the name of a column of PointSet or
+    ///     BlockModel targets.
     /// domains : array_like or label, optional
     ///     Needed when fitted with domains: labels of the targets, one label
     ///     for all, or an ``(n, targets)`` array of simulated domains,
@@ -2056,7 +2077,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2072,6 +2093,7 @@ impl Dss {
         blocks: Option<PyRef<PyBlockModel>>,
         window: Option<Vec<f64>>,
         groups: Option<&Bound<PyAny>>,
+        trend: Option<&Bound<PyAny>>,
         domains: Option<&Bound<PyAny>>,
         domain_column: Option<&str>,
         secondary: Option<&Bound<PyAny>>,
@@ -2101,6 +2123,7 @@ impl Dss {
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
         let search = resolved(&self.search, fitted)?;
+        let at_nodes = trend_at(d, targets, grid.len(), trend)?;
         let tonnes = tonnes_unit(targets, blocks.as_deref(), density, tonnage)?;
         let (upscale, gt) = summary_rows(
             py,
@@ -2131,6 +2154,7 @@ impl Dss {
             d.weights.as_deref(),
             d.holes.as_deref(),
             d.domains.as_deref(),
+            d.trend.as_deref(),
             &self.variogram,
         )
         .map_err(err)?;
@@ -2158,9 +2182,12 @@ impl Dss {
                     };
                     let nodes = of_realization(&nodes, k);
                     let r = match &secondary {
-                        None => dss.simulate(nodes, &grid, &params, local.as_ref()),
+                        None => {
+                            dss.simulate(nodes, at_nodes.as_deref(), &grid, &params, local.as_ref())
+                        }
                         Some((fitted, rows)) => dss.cosimulate(
                             nodes,
+                            at_nodes.as_deref(),
                             &grid,
                             &params,
                             local.as_ref(),
@@ -2397,7 +2424,7 @@ impl TurningBands {
             domains,
             domain_column,
             None,
-            slf.classes,
+            Some(slf.classes),
             slf.search.as_slice(),
         )?;
         slf.data = Some(d);
@@ -3776,7 +3803,7 @@ fn holes_from(found: &Found, n: usize) -> PyResult<Option<Vec<u32>>> {
 }
 
 /// The data of `found`, whose domain codes must index the `fitted` labels.
-fn data_from(found: &Found, classes: usize, fitted: Option<&[Label]>) -> PyResult<Data> {
+fn data_from(found: &Found, classes: Option<usize>, fitted: Option<&[Label]>) -> PyResult<Data> {
     let (locs, values, weights) = (
         found.points()?,
         found.values("value")?,
@@ -3849,7 +3876,11 @@ impl Tabular for Sgs {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(data_from(&columns, self.classes, self.domains.as_deref())?);
+        self.data = Some(data_from(
+            &columns,
+            Some(self.classes),
+            self.domains.as_deref(),
+        )?);
         Ok(())
     }
 }
@@ -3864,7 +3895,7 @@ impl Tabular for Dss {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(data_from(&columns, classes(), self.domains.as_deref())?);
+        self.data = Some(data_from(&columns, None, self.domains.as_deref())?);
         Ok(())
     }
 }
@@ -3879,7 +3910,11 @@ impl Tabular for TurningBands {
     }
 
     fn restore(&mut self, columns: Found) -> PyResult<()> {
-        self.data = Some(data_from(&columns, self.classes, self.domains.as_deref())?);
+        self.data = Some(data_from(
+            &columns,
+            Some(self.classes),
+            self.domains.as_deref(),
+        )?);
         Ok(())
     }
 }
