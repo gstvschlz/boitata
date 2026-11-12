@@ -6,6 +6,7 @@ use estimation::Search;
 use estimation::lva::LocalAnisotropy;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rayon::prelude::*;
 use simulation::pgs::LatentFields;
 use simulation::{
     Bands, ContinuousOptions, Decorrelation, Dss, Hierarchy, Lattice, PgsParams, SgsParams,
@@ -738,37 +739,41 @@ impl World {
 
     fn run_sgs(&self, lva: bool) -> u64 {
         let local = lva.then_some(&self.anisotropy);
-        let mut h = 0u64;
-        for k in 0..REALIZATIONS {
-            let values = sgs(
-                &self.data,
-                &self.values,
-                None,
-                None,
-                &self.grid,
-                &self.variogram,
-                &self.sgs_params(k),
-                local,
-            )
-            .unwrap()
-            .values;
-            h = h.wrapping_add(mix_nodes(&values));
-        }
-        h
+        // Realizations run in parallel, as post::run schedules them for users.
+        (0..REALIZATIONS)
+            .into_par_iter()
+            .map(|k| {
+                let values = sgs(
+                    &self.data,
+                    &self.values,
+                    None,
+                    None,
+                    &self.grid,
+                    &self.variogram,
+                    &self.sgs_params(k),
+                    local,
+                )
+                .unwrap()
+                .values;
+                mix_nodes(&values)
+            })
+            .reduce(|| 0, u64::wrapping_add)
     }
 
     fn run_dss(&self, lva: bool) -> u64 {
         let local = lva.then_some(&self.anisotropy);
         let fitted = Dss::new(&self.data, &self.values, None, None, None, &self.variogram).unwrap();
-        let mut h = 0u64;
-        for k in 0..REALIZATIONS {
-            let values = fitted
-                .simulate(None, &self.grid, &self.sgs_params(k), local)
-                .unwrap()
-                .values;
-            h = h.wrapping_add(mix_nodes(&values));
-        }
-        h
+        // Realizations run in parallel, as post::run schedules them for users.
+        (0..REALIZATIONS)
+            .into_par_iter()
+            .map(|k| {
+                let values = fitted
+                    .simulate(None, &self.grid, &self.sgs_params(k), local)
+                    .unwrap()
+                    .values;
+                mix_nodes(&values)
+            })
+            .reduce(|| 0, u64::wrapping_add)
     }
 
     fn run_tb(&self, trend: bool) -> u64 {
@@ -847,26 +852,28 @@ impl World {
 
     fn run_sis(&self, local: bool) -> u64 {
         let proportions = local.then_some((self.prop_data.as_slice(), self.prop_nodes.as_slice()));
-        let mut h = 0u64;
-        for k in 0..REALIZATIONS {
-            let categories = sis(
-                &self.data,
-                &self.categories,
-                None,
-                &self.grid,
-                3,
-                &self.indicators,
-                &SisParams {
-                    search: self.search.clone(),
-                    seed: realization_seed(SEED, k as u64),
-                },
-                proportions,
-            )
-            .unwrap()
-            .categories;
-            h = h.wrapping_add(mix_categories(&categories));
-        }
-        h
+        // Realizations run in parallel, as post::run schedules them for users.
+        (0..REALIZATIONS)
+            .into_par_iter()
+            .map(|k| {
+                let categories = sis(
+                    &self.data,
+                    &self.categories,
+                    None,
+                    &self.grid,
+                    3,
+                    &self.indicators,
+                    &SisParams {
+                        search: self.search.clone(),
+                        seed: realization_seed(SEED, k as u64),
+                    },
+                    proportions,
+                )
+                .unwrap()
+                .categories;
+                mix_categories(&categories)
+            })
+            .reduce(|| 0, u64::wrapping_add)
     }
 
     fn run_pgs(&self, local: bool) -> u64 {
@@ -876,31 +883,33 @@ impl World {
             ..Default::default()
         };
         let prepared = LatentFields::new(&self.data, &self.grid, &self.latent, &bands).unwrap();
-        let mut h = 0u64;
-        for k in 0..REALIZATIONS {
-            let params = PgsParams {
-                seed: realization_seed(SEED, k as u64),
-                ..Default::default()
-            };
-            let categories = if local {
-                prepared
-                    .categories_local(
-                        &self.categories,
-                        &self.grid,
-                        &self.hierarchy,
-                        &self.prop_data,
-                        &self.prop_nodes,
-                        &params,
-                    )
-                    .unwrap()
-            } else {
-                prepared
-                    .categories(&self.categories, &self.grid, &self.rule, &params)
-                    .unwrap()
-            };
-            h = h.wrapping_add(mix_categories(&categories));
-        }
-        h
+        // Realizations run in parallel, as post::run schedules them for users.
+        (0..REALIZATIONS)
+            .into_par_iter()
+            .map(|k| {
+                let params = PgsParams {
+                    seed: realization_seed(SEED, k as u64),
+                    ..Default::default()
+                };
+                let categories = if local {
+                    prepared
+                        .categories_local(
+                            &self.categories,
+                            &self.grid,
+                            &self.hierarchy,
+                            &self.prop_data,
+                            &self.prop_nodes,
+                            &params,
+                        )
+                        .unwrap()
+                } else {
+                    prepared
+                        .categories(&self.categories, &self.grid, &self.rule, &params)
+                        .unwrap()
+                };
+                mix_categories(&categories)
+            })
+            .reduce(|| 0, u64::wrapping_add)
     }
 
     fn run(&self, name: &str) -> u64 {
