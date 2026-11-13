@@ -103,6 +103,48 @@ pub(crate) fn fallback(
 /// `min_samples` chooses the pass and does not discard the data of a node.
 pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
     let target = ctx.lattice.location(node);
+    let near = neighbors(ctx, node);
+    if near.is_empty() {
+        return Ok(Plan {
+            constant: 0.0,
+            nodes: vec![],
+            variance: ctx.marginal,
+        });
+    }
+    let selected = located(ctx, &near);
+    let vg_node;
+    let vg = match ctx.local {
+        Some(l) => {
+            vg_node = Variogram {
+                anisotropy: Some(l.anisotropy(node)),
+                ..ctx.vg.clone()
+            };
+            &vg_node
+        }
+        None => ctx.vg,
+    };
+    let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
+        .map_err(|e| SimError::Estimation(e.to_string()))?;
+    let mut constant = 0.0;
+    let mut nodes = Vec::with_capacity(near.len());
+    for (&(_, is_node, i), &w) in near.iter().zip(&est.weights) {
+        match is_node {
+            true => nodes.push((i, w)),
+            false => constant += w * ctx.scores[i as usize],
+        }
+    }
+    Ok(Plan {
+        constant,
+        nodes,
+        variance: est.variance.max(0.0),
+    })
+}
+
+/// The neighbors of `node` as `(distance, is a node, index)`, nearest first:
+/// the data the first pass that finds any returns, and the nodes earlier on
+/// the path within that pass's search, at most `max_samples` in all.
+pub(crate) fn neighbors(ctx: &Context, node: usize) -> Vec<(f64, bool, u32)> {
+    let target = ctx.lattice.location(node);
     let domain = ctx.node_domains.map(|d| d[node]);
     let aniso = ctx.local.map(|l| l.anisotropy(node));
     let last = ctx.trees.len() - 1;
@@ -159,15 +201,12 @@ pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
     }
     near.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
     near.truncate(max);
-    if near.is_empty() {
-        return Ok(Plan {
-            constant: 0.0,
-            nodes: vec![],
-            variance: ctx.marginal,
-        });
-    }
-    let selected: Vec<Sample> = near
-        .iter()
+    near
+}
+
+/// Zero-valued samples at the locations of `near`, for kriging weights.
+pub(crate) fn located(ctx: &Context, near: &[(f64, bool, u32)]) -> Vec<Sample> {
+    near.iter()
         .map(|&(_, is_node, i)| {
             let loc = match is_node {
                 true => ctx.lattice.location(i as usize),
@@ -175,33 +214,7 @@ pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
             };
             Sample::new(loc, 0.0)
         })
-        .collect();
-    let vg_node;
-    let vg = match &aniso {
-        Some(a) => {
-            vg_node = Variogram {
-                anisotropy: Some(a.clone()),
-                ..ctx.vg.clone()
-            };
-            &vg_node
-        }
-        None => ctx.vg,
-    };
-    let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
-        .map_err(|e| SimError::Estimation(e.to_string()))?;
-    let mut constant = 0.0;
-    let mut nodes = Vec::with_capacity(near.len());
-    for (&(_, is_node, i), &w) in near.iter().zip(&est.weights) {
-        match is_node {
-            true => nodes.push((i, w)),
-            false => constant += w * ctx.scores[i as usize],
-        }
-    }
-    Ok(Plan {
-        constant,
-        nodes,
-        variance: est.variance.max(0.0),
-    })
+        .collect()
 }
 
 /// Farthest of the neighbors kept so far. Greater means worse, so it sits
@@ -309,7 +322,7 @@ pub struct Collocated<'a> {
 }
 
 /// Nodes planned and drawn together; plans live only for their chunk.
-const CHUNK: usize = 1 << 16;
+pub(crate) const CHUNK: usize = 1 << 16;
 
 /// Realizations of a batch, in scores until back-transformed one at a time.
 pub struct SharedBatch<'a> {
@@ -480,7 +493,7 @@ pub fn sgs_shared<'a>(
             .par_iter()
             .map(|&m| plan(&ctx, m as usize))
             .collect::<Result<_>>()?;
-        for wave in waves(chunk, &plans, &ctx.rank) {
+        for wave in waves(chunk, &ctx.rank, |t| plans[t].nodes.iter().map(|&(m, _)| m)) {
             let drawn: Vec<Vec<f32>> = wave
                 .par_iter()
                 .map(|&t| {
@@ -516,15 +529,18 @@ pub fn sgs_shared<'a>(
 /// Positions in `chunk` grouped into waves: a node's wave is one past the
 /// latest wave of its neighbors within the chunk, so the nodes of a wave
 /// depend only on earlier waves and chunks and draw in parallel.
-fn waves(chunk: &[u32], plans: &[Plan], rank: &[u32]) -> Vec<Vec<usize>> {
+pub(crate) fn waves<I: IntoIterator<Item = u32>>(
+    chunk: &[u32],
+    rank: &[u32],
+    depends: impl Fn(usize) -> I,
+) -> Vec<Vec<usize>> {
     let first = rank[chunk[0] as usize];
     let mut wave = vec![0usize; chunk.len()];
     let mut out: Vec<Vec<usize>> = vec![];
     for t in 0..chunk.len() {
-        wave[t] = plans[t]
-            .nodes
-            .iter()
-            .filter_map(|&(m, _)| rank[m as usize].checked_sub(first))
+        wave[t] = depends(t)
+            .into_iter()
+            .filter_map(|m| rank[m as usize].checked_sub(first))
             .map(|i| wave[i as usize] + 1)
             .max()
             .unwrap_or(0);

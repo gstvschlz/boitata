@@ -371,6 +371,30 @@ def test_sis_local_anisotropy():
     np.testing.assert_allclose(by_varying.probabilities.sum(axis=1), 1.0)
 
 
+def test_sis_shared_path():
+    cats = (values > np.median(values)).astype(int)
+    sis = bt.SIS([gaussian, gaussian], bt.Search(radius=40, max_samples=12)).fit(coords, cats)
+    blocks = bt.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
+    default = sis.simulate(blocks, n=3, seed=2, keep=True)
+    random = sis.simulate(blocks, n=3, seed=2, keep=True, path="random")
+    one = sis.simulate(blocks, n=3, seed=2, keep=True, path="shared", batch=1)
+    together = sis.simulate(blocks, n=3, seed=2, keep=True, path="shared", batch=3)
+    np.testing.assert_array_equal(default.realizations, together.realizations)
+    np.testing.assert_array_equal(one.realizations, together.realizations)
+    assert not np.array_equal(together.realizations, random.realizations)
+    np.testing.assert_allclose(together.probabilities.sum(axis=1), 1.0)
+    points = np.asarray(blocks.coords)
+    with pytest.raises(bt.InvalidInput, match="BlockModel"):
+        sis.simulate(points, n=1, path="shared")
+    uniform = bt.LocalAnisotropy([[0.0, 0.0, 0.0]], [[35.0, 0.0, 0.0]], [[0.4, 1.0]])
+    with pytest.raises(bt.InvalidInput, match="local anisotropy"):
+        sis.simulate(blocks, n=1, path="shared", anisotropy=uniform)
+    np.testing.assert_array_equal(
+        sis.simulate(points, n=2, seed=2, keep=True).realizations,
+        sis.simulate(points, n=2, seed=2, keep=True, path="random").realizations,
+    )
+
+
 def test_sis_follows_local_proportions():
     far = np.array([[-1e3, 0.0], [-1e3, 5.0]])
     line = np.c_[np.arange(200) + 0.5, np.zeros(200)]

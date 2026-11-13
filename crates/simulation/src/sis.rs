@@ -82,77 +82,29 @@ fn simulate(
     local: Option<&LocalAnisotropy>,
     batch: Option<usize>,
 ) -> Result<CategoricalRealization> {
-    if data_locs.len() != data_cats.len() {
-        return Err(SimError::InvalidParameters("data length mismatch".into()));
-    }
-    if data_locs.is_empty() {
-        return Err(SimError::InsufficientData("no conditioning data".into()));
-    }
-    if params.search.clamps() {
-        return Err(SimError::InvalidParameters(
-            "categories cannot be clamped at a high-grade threshold".into(),
-        ));
-    }
-    if variograms.len() != n_categories {
-        return Err(SimError::InvalidParameters(
-            "need one variogram per category".into(),
-        ));
-    }
+    let Inputs {
+        samples: mut all,
+        mut means,
+        local: grid_means,
+        marg,
+    } = inputs(
+        data_locs,
+        data_cats,
+        data_holes,
+        grid.len(),
+        n_categories,
+        variograms,
+        &params.search,
+        proportions,
+    )?;
     if local.is_some_and(|l| l.len() != grid.len()) {
         return Err(SimError::InvalidParameters(
             "one local anisotropy per grid node".into(),
         ));
     }
-    for &c in data_cats {
-        if c >= n_categories {
-            return Err(SimError::InvalidParameters(format!(
-                "category {c} ≥ n_categories {n_categories}"
-            )));
-        }
-    }
-    let holes = crate::holes(data_holes, data_locs.len())?;
-    let (mut means, grid_means) = match proportions {
-        Some((at_data, at_grid)) => {
-            if at_data.len() != data_locs.len() || at_grid.len() != grid.len() {
-                return Err(SimError::InvalidParameters(
-                    "one row of proportions per datum and per node".into(),
-                ));
-            }
-            let close = |rows: &[Vec<f64>]| {
-                rows.iter()
-                    .map(|r| closed(r, n_categories, "proportions"))
-                    .collect::<Result<Vec<_>>>()
-            };
-            (close(at_data)?, Some(close(at_grid)?))
-        }
-        None => (vec![], None),
-    };
     if grid.is_empty() {
         return Ok(CategoricalRealization { categories: vec![] });
     }
-
-    // Marginal proportions (fallback when a node has no neighbors).
-    let mut marg = vec![0.0f64; n_categories];
-    for &c in data_cats {
-        marg[c] += 1.0;
-    }
-    for m in &mut marg {
-        *m /= data_cats.len() as f64;
-    }
-
-    // Conditioning categories (grow as nodes are simulated).
-    let mut all: Vec<Sample> = data_locs
-        .iter()
-        .zip(data_cats)
-        .zip(holes)
-        .map(|((&loc, &c), hole)| Sample {
-            loc,
-            value: c as f64,
-            hole,
-            error_variance: 0.0,
-            domain: None,
-        })
-        .collect();
     let mut tree = crate::sgs::tree(&all, &params.search, &variograms[0], local);
 
     let mut rng = StdRng::seed_from_u64(params.seed);
@@ -314,6 +266,329 @@ fn simulate(
     Ok(CategoricalRealization { categories: out })
 }
 
+/// Categories of a batch of realizations along one shared multigrid path.
+pub struct SharedCategories {
+    /// Node-major: the categories of node `m` are `cats[m * batch..][..batch]`.
+    cats: Vec<u8>,
+    batch: usize,
+}
+
+impl SharedCategories {
+    pub fn len(&self) -> usize {
+        self.batch
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.batch == 0
+    }
+
+    /// Realization `b` of the batch, one category per lattice node.
+    pub fn realization(&self, b: usize) -> Vec<usize> {
+        self.cats
+            .iter()
+            .skip(b)
+            .step_by(self.batch)
+            .map(|&c| c as usize)
+            .collect()
+    }
+}
+
+/// A node's probabilities in every realization: `constant[c]` plus, for each
+/// earlier node `nodes[j]`, `weights[group[c]][j]` where that node holds `c`.
+/// `None` weights for a group whose system failed: its categories keep
+/// their constant, the node's prior.
+struct SisPlan {
+    constant: Vec<f64>,
+    nodes: Vec<u32>,
+    weights: Vec<Option<Vec<f64>>>,
+}
+
+/// Realizations `realizations` of SIS over `shared.lattice` along one
+/// multigrid path shared by every realization, as [`crate::sgs_shared`] is
+/// for SGS. The inputs are those of [`sis`], with local proportions at the
+/// data and at every lattice node. A node's neighbors and indicator-kriging
+/// weights are found once for the batch; each realization draws its own
+/// categories from its seed and the node, so it does not depend on the
+/// batch, the chunking or the threads.
+#[allow(clippy::too_many_arguments)]
+pub fn sis_shared(
+    data_locs: &[(f64, f64, f64)],
+    data_cats: &[usize],
+    data_holes: Option<&[u32]>,
+    n_categories: usize,
+    variograms: &[Variogram],
+    proportions: Option<(&[Vec<f64>], &[Vec<f64>])>,
+    shared: &crate::shared::SharedSgs,
+    realizations: std::ops::Range<usize>,
+) -> Result<SharedCategories> {
+    use crate::shared::{CHUNK, Context, datum_nodes, fallback, located, neighbors, waves};
+    if let Some(why) = crate::shared::shared_unsupported(shared.search, false) {
+        return Err(SimError::InvalidParameters(format!(
+            "a shared path does not support {why}"
+        )));
+    }
+    let [search] = shared.search else {
+        return Err(SimError::InvalidParameters("SIS takes one search".into()));
+    };
+    if n_categories > u8::MAX as usize + 1 {
+        return Err(SimError::InvalidParameters(
+            "at most 256 categories on a shared path".into(),
+        ));
+    }
+    if realizations.is_empty() {
+        return Err(SimError::InvalidParameters(
+            "need at least one realization".into(),
+        ));
+    }
+    let lattice = shared.lattice;
+    let n = lattice.len();
+    let Inputs {
+        samples,
+        means,
+        local,
+        marg,
+    } = inputs(
+        data_locs,
+        data_cats,
+        data_holes,
+        n,
+        n_categories,
+        variograms,
+        search,
+        proportions,
+    )?;
+    let vg = &variograms[0];
+    let trees = vec![crate::sgs::tree(&samples, search, vg, None)];
+    let templates = vec![crate::lattice::Template::new(
+        lattice,
+        trees[0].frame(),
+        search.radius,
+    )?];
+    let top = shared
+        .levels
+        .unwrap_or_else(|| crate::lattice::default_levels(lattice, &templates[0]));
+    let on_datum = datum_nodes(lattice, data_locs, None);
+    let mut skip = vec![false; n];
+    for &(m, _) in &on_datum {
+        skip[m] = true;
+    }
+    let (path, rank) = crate::lattice::multigrid_path(lattice, top, shared.seed, &skip)?;
+    drop(skip);
+    let batch = realizations.len();
+    let keys: Vec<u64> = realizations
+        .map(|k| boitata_core::rng::realization_seed(shared.seed, k as u64))
+        .collect();
+    let mut cats = vec![0u8; n * batch];
+    for &(m, k) in &on_datum {
+        cats[m * batch..(m + 1) * batch].fill(data_cats[k] as u8);
+    }
+    let ctx = Context {
+        fallback: fallback(&samples, shared.search, vg, None),
+        lattice,
+        samples,
+        scores: vec![],
+        trees,
+        templates,
+        search: shared.search,
+        vg,
+        node_domains: None,
+        rank,
+        local: None,
+        marginal: 0.0,
+    };
+    let kind = match local {
+        Some(_) => Kind::Simple { mean: 0.0 },
+        None => Kind::Ordinary,
+    };
+    let (reps, groups) = variogram_groups(variograms, false);
+    let mut group = vec![0usize; n_categories];
+    for (g, members) in groups.iter().enumerate() {
+        for &c in members {
+            group[c] = g;
+        }
+    }
+    let prior = |m: usize| -> &[f64] { local.as_ref().map_or(&marg, |rows| &rows[m]) };
+    let plan = |m: usize| -> SisPlan {
+        let target = lattice.location(m);
+        let near = neighbors(&ctx, m);
+        let p = prior(m);
+        if near.is_empty() {
+            return SisPlan {
+                constant: p.to_vec(),
+                nodes: vec![],
+                weights: vec![None; reps.len()],
+            };
+        }
+        let selected = located(&ctx, &near);
+        let weights: Vec<Option<Vec<f64>>> = reps
+            .iter()
+            .map(|&r| {
+                krige(kind, &target, &selected, &variograms[r])
+                    .ok()
+                    .map(|e| e.weights)
+            })
+            .collect();
+        let mut constant = vec![0.0; n_categories];
+        let mut nodes = vec![];
+        for (c, value) in constant.iter_mut().enumerate() {
+            let Some(w) = &weights[group[c]] else {
+                *value = p[c];
+                continue;
+            };
+            for (&(_, is_node, i), &wj) in near.iter().zip(w) {
+                let i = i as usize;
+                let mean = match is_node {
+                    true => local.as_ref().map_or(0.0, |rows| rows[i][c]),
+                    false => means.get(i).map_or(0.0, |row| row[c]),
+                };
+                let on = !is_node && data_cats[i] == c;
+                *value += wj * (f64::from(u8::from(on)) - mean);
+            }
+            if local.is_some() {
+                *value += p[c];
+            }
+        }
+        let mut kept = vec![];
+        for (j, &(_, is_node, i)) in near.iter().enumerate() {
+            if is_node {
+                nodes.push(i);
+                kept.push(j);
+            }
+        }
+        let weights = weights
+            .into_iter()
+            .map(|w| w.map(|w| kept.iter().map(|&j| w[j]).collect()))
+            .collect();
+        SisPlan {
+            constant,
+            nodes,
+            weights,
+        }
+    };
+    for chunk in path.chunks(CHUNK) {
+        let plans: Vec<SisPlan> = chunk.par_iter().map(|&m| plan(m as usize)).collect();
+        for wave in waves(chunk, &ctx.rank, |t| plans[t].nodes.iter().copied()) {
+            let drawn: Vec<Vec<u8>> = wave
+                .par_iter()
+                .map(|&t| {
+                    let m = chunk[t] as usize;
+                    let plan = &plans[t];
+                    keys.iter()
+                        .enumerate()
+                        .map(|(b, &key)| {
+                            let mut probs = plan.constant.clone();
+                            for (c, value) in probs.iter_mut().enumerate() {
+                                if let Some(w) = &plan.weights[group[c]] {
+                                    for (&node, &wj) in plan.nodes.iter().zip(w) {
+                                        if cats[node as usize * batch + b] as usize == c {
+                                            *value += wj;
+                                        }
+                                    }
+                                }
+                                *value = value.clamp(0.0, 1.0);
+                            }
+                            normalize(&mut probs, prior(m));
+                            let u = unit(boitata_core::rng::realization_seed(key, m as u64));
+                            pick(&probs, u) as u8
+                        })
+                        .collect()
+                })
+                .collect();
+            for (&t, v) in wave.iter().zip(drawn) {
+                let m = chunk[t] as usize;
+                cats[m * batch..(m + 1) * batch].copy_from_slice(&v);
+            }
+        }
+    }
+    Ok(SharedCategories { cats, batch })
+}
+
+/// The checked inputs of one SIS run: the data as samples, their rows of
+/// local proportions (empty without them), the rows at the `nodes` nodes,
+/// and the data proportions, the fallback of a node without neighbors.
+struct Inputs {
+    samples: Vec<Sample>,
+    means: Vec<Vec<f64>>,
+    local: Option<Vec<Vec<f64>>>,
+    marg: Vec<f64>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn inputs(
+    data_locs: &[(f64, f64, f64)],
+    data_cats: &[usize],
+    data_holes: Option<&[u32]>,
+    nodes: usize,
+    n_categories: usize,
+    variograms: &[Variogram],
+    search: &Search,
+    proportions: Option<(&[Vec<f64>], &[Vec<f64>])>,
+) -> Result<Inputs> {
+    if data_locs.len() != data_cats.len() {
+        return Err(SimError::InvalidParameters("data length mismatch".into()));
+    }
+    if data_locs.is_empty() {
+        return Err(SimError::InsufficientData("no conditioning data".into()));
+    }
+    if search.clamps() {
+        return Err(SimError::InvalidParameters(
+            "categories cannot be clamped at a high-grade threshold".into(),
+        ));
+    }
+    if variograms.len() != n_categories {
+        return Err(SimError::InvalidParameters(
+            "need one variogram per category".into(),
+        ));
+    }
+    if let Some(c) = data_cats.iter().find(|&&c| c >= n_categories) {
+        return Err(SimError::InvalidParameters(format!(
+            "category {c} ≥ n_categories {n_categories}"
+        )));
+    }
+    let holes = crate::holes(data_holes, data_locs.len())?;
+    let (means, local) = match proportions {
+        Some((at_data, at_grid)) => {
+            if at_data.len() != data_locs.len() || at_grid.len() != nodes {
+                return Err(SimError::InvalidParameters(
+                    "one row of proportions per datum and per node".into(),
+                ));
+            }
+            let close = |rows: &[Vec<f64>]| {
+                rows.iter()
+                    .map(|r| closed(r, n_categories, "proportions"))
+                    .collect::<Result<Vec<_>>>()
+            };
+            (close(at_data)?, Some(close(at_grid)?))
+        }
+        None => (vec![], None),
+    };
+    let mut marg = vec![0.0f64; n_categories];
+    for &c in data_cats {
+        marg[c] += 1.0;
+    }
+    for m in &mut marg {
+        *m /= data_cats.len() as f64;
+    }
+    let samples = data_locs
+        .iter()
+        .zip(data_cats)
+        .zip(holes)
+        .map(|((&loc, &c), hole)| Sample {
+            loc,
+            value: c as f64,
+            hole,
+            error_variance: 0.0,
+            domain: None,
+        })
+        .collect();
+    Ok(Inputs {
+        samples,
+        means,
+        local,
+        marg,
+    })
+}
+
 enum Step {
     Datum(usize),
     Marginal(Vec<f64>),
@@ -375,7 +650,16 @@ pub(crate) fn closed(row: &[f64], k: usize, what: &str) -> Result<Vec<f64>> {
 
 /// Draw a category index from a probability vector using `rng`.
 fn draw_category(probs: &[f64], rng: &mut StdRng) -> usize {
-    let u: f64 = rng.r#gen::<f64>();
+    pick(probs, rng.r#gen::<f64>())
+}
+
+/// A uniform draw in `[0, 1)` fixed by `key`.
+fn unit(key: u64) -> f64 {
+    (boitata_core::rng::splitmix(key) >> 11) as f64 / (1u64 << 53) as f64
+}
+
+/// The category whose cumulative probability first reaches `u`.
+fn pick(probs: &[f64], u: f64) -> usize {
     let mut cum = 0.0;
     for (i, &p) in probs.iter().enumerate() {
         cum += p;
@@ -393,6 +677,103 @@ mod tests {
 
     fn ind_vg() -> Variogram {
         Variogram::single(Model::Spherical, 0.25, 100.0)
+    }
+
+    fn shared_run(
+        reals: std::ops::Range<usize>,
+        proportions: Option<(&[Vec<f64>], &[Vec<f64>])>,
+    ) -> (Vec<(f64, f64, f64)>, Vec<usize>, SharedCategories) {
+        let l = crate::Lattice::regular(boitata_core::Geometry {
+            origin: [0.0; 3],
+            size: [1.0, 1.0, 1.0],
+            count: [30, 30, 1],
+            rotation: [0.0; 3],
+        });
+        let locs: Vec<(f64, f64, f64)> = (0..30)
+            .map(|i| ((i * 7 % 30) as f64 + 0.5, (i * 11 % 30) as f64 + 0.5, 0.5))
+            .collect();
+        let cats: Vec<usize> = (0..30)
+            .map(|i| usize::from(i % 5 == 0) + usize::from(i % 7 == 0))
+            .collect();
+        let search = [Search {
+            min_samples: 1,
+            max_samples: 12,
+            radius: 12.0,
+            ..Default::default()
+        }];
+        let vgs = vec![Variogram::single(Model::Spherical, 0.2, 9.0); 3];
+        let shared = crate::shared::SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 5,
+        };
+        let out = sis_shared(&locs, &cats, None, 3, &vgs, proportions, &shared, reals).unwrap();
+        (locs, cats, out)
+    }
+
+    #[test]
+    fn shared_realizations_honor_data_on_centroids() {
+        let (locs, cats, out) = shared_run(0..3, None);
+        for b in 0..3 {
+            let r = out.realization(b);
+            for (p, &c) in locs.iter().zip(&cats) {
+                let m = (p.1 - 0.5) as usize * 30 + (p.0 - 0.5) as usize;
+                assert_eq!(r[m], c);
+            }
+        }
+    }
+
+    #[test]
+    fn a_shared_realization_does_not_depend_on_its_batch() {
+        let (_, _, together) = shared_run(0..4, None);
+        let (_, _, alone) = shared_run(2..3, None);
+        assert_eq!(together.realization(2), alone.realization(0));
+        assert_ne!(together.realization(0), together.realization(1));
+    }
+
+    #[test]
+    fn shared_realizations_follow_the_seed_not_the_threads() {
+        let with = |t: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(t)
+                .build()
+                .unwrap()
+                .install(|| shared_run(0..2, None).2.realization(1))
+        };
+        assert_eq!(with(1), with(4));
+    }
+
+    #[test]
+    fn shared_proportions_follow_the_data() {
+        let (_, cats, out) = shared_run(0..40, None);
+        let data: Vec<f64> = (0..3)
+            .map(|c| cats.iter().filter(|&&k| k == c).count() as f64 / cats.len() as f64)
+            .collect();
+        for c in 0..3 {
+            let sim = (0..40)
+                .map(|b| out.realization(b).iter().filter(|&&k| k == c).count() as f64 / 900.0)
+                .sum::<f64>()
+                / 40.0;
+            assert!(
+                (sim - data[c]).abs() < 0.06,
+                "category {c}: {sim} vs {}",
+                data[c]
+            );
+        }
+    }
+
+    #[test]
+    fn shared_local_proportions_run() {
+        let at_data = vec![vec![0.6, 0.3, 0.1]; 30];
+        let at_nodes: Vec<Vec<f64>> = (0..900)
+            .map(|m| {
+                let x = (m % 30) as f64 / 29.0;
+                vec![0.8 - 0.5 * x, 0.15 + 0.3 * x, 0.05 + 0.2 * x]
+            })
+            .collect();
+        let (_, _, out) = shared_run(0..2, Some((&at_data, &at_nodes)));
+        assert!(out.realization(0).iter().all(|&c| c < 3));
     }
 
     #[test]
