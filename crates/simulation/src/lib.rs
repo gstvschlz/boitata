@@ -15,6 +15,7 @@
 //!
 //! Realizations are conditional and reproducible given a seed.
 
+pub mod clean;
 mod conditioning;
 pub mod consistency;
 pub mod correct;
