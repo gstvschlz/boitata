@@ -28,7 +28,7 @@ from common import map_axes, save
 # Metal survey V simulated as in [realization checks](../../11-validation-and-reporting/04-realization-checks/README.md):
 # declustered normal scores, their variogram along N170° and across it, and 20 SGS realizations on a 5 m grid. The field
 # is only a few variogram ranges across, so each realization samples the histogram of the data unevenly: their means
-# stray up to 9 % from the declustered mean.
+# stray up to 10 % from the declustered mean.
 
 # %%
 samples = bt.datasets.clustered_metal_survey()

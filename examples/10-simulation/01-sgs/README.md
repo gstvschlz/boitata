@@ -82,10 +82,10 @@ print(
 </details>
 
 ```text
-realization means 260-297, true 280
-realization variance 61057, true 65444
-area above 500 ppm: P10 17.3%, P90 19.2%, true 18.7%
-median cv 0.58; nodes within ±50 % at 90 % confidence: 19%
+realization means 257-295, true 280
+realization variance 61134, true 65444
+area above 500 ppm: P10 17.3%, P90 19.1%, true 18.7%
+median cv 0.57; nodes within ±50 % at 90 % confidence: 19%
 ```
 
 Each realization looks like the truth; their mean is smooth like kriging, and their spread measures uncertainty.
@@ -199,8 +199,8 @@ for path in ["shared", "random"]:
 </details>
 
 ```text
-shared path:  0.17 s for 20 realizations of 78,000 nodes
-random path:  1.32 s for 20 realizations of 78,000 nodes
+shared path:  0.11 s for 20 realizations of 78,000 nodes
+random path:  1.47 s for 20 realizations of 78,000 nodes
 ```
 
 `batch` changes memory and speed and leaves the realizations alone: one at a time gives the same grades as all

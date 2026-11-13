@@ -111,7 +111,7 @@ save(fig, "profile")
 # are vertical.
 #
 # Across the layer the two agree at the first lag, and the unfolded variogram rises faster: the holes are vertical, so
-# only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.50 against 0.55 at
+# only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.50 against 0.56 at
 # 12 m: in this deposit nearby samples at one elevation are more alike than nearby samples at one position in the
 # profile.
 
@@ -141,7 +141,7 @@ save(fig, "variograms")
 # The same ordinary kriging runs on both coordinate sets, cross-validated by leaving out one of ten groups of whole
 # holes at a time.
 #
-# The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.729 % against 0.757 %. Unfolding
+# The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.729 % against 0.756 %. Unfolding
 # pays off where grade follows the layer, as in a folded bed or a profile whose base moves more than the grade changes
 # across it. Cross-validation on both coordinate sets tells you which case your deposit is.
 

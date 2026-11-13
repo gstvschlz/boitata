@@ -364,6 +364,17 @@ impl BlockModel {
         &self.geometry
     }
 
+    /// This model with its single layer centred at elevation `z`; a model of
+    /// several layers or turned in dip or rake is returned unchanged.
+    pub fn at_elevation(&self, z: f64) -> Self {
+        let mut out = self.clone();
+        let g = &mut out.geometry;
+        if g.count[2] == 1 && g.rotation[1] == 0.0 && g.rotation[2] == 0.0 {
+            g.origin[2] = z - 0.5 * g.size[2];
+        }
+        out
+    }
+
     pub fn layout(&self) -> &Layout {
         &self.layout
     }

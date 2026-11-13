@@ -96,10 +96,10 @@ for k in range(4):
 ```text
 correlation with the trend: data 0.64, SGS 0.61, SGS with trend 0.65
 mean V (ppm) by trend quartile    data   SGS  SGS with trend
-quartile 1                          72    93              82
-quartile 2                         222   225             223
-quartile 3                         309   317             312
-quartile 4                         504   516             528
+quartile 1                          78    93              82
+quartile 2                         219   225             223
+quartile 3                         309   318             313
+quartile 4                         504   517             529
 ```
 
 <details><summary>Python</summary>

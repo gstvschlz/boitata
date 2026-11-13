@@ -64,10 +64,10 @@ for name in ["mean", "std", "P50", "P90"]:
 </details>
 
 ```text
-mean  data    285   realizations    260 to    297
-std   data    253   realizations    238 to    261
-P50   data    234   realizations    191 to    253
-P90   data    676   realizations    602 to    701
+mean  data    285   realizations    257 to    295
+std   data    253   realizations    238 to    262
+P50   data    234   realizations    190 to    248
+P90   data    676   realizations    594 to    703
 ```
 
 The realizations' distributions straddle the declustered data's in grades and in normal scores, except for the step

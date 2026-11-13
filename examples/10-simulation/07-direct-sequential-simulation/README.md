@@ -100,10 +100,10 @@ print(
 </details>
 
 ```text
-16.40% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
-DSS: mean 283, variance 66354, at 0 ppm 20.0%, above 500 ppm 20.7%
+16.85% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
+DSS: mean 284, variance 66316, at 0 ppm 20.4%, above 500 ppm 20.8%
 corrected DSS: mean 285, variance 64081, at 0 ppm 4.8%, above 500 ppm 19.0%
-SGS: mean 273, variance 61022, at 0 ppm 4.0%, above 500 ppm 18.0%
+SGS: mean 274, variance 61131, at 0 ppm 4.0%, above 500 ppm 18.2%
 true: mean 280, variance 65444, at 0 ppm 5.1%, above 500 ppm 18.7%
 ```
 

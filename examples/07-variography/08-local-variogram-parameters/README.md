@@ -107,7 +107,7 @@ for name, field in (("global frame", None), ("local frames", lva)):
 
 ```text
 global frame: ratio 0.22, scale 1.21
-local frames: ratio 0.27, scale 1.18
+local frames: ratio 0.31, scale 1.07
 ```
 
 ## Moving-window fits
@@ -131,8 +131,8 @@ print("ratio percentiles (10, 50, 90):", np.percentile(fitted.ratios[:, 0], [10,
 </details>
 
 ```text
-scale percentiles (10, 50, 90): [0.77 0.97 1.24]
-ratio percentiles (10, 50, 90): [0.16 0.33 0.42]
+scale percentiles (10, 50, 90): [0.77 0.97 1.32]
+ratio percentiles (10, 50, 90): [0.15 0.33 0.42]
 ```
 
 <details><summary>Python</summary>
@@ -184,7 +184,7 @@ for name, estimate in estimates.items():
         global N170°: RMSE 144.2 ppm, correlation 0.826
         local angles: RMSE 145.6 ppm, correlation 0.823
             + scales: RMSE 145.9 ppm, correlation 0.822
- + scales and ratios: RMSE 146.3 ppm, correlation 0.821
+ + scales and ratios: RMSE 146.8 ppm, correlation 0.820
 ```
 
 <details><summary>Python</summary>
@@ -214,7 +214,7 @@ The scales alone change the estimate little: RMSE 145.9 against 145.6 ppm. Longe
 ratios leave the kriging weights close. The fitted ratios change them: the windows see bodies about 0.14 as wide as
 they are long, against 0.33 in the global model, and kriging with those needle-thin ellipses streaks along the field's
 directions. Wherever the guide's directions are off, the estimate follows them across the bodies, and the RMSE rises
-to 146.3 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
+to 146.8 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
 field. With a field this rough, keep the global ratios and take the local angles and scales. SGS, indicator and
 categorical kriging take the same `anisotropy=` field, scales included.
 

@@ -7,7 +7,7 @@ use crate::args::{
 };
 use crate::categorical::by_target;
 use crate::containers::PyBlockModel;
-use crate::estimation::{sample_columns, samples_from, searches, targets};
+use crate::estimation::{sample_columns, samples_from, searches};
 use crate::indicator::{IndicatorSummary, offsets};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
@@ -169,7 +169,7 @@ impl MultigaussianKriging {
                 Some(offsets(&model.get().0, d)?)
             }
         };
-        let targets = self::targets(targets)?;
+        let targets = crate::estimation::leveled(targets, samples.iter().map(|s| s.loc))?;
         py.detach(|| {
             self.model.predict(
                 samples,

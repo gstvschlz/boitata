@@ -162,6 +162,6 @@ save(fig, "kriging")
 # ratios leave the kriging weights close. The fitted ratios change them: the windows see bodies about 0.14 as wide as
 # they are long, against 0.33 in the global model, and kriging with those needle-thin ellipses streaks along the field's
 # directions. Wherever the guide's directions are off, the estimate follows them across the bodies, and the RMSE rises
-# to 146.3 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
+# to 146.8 ppm, worse than the global model. Narrow local ratios pay off only as far as you can trust the orientation
 # field. With a field this rough, keep the global ratios and take the local angles and scales. SGS, indicator and
 # categorical kriging take the same `anisotropy=` field, scales included.

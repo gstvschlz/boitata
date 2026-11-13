@@ -81,12 +81,12 @@ print("azimuth percentiles (10, 50, 90):", np.percentile(lva.angles[:, 0] % 180,
 LocalAnisotropy  3,120 locations
   scales  given
   over the locations       min   mean  max
-  azimuth              0.00165  93.97  180
+  azimuth             0.004289  94.28  180
   dip                        0      0    0
-  rake                2.51e-15  85.73  180
+  rake                2.56e-15  85.15  180
   semi/major               0.3    0.3  0.3
   minor/major                1      1    1
-azimuth percentiles (10, 50, 90): [  6. 115. 174.]
+azimuth percentiles (10, 50, 90): [  6. 118. 174.]
 ```
 
 <details><summary>Python</summary>

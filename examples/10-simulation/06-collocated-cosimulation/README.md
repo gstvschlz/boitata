@@ -60,7 +60,7 @@ correlation of Co and Ni scores at the samples: 0.81
 ```
 
 Simulated alone, Co keeps its histogram and variogram but forgets Ni: away from the samples the two vary
-independently, and their correlation over the nodes falls to near zero. Cosimulated, each realization of Co
+independently, and their correlation over the nodes falls to 0.19 to 0.37. Cosimulated, each realization of Co
 follows its own Ni realization and the correlation comes back:
 
 <details><summary>Python</summary>
@@ -82,8 +82,8 @@ for name, check in checks.items():
 </details>
 
 ```text
-Co alone    correlation with Ni -0.17 to 0.10 (samples 0.81)
-Co with Ni  correlation with Ni 0.80 to 0.88 (samples 0.81)
+Co alone    correlation with Ni 0.19 to 0.37 (samples 0.81)
+Co with Ni  correlation with Ni 0.82 to 0.86 (samples 0.81)
 ```
 
 <details><summary>Python</summary>
@@ -108,7 +108,8 @@ save(fig, "maps")
 ![maps](maps.png)
 
 The cosimulated Co still reproduces its own histogram and variogram (the [realization checks](../../11-validation-and-reporting/04-realization-checks/README.md)), and its correlation
-with Ni, 0.80 to 0.88 across realizations, brackets the samples' 0.81. Simulated alone, Co keeps little of it.
+with Ni, 0.82 to 0.86 across realizations, sits just above the samples' 0.81. Simulated alone, Co keeps less than
+half of it.
 
 <details><summary>Python</summary>
 
@@ -160,11 +161,11 @@ print(f"co-DSS: correlation of Co and Ni over the nodes {min(r):.2f} to {max(r):
 
 ```text
 correlation of Co and Ni grades at the samples: 0.81
-co-DSS: correlation of Co and Ni over the nodes 0.82 to 0.89
+co-DSS: correlation of Co and Ni over the nodes 0.84 to 0.87
 ```
 
 The co-DSS realizations follow their Ni realizations as closely as the cosimulated SGS ones: their correlation with
-Ni brackets the samples' 0.75. The block above silences the warning on nodes DSS draws from the nearest reachable
+Ni, 0.84 to 0.87, sits a little above the samples' 0.81. The block above silences the warning on nodes DSS draws from the nearest reachable
 mean and variance.
 
 Full script: [`example_10_06.py`](example_10_06.py)

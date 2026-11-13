@@ -55,6 +55,17 @@ impl Lattice {
         }
     }
 
+    /// This lattice with its single layer centred at elevation `z`; a lattice
+    /// of several layers or turned in dip or rake is returned unchanged.
+    pub fn at_elevation(&self, z: f64) -> Self {
+        let mut out = self.clone();
+        let g = &mut out.geometry;
+        if g.count[2] == 1 && g.rotation[1] == 0.0 && g.rotation[2] == 0.0 {
+            g.origin[2] = z - 0.5 * g.size[2];
+        }
+        out
+    }
+
     pub fn len(&self) -> usize {
         self.cells
             .as_ref()
@@ -248,6 +259,28 @@ mod tests {
             count: [6, 5, 3],
             rotation,
         }
+    }
+
+    #[test]
+    fn a_single_layer_moves_to_an_elevation_and_others_stay() {
+        let g = Geometry {
+            origin: [0.0; 3],
+            size: [1.0, 1.0, 2.0],
+            count: [3, 3, 1],
+            rotation: [30.0, 0.0, 0.0],
+        };
+        let one = Lattice::regular(g).at_elevation(5.0);
+        assert!((one.location(4).2 - 5.0).abs() < 1e-12);
+        let two = Lattice::regular(Geometry {
+            count: [3, 3, 2],
+            ..g
+        });
+        assert_eq!(two.at_elevation(5.0).location(4), two.location(4));
+        let dipping = Lattice::regular(Geometry {
+            rotation: [0.0, 10.0, 0.0],
+            ..g
+        });
+        assert_eq!(dipping.at_elevation(5.0).location(4), dipping.location(4));
     }
 
     #[test]

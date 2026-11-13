@@ -138,7 +138,7 @@ print(
 )
 
 # %% [markdown]
-# Inverse distance is higher in 79 % of the blocks, by 41.5 ppm on average. The largest differences lie at the
+# Inverse distance is higher in 79 % of the blocks, by 41.3 ppm on average. The largest differences lie at the
 # edges of the dense clusters, where a block's search reaches a few isolated samples and many clustered ones, the
 # case Figure 1 draws.
 #
@@ -165,7 +165,7 @@ for low, high in ((0, 400), (400, 800), (800, 1300)):
 
 # %% [markdown]
 # The two models rank the blocks alike (correlation 0.957), yet the cloud sits off the 1:1 line. Of the 575
-# blocks kriged below 400 ppm, inverse distance puts 84 % higher, by 49.7 ppm on average; of the 9 above 800 ppm,
+# blocks kriged below 400 ppm, inverse distance puts 84 % higher, by 49.5 ppm on average; of the 9 above 800 ppm,
 # it puts 78 % lower. Inverse distance lifts the low-grade blocks whose neighborhoods reach into a high-grade
 # cluster.
 #
@@ -245,7 +245,7 @@ for name, estimate in (("kriging", ok), ("inverse distance", idw)):
 
 # %% [markdown]
 # The truth agrees with the samples: kriging overstates the mean by 1.6 %, inverse distance by 16.4 %, and the
-# kriged blocks are closer to the true ones (RMSE 90.6 against 115.2 ppm). Most of kriging's 1.6 % comes from the
+# kriged blocks are closer to the true ones (RMSE 90.6 against 115.3 ppm). Most of kriging's 1.6 % comes from the
 # declustered mean itself: 284.9 ppm is 1.9 % above the true 279.5 ppm, and no check against the samples can see
 # that.
 #

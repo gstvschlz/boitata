@@ -89,8 +89,8 @@ save(fig, "simulated-blocks")
 
 ```text
 above 300 ppm: P10 38.2%, P90 41.8%, true 38.3%
-above 500 ppm: P10 15.2%, P90 18.1%, true 17.1%
-above 800 ppm: P10 1.9%, P90 2.8%, true 2.8%
+above 500 ppm: P10 15.4%, P90 18.1%, true 17.1%
+above 800 ppm: P10 1.9%, P90 2.9%, true 2.8%
 ```
 
 ![simulated-blocks](simulated-blocks.png)
@@ -121,8 +121,8 @@ for label, volumes in (
 </details>
 
 ```text
-blocks: 780 rows, median relative error 58.3%
-periods: 6 rows, median relative error 8.1%
+blocks: 780 rows, median relative error 58.2%
+periods: 6 rows, median relative error 8.0%
 50 m windows: 780 rows, median relative error 20.7%
 ```
 
@@ -150,11 +150,11 @@ print(f"at 500 ppm: type 1 {np.mean(table['type_1']):.1%}, type 2 {np.mean(table
 
 ```text
 precision at ±15 % reaching 90 %: 3.1% of blocks
-truth within the MEE: 84.5% of blocks
+truth within the MEE: 84.4% of blocks
 at 500 ppm: type 1 2.3%, type 2 4.1% of blocks
 ```
 
-Single 10 m blocks almost never meet ±15 % at 90 %. The truth lies within the MEE for 85 % of blocks, short of the
+Single 10 m blocks almost never meet ±15 % at 90 %. The truth lies within the MEE for 84 % of blocks, short of the
 nominal 90 %, and 6 % of blocks fall on the wrong side of 500 ppm.
 
 Localization pools the realizations panel by panel. Over the western 250 m, each 50 × 50 m panel holds 25 blocks.
@@ -210,15 +210,15 @@ save(fig, "localized-simulation")
 </details>
 
 ```text
-kriged: variance 41398, correlation with truth 0.92
-localized: variance 49387, correlation with truth 0.91
+kriged: variance 41415, correlation with truth 0.92
+localized: variance 49388, correlation with truth 0.91
 true blocks: variance 50084
 ```
 
 ![localized-simulation](localized-simulation.png)
 
-Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 49 387,
-between kriging's 41 398 and the true 50 084, with a correlation to the truth of 0.91 against kriging's 0.92. The
+Each panel keeps the mean of its realizations, and its blocks the spread the simulation gives them: variance 49 388,
+between kriging's 41 415 and the true 50 084, with a correlation to the truth of 0.91 against kriging's 0.92. The
 pooling uses no change-of-support model, so its result depends on the realizations alone. [Uniform conditioning](../../09-estimation/17-uniform-conditioning/README.md) and [MIK localization](../../09-estimation/18-mik-localization/README.md)
 localize the same panels from a change-of-support model.
 

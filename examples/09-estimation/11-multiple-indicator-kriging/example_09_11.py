@@ -123,7 +123,7 @@ save(fig, "accuracy")
 # with `discretization=(4, 4, 1)`, gives the distribution of the point values within it, and `localize` takes the same
 # argument. Each panel probability averages those of the points inside, so panels differ a little less and the order
 # relations need less correction. Within 1 km the indicator variograms rise mostly at the nugget, which kriging at a
-# centroid already filters, so the two stay close here:
+# centroid already filters; the two differ by 0.05 in probability on average:
 
 # %%
 panels = bt.BlockModel(origin=(0.25, 0.0), size=(1.0, 1.0), count=(5, 6))

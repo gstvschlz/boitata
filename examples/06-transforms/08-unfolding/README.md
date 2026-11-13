@@ -51,7 +51,7 @@ print(
 
 ```text
 Mesh  8,056 vertices, 15,750 triangles, open, 360 boundary edges
-  area    806312.8
+  area    806342.4
   bounds  x 29980 to 31030, y 59980 to 60730, z 294.7 to 378.1
 bedrock 295 to 378 m, saprolite 3.0 to 45.5 m thick
 ```
@@ -94,7 +94,7 @@ print(
 ```text
 in the layer: 100.0% of saprolite intervals, 0.4% of others
 5260 assays in the saprolite, Ni 1.65 % mean
-arc length along the bedrock minus plan distance: up to 38.2 m in u, 35.3 m in v
+arc length along the bedrock minus plan distance: up to 38.3 m in u, 35.4 m in v
 ```
 
 Nickel is richer in the lower half of the saprolite. The bedrock moves up and down by tens of meters, so the profile
@@ -125,7 +125,7 @@ save(fig, "profile")
 
 ```text
 Elevation: decile means explain 5.2% of the Ni variance
-        w: decile means explain 9.2% of the Ni variance
+        w: decile means explain 9.3% of the Ni variance
 ```
 
 ![profile](profile.png)
@@ -137,7 +137,7 @@ the layer the pairs are horizontal in the real space and parallel to the surface
 are vertical.
 
 Across the layer the two agree at the first lag, and the unfolded variogram rises faster: the holes are vertical, so
-only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.50 against 0.55 at
+only the scaling of `w` changes the distances. Along the layer the real variogram starts lower, 0.50 against 0.56 at
 12 m: in this deposit nearby samples at one elevation are more alike than nearby samples at one position in the
 profile.
 
@@ -168,7 +168,7 @@ save(fig, "variograms")
 
 ```text
     real: gamma along 0.50 at 12 m, across 0.28 at 0.5 m
-unfolded: gamma along 0.55 at 12 m, across 0.28 at 0.5 m
+unfolded: gamma along 0.56 at 12 m, across 0.28 at 0.5 m
 ```
 
 ![variograms](variograms.png)
@@ -178,7 +178,7 @@ unfolded: gamma along 0.55 at 12 m, across 0.28 at 0.5 m
 The same ordinary kriging runs on both coordinate sets, cross-validated by leaving out one of ten groups of whole
 holes at a time.
 
-The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.729 % against 0.757 %. Unfolding
+The variograms predicted it: the real coordinates estimate slightly better, RMSE 0.729 % against 0.756 %. Unfolding
 pays off where grade follows the layer, as in a folded bed or a profile whose base moves more than the grade changes
 across it. Cross-validation on both coordinate sets tells you which case your deposit is.
 
@@ -197,7 +197,7 @@ for name, k in kriging.items():
 
 ```text
     real: RMSE 0.729 %, correlation 0.460
-unfolded: RMSE 0.757 %, correlation 0.393
+unfolded: RMSE 0.756 %, correlation 0.394
 ```
 
 ## Back to the blocks
@@ -231,13 +231,13 @@ save(fig, "section")
 
 ```text
 inverse of the unfolded centers: 0.0e+00 m from the centroids
-BlockModel  masked, 90,652 of 644,480 blocks
+BlockModel  masked, 90,659 of 644,480 blocks
   count   106 × 76 × 80
   size    10 × 10 × 1
   origin  29975, 59975, 300
   bounds  x 29975 to 31035, y 59975 to 60735, z 300 to 380
   column  type     unit  nulls     min   mean    max
-  NI      float64            0  0.5383  1.643  5.417
+  NI      float64            0  0.5382  1.643  5.417
 ```
 
 ![section](section.png)

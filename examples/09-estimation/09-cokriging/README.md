@@ -116,7 +116,7 @@ print(
 </details>
 
 ```text
-validation RMSE: collocated cokriging 0.652, with local anisotropy 0.662 mg/kg
+validation RMSE: collocated cokriging 0.652, with local anisotropy 0.659 mg/kg
 ```
 
 Full script: [`example_09_09.py`](example_09_09.py)

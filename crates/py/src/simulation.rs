@@ -1045,6 +1045,19 @@ fn lattice_of(targets: &Bound<PyAny>) -> Option<simulation::Lattice> {
     simulation::Lattice::from_model(&model.get().0)
 }
 
+/// [`lattice_of`], with a single layer at the elevation of 2D `data` (see
+/// [`crate::estimation::plane`]).
+fn leveled_lattice(
+    targets: &Bound<PyAny>,
+    data: impl IntoIterator<Item = Point>,
+) -> Option<simulation::Lattice> {
+    let lattice = lattice_of(targets)?;
+    Some(match crate::estimation::plane(targets, data) {
+        Some(z) => lattice.at_elevation(z),
+        None => lattice,
+    })
+}
+
 /// Bytes a run may take: `memory` when given, else 70 % of the memory
 /// available now.
 fn memory_budget(py: Python, memory: Option<f64>) -> PyResult<u64> {
@@ -1293,7 +1306,7 @@ impl Sgs {
         domain_column: Option<&str>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
-        let grid = self::targets(targets)?;
+        let grid = crate::estimation::leveled(targets, d.locs.iter().copied())?;
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = node_domains(
             self.domains.as_deref(),
@@ -1537,10 +1550,10 @@ impl Sgs {
                 path.unwrap_or_default()
             )));
         }
-        let lattice = lattice_of(targets);
+        let lattice = leveled_lattice(targets, d.locs.iter().copied());
         let mut grid = match &lattice {
             Some(_) => None,
-            None => Some(self::targets(targets)?),
+            None => Some(crate::estimation::leveled(targets, d.locs.iter().copied())?),
         };
         let count = lattice
             .as_ref()
@@ -1570,7 +1583,7 @@ impl Sgs {
             }
         };
         if grid.is_none() && (lattice.is_none() || blocks.is_some()) {
-            grid = Some(self::targets(targets)?);
+            grid = Some(crate::estimation::leveled(targets, d.locs.iter().copied())?);
         }
         let grid = grid.unwrap_or_default();
         let trend = d
@@ -1862,7 +1875,7 @@ impl Dss {
         domain_column: Option<&str>,
     ) -> PyResult<Bound<'py, PyArray1<f64>>> {
         let d = self.data.as_ref().ok_or_else(not_fitted)?;
-        let grid = self::targets(targets)?;
+        let grid = crate::estimation::leveled(targets, d.locs.iter().copied())?;
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = node_domains(
             self.domains.as_deref(),
@@ -2096,7 +2109,7 @@ impl Dss {
         )
         .map_err(invalid)?;
         crate::units::check_crs(self.coords_crs.as_deref(), targets, ("samples", "targets"))?;
-        let grid = self::targets(targets)?;
+        let grid = crate::estimation::leveled(targets, d.locs.iter().copied())?;
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
@@ -2455,7 +2468,7 @@ impl TurningBands {
         )
         .map_err(invalid)?;
         crate::units::check_crs(self.coords_crs.as_deref(), targets, ("samples", "targets"))?;
-        let grid = self::targets(targets)?;
+        let grid = crate::estimation::leveled(targets, d.locs.iter().copied())?;
         let fitted = self.domains.as_deref();
         let domains = domain_arg(targets, domains, domain_column)?;
         let nodes = realization_domains(fitted, domains.as_ref(), grid.len(), n, "simulate")?;
@@ -2811,7 +2824,7 @@ impl Sis {
         memory: Option<f64>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
-        let grid = self::targets(targets)?;
+        let grid = crate::estimation::leveled(targets, locs.iter().copied())?;
         let k = self.variograms.len();
         let at_grid = match (&self.local, proportions) {
             (Some(_), Some(p)) => Some(proportion_rows(p, grid.len(), k)?),
@@ -3155,7 +3168,7 @@ impl Plurigaussian {
         memory: Option<f64>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, facies) = self.data.as_ref().ok_or_else(not_fitted)?;
-        let grid = self::targets(targets)?;
+        let grid = crate::estimation::leveled(targets, locs.iter().copied())?;
         let local = match (&self.local, proportions) {
             (Some(at_data), Some(p)) => Some((at_data, self.local_rows(p, grid.len())?)),
             (None, None) => None,
@@ -4569,7 +4582,7 @@ impl MultivariateSimulation {
         memory: Option<f64>,
     ) -> PyResult<Vec<SimulationSummary>> {
         let f = self.fitted.as_ref().ok_or_else(not_fitted)?;
-        let grid = self::targets(targets)?;
+        let grid = crate::estimation::leveled(targets, f.locs.iter().copied())?;
         let support = support(targets, &grid, blocks)?;
         if anisotropy.is_some() && self.factors.iter().any(|f| matches!(f, Factor::Bands(..))) {
             return Err(invalid("anisotropy needs SGS for every factor"));

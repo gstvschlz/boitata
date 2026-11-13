@@ -1115,7 +1115,10 @@ fn assign_domain<'py>(
         _ => return Err(invalid("give both coords and domains")),
     };
     let mesh = mesh.as_ref().map(|m| &m.mesh);
-    let targets = self::targets(targets)?;
+    let targets = match mesh {
+        None => crate::estimation::leveled(targets, samples.iter().map(|(p, _)| *p))?,
+        Some(_) => self::targets(targets)?,
+    };
     let out = py
         .detach(|| blocks::assign_domain(&targets, &samples, method, n, mesh))
         .map_err(err)?;

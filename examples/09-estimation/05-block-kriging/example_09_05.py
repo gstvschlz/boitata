@@ -55,7 +55,7 @@ print(
 # The two estimates are close, and block kriging is a little more accurate against the block averages. The larger
 # difference is in the variance: point kriging reports the error of predicting one point, nugget included, while block
 # kriging reports the error of predicting the block mean, a third of it here. The actual mean squared error of the block
-# estimates, 8 269, is below even that, as the model's variance was pessimistic in
+# estimates, 8 266, is below even that, as the model's variance was pessimistic in
 # [ordinary kriging](../../09-estimation/01-ordinary-kriging/README.md) too.
 
 # %%

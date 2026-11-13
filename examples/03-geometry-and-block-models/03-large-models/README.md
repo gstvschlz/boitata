@@ -156,7 +156,7 @@ print(f"first realization: mean {first.mean():.2f} % Fe, as accumulated {result[
 
 ```text
 residual scores: nugget 0.48, range 31 m
-10 realizations in 4 s; blocks above 60 % Fe: P10 22.7%, P90 23.1%
+10 realizations in 3 s; blocks above 60 % Fe: P10 22.7%, P90 23.1%
 output 77 MB
 first realization: mean 48.97 % Fe, as accumulated 48.97
 ```

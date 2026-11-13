@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::args::{self, Label, array1, column, optional_finite, pick, points, same_length};
 use crate::categories::{Categories, labels, refs};
-use crate::estimation::{Search, codes, plain_searches, sample_columns, samples_from, targets};
+use crate::estimation::{Search, codes, plain_searches, sample_columns, samples_from};
 use crate::indicator::{
     diagnostic_columns, diagnostics_table, push_diagnostics, restore_diagnostics,
 };
@@ -207,7 +207,7 @@ impl CategoricalIndicatorKriging {
             (None, Some(c)) => Some(args::named(Some(targets), c, "domain_column")?),
             _ => return Err(invalid("give one of domains or domain_column")),
         };
-        let targets = self::targets(targets)?;
+        let targets = crate::estimation::leveled(targets, samples.iter().map(|s| s.loc))?;
         let codes = codes(
             self.domains.as_deref(),
             domains.as_ref(),

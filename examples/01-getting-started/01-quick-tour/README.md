@@ -193,7 +193,7 @@ BlockModel  regular, 3,120 blocks
   origin  3, 3, 0
   bounds  x 3 to 263, y 3 to 303, z 0 to 1
   column    type     unit  nulls     min   mean     max
-  estimate  float64            0  -6.249  280.7   990.6
+  estimate  float64            0  -6.256  280.7   991.5
   truth     float64            0       0  278.3  1542.9
 ```
 

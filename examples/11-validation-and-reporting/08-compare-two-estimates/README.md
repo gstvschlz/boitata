@@ -86,8 +86,8 @@ BlockModel  regular, 780 blocks
   origin  0.5, 0.5, 0
   bounds  x 0.5 to 260.5, y 0.5 to 300.5, z 0 to 1
   column  type     unit  nulls      min   mean     max
-  ok      float64            0  -0.7403    284  1117.2
-  id      float64            0    10.71  325.4  1096.3
+  ok      float64            0  -0.7479    284    1118
+  id      float64            0    10.65  325.3  1094.4
 unestimated blocks: kriging 0, inverse distance 0
 ```
 
@@ -110,7 +110,7 @@ for name, estimate in (("kriging", ok), ("inverse distance", idw)):
 
 ```text
          kriging: blocks 284.0 ppm, declustered samples 284.9 ppm, bias -0.3%
-inverse distance: blocks 325.4 ppm, declustered samples 284.9 ppm, bias +14.2%
+inverse distance: blocks 325.3 ppm, declustered samples 284.9 ppm, bias +14.2%
 ```
 
 Kriging is within 0.3 % of the declustered mean; inverse distance is 14.2 % above it. That gap needs an
@@ -171,12 +171,12 @@ print(
 </details>
 
 ```text
-inverse distance is higher in 79% of the blocks; mean difference +41.5 ppm
+inverse distance is higher in 79% of the blocks; mean difference +41.3 ppm
 ```
 
 ![maps](maps.png)
 
-Inverse distance is higher in 79 % of the blocks, by 41.5 ppm on average. The largest differences lie at the
+Inverse distance is higher in 79 % of the blocks, by 41.3 ppm on average. The largest differences lie at the
 edges of the dense clusters, where a block's search reaches a few isolated samples and many clustered ones, the
 case Figure 1 draws.
 
@@ -208,15 +208,15 @@ for low, high in ((0, 400), (400, 800), (800, 1300)):
 
 ```text
 correlation 0.957
-kriging 0-400 ppm: 575 blocks, inverse distance higher in 84%, mean difference +49.7 ppm
+kriging 0-400 ppm: 575 blocks, inverse distance higher in 84%, mean difference +49.5 ppm
 kriging 400-800 ppm: 194 blocks, inverse distance higher in 67%, mean difference +20.8 ppm
-kriging 800-1300 ppm:   9 blocks, inverse distance higher in 22%, mean difference -43.7 ppm
+kriging 800-1300 ppm:   9 blocks, inverse distance higher in 22%, mean difference -44.0 ppm
 ```
 
 ![scatter](scatter.png)
 
 The two models rank the blocks alike (correlation 0.957), yet the cloud sits off the 1:1 line. Of the 575
-blocks kriged below 400 ppm, inverse distance puts 84 % higher, by 49.7 ppm on average; of the 9 above 800 ppm,
+blocks kriged below 400 ppm, inverse distance puts 84 % higher, by 49.5 ppm on average; of the 9 above 800 ppm,
 it puts 78 % lower. Inverse distance lifts the low-grade blocks whose neighborhoods reach into a high-grade
 cluster.
 
@@ -273,13 +273,13 @@ for row in zip(
 ```text
 cutoff model  area above (m²)  mean V  area diff  grade diff
      0    ok           77,800   284.7      +0.0%       +0.0%
-     0    id           78,000   325.4      +0.3%      +14.3%
+     0    id           78,000   325.3      +0.3%      +14.3%
    200    ok           47,200   409.1      +0.0%       +0.0%
-   200    id           55,600   412.0     +17.8%       +0.7%
-   400    ok           20,300   556.3      +0.0%       +0.0%
-   400    id           24,700   552.8     +21.7%       -0.6%
-   600    ok            6,400   718.1      +0.0%       +0.0%
-   600    id            7,100   729.9     +10.9%       +1.6%
+   200    id           55,600   411.9     +17.8%       +0.7%
+   400    ok           20,300   556.4      +0.0%       +0.0%
+   400    id           24,800   552.3     +22.2%       -0.7%
+   600    ok            6,400   718.3      +0.0%       +0.0%
+   600    id            7,000   732.6      +9.4%       +2.0%
 ```
 
 The shift carries into selection: at 200 ppm inverse distance reports 17.8 % more area above cutoff than
@@ -334,11 +334,11 @@ for name, estimate in (("kriging", ok), ("inverse distance", idw)):
 ```text
 true block mean 279.5 ppm
          kriging: mean 284.0 ppm (+1.6%), RMSE 90.6 ppm, correlation 0.916
-inverse distance: mean 325.4 ppm (+16.4%), RMSE 115.2 ppm, correlation 0.883
+inverse distance: mean 325.3 ppm (+16.4%), RMSE 115.3 ppm, correlation 0.883
 ```
 
 The truth agrees with the samples: kriging overstates the mean by 1.6 %, inverse distance by 16.4 %, and the
-kriged blocks are closer to the true ones (RMSE 90.6 against 115.2 ppm). Most of kriging's 1.6 % comes from the
+kriged blocks are closer to the true ones (RMSE 90.6 against 115.3 ppm). Most of kriging's 1.6 % comes from the
 declustered mean itself: 284.9 ppm is 1.9 % above the true 279.5 ppm, and no check against the samples can see
 that.
 
