@@ -138,7 +138,8 @@ save(fig, "realizations")
 # path per realization:
 
 # %%
-box = bt.BlockModel(origin=(0.3, 0.4), size=(0.1, 0.1), count=(47, 54))
+# One layer centred at z = 0, the elevation of the 2D samples, so a block holding a sample sits on it.
+box = bt.BlockModel(origin=(0.3, 0.4, -0.5), size=(0.1, 0.1, 1.0), count=(47, 54, 1))
 for path in ("shared", "random"):
     s = sis.simulate(box, n=20, seed=3, path=path)
     print(f"{path:<7} mean entropy {s.entropy.mean():.2f}, Portlandian {s.proportions[:, 3].mean():.3f}")
@@ -148,9 +149,9 @@ for path in ("shared", "random"):
 #
 # SIS realizations are noisier at short range than their indicator variograms say. `clean`, an odd window side in
 # blocks, replaces each block by the most probable category in the window around it (maximum a-posteriori selection,
-# Deutsch 1998): nearer blocks weigh more, blocks on a sample keep their type, and each type is scaled by its sample
-# proportion over its proportion in the realization. Here a 5 by 5 window counts the type changes between
-# neighboring blocks along X:
+# Deutsch 1998): nearer blocks weigh more, a block whose centre is a sample keeps its type and weighs 5 times more,
+# and each type is scaled by its sample proportion over its proportion in the realization. The same 20 realizations
+# with and without a 5 by 5 window, counting the type changes between neighboring blocks along X:
 
 
 # %%
@@ -166,6 +167,50 @@ for name, s in (("raw", raw), ("clean=5", cleaned)):
         f"{name:<8} type changes {changes(s.realizations):.3f}, Portlandian {s.proportions[:, 3].mean():.3f}"
     )
 
+# %%
+main = int(np.argmax(np.bincount(rock)))
+lags = np.arange(1, 11)
+
+
+def semivariance(realizations, k):
+    r = (np.asarray(realizations).reshape(len(realizations), 54, 47) == k).astype(float)
+    return [0.5 * np.mean((r[:, :, h:] - r[:, :, :-h]) ** 2) for h in lags]
+
+
+print(
+    f"{names[main]} semivariance at 0.1 km: without cleaning {semivariance(raw.realizations, main)[0]:.3f}, "
+    f"clean=5 {semivariance(cleaned.realizations, main)[0]:.3f}, model {variograms[main].gamma([0.1])[0]:.3f}"
+)
+print(f"{names[main]} nugget {variograms[main].nugget:.3f}")
+extent = (0.3, 5.0, 0.4, 5.8)
+fig, axes = plt.subplots(2, 3, figsize=(13, 8.6), layout="constrained")
+axes[0, 0].scatter(*xy, c=true_rock, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
+axes[0, 0].set_title("True rock types")
+for row, (name, s) in enumerate((("Without cleaning", raw), ("clean=5", cleaned))):
+    for col in (1, 2):
+        ax = axes[row, col]
+        r = np.asarray(s.realizations)[col - 1].reshape(54, 47)
+        ax.imshow(r, origin="lower", extent=extent, cmap=cmap, norm=norm, interpolation="nearest")
+        ax.plot(*train.coords[:, :2].T, ".", color="black", ms=2)
+        ax.set_title(f"{name}, realization {col}")
+ax = axes[1, 0]
+ax.plot(0.1 * lags, semivariance(raw.realizations, main), "o-", color=GRAY, label="Without cleaning")
+ax.plot(0.1 * lags, semivariance(cleaned.realizations, main), "o-", color=ACCENT, label="clean=5")
+ax.plot(0.1 * lags, variograms[main].gamma(0.1 * lags), "--", color="black", label="Model")
+ax.set(title=f"{names[main]} indicator, along X", xlabel="Lag (km)", ylabel="Semivariance")
+ax.legend(loc="lower right")
+for ax in (axes[0, 0], axes[0, 1], axes[0, 2], axes[1, 1], axes[1, 2]):
+    ax.set_aspect("equal")
+    ax.set(xlabel="X (km)", ylabel="Y (km)")
+bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
+save(fig, "cleaning")
+
 # %% [markdown]
-# Cleaning cuts the type changes between neighbors by more than half. It cannot recover Portlandian: its target is
-# the 1 % share of the samples, against 5 % of the true grid, so the proportion term has nothing to pull toward.
+# Cleaning cuts the type changes between neighbors from 0.41 to 0.16 and turns scattered blocks into patches. Whether
+# that is right depends on the variograms. Kimmeridgian's has a nugget of 0.139 out of 0.224, so the model itself
+# expects blocks 0.1 km apart to differ often: the realizations without cleaning sit near it (0.128 against 0.150),
+# and cleaning drops the semivariance to 0.047, far more continuous than the model. Here the noise is in the data,
+# and cleaning removes it from the realizations too. Clean when realizations are noisier than their variograms, as
+# with models of small nugget, and leave it off when the nugget is real. Cleaning cannot recover Portlandian either:
+# its target is the 1 % share of the samples, against 5 % of the true grid, so the proportion term has nothing to
+# pull toward.
