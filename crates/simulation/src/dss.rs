@@ -11,6 +11,7 @@
 use crate::error::{Result, SimError};
 use crate::sgs::{Domains, SgsParams, Space, Transform, Transforms, inputs, sequential};
 use estimation::lva::LocalAnisotropy;
+use rayon::prelude::*;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use transforms::weighted_mean_variance;
 use variogram::{Structure, Variogram};
@@ -499,6 +500,162 @@ impl<'a> Dss<'a> {
     }
 }
 
+/// Values of a batch of DSS realizations along one shared multigrid path.
+pub struct SharedValues {
+    /// Node-major: the values of node `m` are `values[m * batch..][..batch]`.
+    values: Vec<f64>,
+    batch: usize,
+    /// Draws whose kriged mean and variance no draw reaches, over the batch.
+    pub clamped: usize,
+}
+
+impl SharedValues {
+    pub fn len(&self) -> usize {
+        self.batch
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.batch == 0
+    }
+
+    /// Realization `b` of the batch, one value per lattice node.
+    pub fn realization(&self, b: usize) -> Vec<f64> {
+        self.values
+            .iter()
+            .skip(b)
+            .step_by(self.batch)
+            .copied()
+            .collect()
+    }
+}
+
+impl Dss<'_> {
+    /// Realizations `realizations` over `shared.lattice` along one multigrid
+    /// path shared by every realization, as [`crate::sgs_shared`] is for
+    /// SGS: a node's neighbors and simple-kriging weights are found once for
+    /// the batch and each realization draws through the lookup with its own
+    /// seed and the node, so it does not depend on the batch, the chunking or
+    /// the threads. Without domains or a secondary.
+    pub fn simulate_shared(
+        &self,
+        shared: &crate::shared::SharedSgs,
+        realizations: std::ops::Range<usize>,
+    ) -> Result<SharedValues> {
+        use crate::shared::{CHUNK, Context, datum_nodes, fallback, plan, waves};
+        if let Some(why) = crate::shared::shared_unsupported(shared.search, false, false) {
+            return Err(SimError::InvalidParameters(format!(
+                "a shared path does not support {why}"
+            )));
+        }
+        if self.data_domains.is_some() {
+            return Err(SimError::InvalidParameters(
+                "a shared path does not support domains".into(),
+            ));
+        }
+        if shared.search.is_empty() || realizations.is_empty() {
+            return Err(SimError::InvalidParameters(
+                "need a search and a realization".into(),
+            ));
+        }
+        let Some(d) = &self.domains[0] else {
+            return Err(SimError::InsufficientData(
+                "the values of domain 0 do not vary".into(),
+            ));
+        };
+        let lattice = shared.lattice;
+        let n = lattice.len();
+        let holes = crate::holes(self.data_holes, self.data_locs.len())?;
+        let samples = crate::sgs::data(self.data_locs, self.data_vals, holes, None);
+        let trees: Vec<_> = shared
+            .search
+            .iter()
+            .map(|s| crate::sgs::tree(&samples, s, &d.vg, None))
+            .collect();
+        let templates = trees
+            .iter()
+            .zip(shared.search)
+            .map(|(t, s)| crate::lattice::Template::new(lattice, t.frame(), s.radius))
+            .collect::<Result<Vec<_>>>()?;
+        let top = shared
+            .levels
+            .unwrap_or_else(|| crate::lattice::default_levels(lattice, &templates[0]));
+        let on_datum = datum_nodes(lattice, self.data_locs, None);
+        let mut skip = vec![false; n];
+        for &(m, _) in &on_datum {
+            skip[m] = true;
+        }
+        let (path, rank) = crate::lattice::multigrid_path(lattice, top, shared.seed, &skip)?;
+        drop(skip);
+        let batch = realizations.len();
+        let keys: Vec<u64> = realizations
+            .map(|k| boitata_core::rng::realization_seed(shared.seed, k as u64))
+            .collect();
+        let mut values = vec![0.0; n * batch];
+        for &(m, k) in &on_datum {
+            values[m * batch..(m + 1) * batch].fill(self.data_vals[k]);
+        }
+        let ctx = Context {
+            fallback: fallback(&samples, shared.search, &d.vg),
+            lattice,
+            samples,
+            scores: self.data_vals.iter().map(|v| v - d.mean).collect(),
+            trees,
+            templates,
+            search: shared.search,
+            vg: &d.vg,
+            node_domains: None,
+            rank,
+            marginal: d.vg.total_sill(),
+        };
+        let space = DssSpace {
+            domains: &self.domains,
+            collocated: None,
+            clamped: AtomicUsize::new(0),
+        };
+        for chunk in path.chunks(CHUNK) {
+            let plans: Vec<_> = chunk
+                .par_iter()
+                .map(|&m| plan(&ctx, m as usize))
+                .collect::<Result<_>>()?;
+            for wave in waves(chunk, &ctx.rank, |t| plans[t].nodes.iter().map(|&(m, _)| m)) {
+                let drawn: Vec<Vec<f64>> = wave
+                    .par_iter()
+                    .map(|&t| {
+                        let m = chunk[t] as usize;
+                        let p = &plans[t];
+                        keys.iter()
+                            .enumerate()
+                            .map(|(b, &key)| {
+                                let mean = d.mean
+                                    + p.constant
+                                    + p.nodes
+                                        .iter()
+                                        .map(|&(j, w)| {
+                                            w * (values[j as usize * batch + b] - d.mean)
+                                        })
+                                        .sum::<f64>();
+                                let z = boitata_core::rng::gaussian(
+                                    boitata_core::rng::realization_seed(key, m as u64),
+                                );
+                                space.draw(mean, p.variance, m, None, 0.0, z).1
+                            })
+                            .collect()
+                    })
+                    .collect();
+                for (&t, v) in wave.iter().zip(drawn) {
+                    let m = chunk[t] as usize;
+                    values[m * batch..(m + 1) * batch].copy_from_slice(&v);
+                }
+            }
+        }
+        Ok(SharedValues {
+            values,
+            batch,
+            clamped: space.clamped.into_inner(),
+        })
+    }
+}
+
 /// One DSS realization, with `domains` as in [`crate::sgs_in`]: [`Dss::new`]
 /// then [`Dss::simulate`]. Several realizations share one [`Dss`].
 #[allow(clippy::too_many_arguments)]
@@ -538,6 +695,65 @@ mod tests {
         let n = v.len() as f64;
         let mean = v.iter().sum::<f64>() / n;
         (mean, v.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / n)
+    }
+
+    fn shared_run(reals: std::ops::Range<usize>) -> (Vec<(f64, f64, f64)>, Vec<f64>, SharedValues) {
+        let l = crate::Lattice::regular(boitata_core::Geometry {
+            origin: [0.0; 3],
+            size: [1.0, 1.0, 1.0],
+            count: [30, 30, 1],
+            rotation: [0.0; 3],
+        });
+        let locs: Vec<(f64, f64, f64)> = (0..30)
+            .map(|i| ((i * 7 % 30) as f64 + 0.5, (i * 11 % 30) as f64 + 0.5, 0.5))
+            .collect();
+        let vals: Vec<f64> = (0..30)
+            .map(|i| ((i * 13 % 17) as f64).exp2().ln_1p())
+            .collect();
+        let vg = Variogram::single(variogram::model::Model::Spherical, 1.0, 9.0);
+        let dss = Dss::new(&locs, &vals, None, None, None, &vg).unwrap();
+        let search = [estimation::search::Search {
+            min_samples: 1,
+            max_samples: 12,
+            radius: 12.0,
+            ..Default::default()
+        }];
+        let shared = crate::shared::SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 9,
+        };
+        let out = dss.simulate_shared(&shared, reals).unwrap();
+        (locs, vals, out)
+    }
+
+    #[test]
+    fn shared_dss_honors_data_and_ignores_batch_and_threads() {
+        let (locs, vals, out) = shared_run(0..4);
+        let r = out.realization(2);
+        for (p, &v) in locs.iter().zip(&vals) {
+            assert_eq!(r[(p.1 - 0.5) as usize * 30 + (p.0 - 0.5) as usize], v);
+        }
+        assert_eq!(r, shared_run(2..3).2.realization(0));
+        let with = |t: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(t)
+                .build()
+                .unwrap()
+                .install(|| shared_run(0..2).2.realization(1))
+        };
+        assert_eq!(with(1), with(4));
+    }
+
+    #[test]
+    fn shared_dss_reproduces_the_data_mean_and_variance() {
+        let (_, vals, out) = shared_run(0..30);
+        let (m, v) = moments(&vals);
+        let all: Vec<f64> = (0..30).flat_map(|b| out.realization(b)).collect();
+        let (sm, sv) = moments(&all);
+        assert!((sm - m).abs() < 0.15 * v.sqrt(), "mean {sm} vs {m}");
+        assert!((sv / v - 1.0).abs() < 0.25, "variance {sv} vs {v}");
     }
 
     #[test]
