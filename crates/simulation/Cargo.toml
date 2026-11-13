@@ -26,6 +26,7 @@ arrow-array.workspace = true
 criterion.workspace = true
 arrow-schema.workspace = true
 serde_json.workspace = true
+pprof = "0.15"
 
 [[bench]]
 name = "simulation"
