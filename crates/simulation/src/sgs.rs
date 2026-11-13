@@ -1603,12 +1603,22 @@ pub(crate) mod tests {
                 search: search.clone(),
                 seed,
             };
-            crate::sis(&locs, &cats, None, &grid, 2, &[vg(), vg()], &params, None)
-                .unwrap()
-                .categories
-                .into_iter()
-                .map(|c| c as u32)
-                .collect::<Vec<_>>()
+            crate::sis(
+                &locs,
+                &cats,
+                None,
+                &grid,
+                2,
+                &[vg(), vg()],
+                &params,
+                None,
+                None,
+            )
+            .unwrap()
+            .categories
+            .into_iter()
+            .map(|c| c as u32)
+            .collect::<Vec<_>>()
         };
         let maps: Vec<Vec<u32>> = (0..3).map(facies).collect();
         assert!(maps[0] != maps[1] && maps[1] != maps[2]);
