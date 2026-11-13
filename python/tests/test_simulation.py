@@ -526,11 +526,13 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
         bt.TurningBands(gaussian).fit(xy, z, trend=trend).simulate_to_parquet("in.parquet", "out.parquet")
 
 
+@pytest.mark.filterwarnings("ignore:.*no draw reaches")
 def test_simulators_with_a_trend_save_and_load_it(tmp_path):
     xy, z, trend = trended_samples()
     node_trend = grid.coords[:, 0] / 100
     for simulator in (
         bt.SGS(gaussian, bt.Search(radius=30, max_samples=12), classes=4),
+        bt.DSS(gaussian, bt.Search(radius=30, max_samples=12)),
         bt.TurningBands(gaussian, bands=50, classes=4),
     ):
         simulator.fit(xy, z, trend=trend)
@@ -855,6 +857,51 @@ def test_dss_domains_persist(tmp_path):
         dss.simulate(targets, n=1)
 
 
+@pytest.mark.filterwarnings("ignore:.*no draw reaches")
+def test_dss_with_lvm_trend_follows_it_honors_data_and_reproduces_residuals():
+    r = np.random.default_rng(14)
+    xy = r.uniform(0, 100, (120, 2))
+    residuals = r.lognormal(0.0, 0.45, 120) - np.exp(0.45**2 / 2)
+    trend = 4.0 + 0.06 * xy[:, 0] + 0.03 * xy[:, 1]
+    grades = trend + residuals
+    node_trend = 4.0 + 0.06 * grid.coords[:, 0] + 0.03 * grid.coords[:, 1]
+
+    vg = bt.Variogram([("spherical", 1.0, 8.0)])
+    search = bt.Search(radius=30, max_samples=12)
+    dss = bt.DSS(vg, search).fit(xy, grades, trend=trend)
+    s = dss.simulate(grid, n=60, seed=3, keep=True, trend=node_trend)
+    sim_res = s.realizations - node_trend
+    assert sim_res.mean() == pytest.approx(residuals.mean(), abs=0.06)
+    assert sim_res.std() == pytest.approx(residuals.std(), rel=0.1)
+    np.testing.assert_allclose(
+        np.quantile(sim_res, [0.1, 0.5, 0.9]),
+        np.quantile(residuals, [0.1, 0.5, 0.9]),
+        atol=0.1,
+    )
+    assert np.corrcoef(s.mean, node_trend)[0, 1] > 0.94
+
+    at_data = dss.simulate(xy[:8], n=4, seed=1, trend=trend[:8])
+    np.testing.assert_allclose(at_data.mean, grades[:8])
+    np.testing.assert_allclose(at_data.variance, 0, atol=1e-12)
+
+    far = np.array([[500.0, 500.0], [600.0, 200.0]])
+    far_trend = np.array([15.0, -3.0])
+    far_summary = dss.simulate(far, n=300, seed=5, trend=far_trend)
+    np.testing.assert_allclose(far_summary.mean, far_trend, atol=0.12)
+
+    lva = bt.LocalAnisotropy([[50.0, 50.0]], [[0.0, 0.0, 0.0]], [[0.5, 0.5]])
+    co = bt.DSS(vg, search).fit(xy, grades, trend=trend, secondary=trend)
+    co_s = co.simulate(grid, n=3, seed=2, trend=node_trend, secondary=node_trend, anisotropy=lva)
+    assert np.isfinite(co_s.mean).all()
+
+    with pytest.raises(bt.InvalidInput, match="give trend"):
+        dss.simulate(grid, n=1)
+    with pytest.raises(bt.InvalidInput, match="needs trend at fit"):
+        bt.DSS(vg, search).fit(xy, grades).simulate(grid, n=1, trend=node_trend)
+    with pytest.raises(bt.InvalidInput, match="do not vary"):
+        bt.DSS(vg, search).fit(xy, trend, trend=trend).simulate(grid, n=1, trend=node_trend)
+
+
 def test_sgs_domains_with_a_trend():
     xyz, grades, holes, weights, zone, targets, passes = zoned_holes()
     trend, at = xyz[:, 1] / 100, targets[:, 1] / 100
@@ -980,7 +1027,12 @@ def test_grades_follow_each_realization_of_simulated_domains(model):
         run(simulated[:2])
 
 
-@pytest.mark.parametrize("make", [lambda s: bt.SGS(gaussian, s), banded], ids=["SGS", "TurningBands"])
+@pytest.mark.parametrize(
+    "make",
+    [lambda s: bt.SGS(gaussian, s), lambda s: bt.DSS(gaussian, s), banded],
+    ids=["SGS", "DSS", "TurningBands"],
+)
+@pytest.mark.filterwarnings("ignore:.*no draw reaches")
 def test_simulators_take_column_names_and_domain_column(make):
     xyz, grades, holes, weights, zone, targets, _ = zoned_holes()
     soft = bt.Search(30.0, max_samples=12, soft=8.0)
@@ -994,7 +1046,7 @@ def test_simulators_take_column_names_and_domain_column(make):
     for model in (arrays, names):
         got = model.simulate(nodes, n=2, seed=5, keep=True, trend="t", domain_column="zone")
         np.testing.assert_array_equal(got.realizations, want)
-    if isinstance(names, bt.SGS):
+    if isinstance(names, (bt.SGS, bt.DSS)):
         passes = names.passes(nodes, domain_column="zone")
         np.testing.assert_array_equal(passes, arrays.passes(targets, domains=labels))
     with pytest.raises(bt.InvalidInput, match="one of domains or domain_column"):

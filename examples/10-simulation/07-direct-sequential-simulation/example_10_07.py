@@ -160,6 +160,31 @@ axes[0, 0].legend(loc="lower right")
 save(fig, "reproduction")
 
 # %% [markdown]
+# With `trend=`, DSS treats the trend as a locally varying mean: it simple kriges the residuals `V - trend` with mean 0,
+# draws each node's residual from the declustered residual histogram, and adds the node's trend back. Where the search
+# finds few samples, the realizations follow the trend rather than falling back to the global mean.
+
+# %%
+window = bt.MovingAverage(bt.Search(radius=40, max_samples=200)).fit(xy, v)
+data_trend = window.predict(xy)
+node_trend = window.predict(grid)
+residual_vg = unit_sill(v - data_trend)
+with warnings.catch_warnings(record=True) as caught:
+    warnings.simplefilter("always")
+    lvm = (
+        bt.DSS(residual_vg, search)
+        .fit(samples, "V", weights=weights, trend=data_trend)
+        .simulate(grid, trend=node_trend, **options)
+    )
+for warning in caught:
+    print(warning.message)
+print(
+    f"LVM DSS: mean {lvm.realizations.mean():.0f} ppm, "
+    f"correlation of E-type with trend {np.corrcoef(lvm.mean, node_trend)[0, 1]:.2f}"
+)
+
+# %% [markdown]
 # [Sequential Gaussian simulation](../../10-simulation/01-sgs/README.md) covers the summary that `simulate`
-# returns, and [simulation at block support](../../10-simulation/02-simulation-at-block-support/README.md)
-# averages realizations to blocks.
+# returns, [simulation at block support](../../10-simulation/02-simulation-at-block-support/README.md)
+# averages realizations to blocks, and [simulation with a trend](../../10-simulation/04-simulation-with-trend/README.md)
+# compares trend conditioning in SGS.
