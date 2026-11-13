@@ -2997,9 +2997,7 @@ impl Sis {
         let unsupported = match &lattice {
             None => Some("targets that are not a regular or masked BlockModel"),
             Some(_) if anisotropy.is_some() => Some("a local anisotropy"),
-            Some(_) => {
-                simulation::shared_unsupported(std::slice::from_ref(&self.search), false)
-            }
+            Some(_) => simulation::shared_unsupported(std::slice::from_ref(&self.search), false),
         };
         let lattice = match (path, unsupported) {
             (Some("random"), _) | (None, Some(_)) => None,

@@ -764,7 +764,16 @@ impl World {
 
     fn run_dss(&self, lva: bool) -> u64 {
         let local = lva.then_some(&self.anisotropy);
-        let fitted = Dss::new(&self.data, &self.values, None, None, None, None, &self.variogram).unwrap();
+        let fitted = Dss::new(
+            &self.data,
+            &self.values,
+            None,
+            None,
+            None,
+            None,
+            &self.variogram,
+        )
+        .unwrap();
         // Realizations run in parallel, as post::run schedules them for users.
         (0..REALIZATIONS)
             .into_par_iter()

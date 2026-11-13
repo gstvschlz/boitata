@@ -430,7 +430,9 @@ def test_dss_shared_path():
     )
     with pytest.raises(bt.InvalidInput, match="BlockModel"):
         dss.simulate(points, n=1, path="shared")
-    trended = bt.DSS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values, trend=np.zeros(len(values)))
+    trended = bt.DSS(gaussian, bt.Search(radius=40, max_samples=12)).fit(
+        coords, values, trend=np.zeros(len(values))
+    )
     with pytest.raises(bt.InvalidInput, match="trend"):
         trended.simulate(blocks, n=1, path="shared", trend=np.zeros(len(np.asarray(blocks.coords))))
 
