@@ -12,10 +12,10 @@
 //! by inverse-CDF. `Σ` is built from the (unit-sill) Gaussian variogram.
 
 use crate::error::{Result, SimError};
-use nalgebra::DMatrix;
 use rand::Rng;
 use rand::SeedableRng;
 use rand::rngs::StdRng;
+use rayon::prelude::*;
 use transforms::normal::{phi, probit};
 use variogram::Variogram;
 
@@ -42,8 +42,7 @@ impl Default for GibbsParams {
 /// Precision of the data covariance. It depends only on the locations and the
 /// variogram, so one system serves every realization and every matching field.
 pub(crate) struct GibbsSystem {
-    /// Row-major `P = Σ⁻¹`. `DMatrix` is column-major; the sweep reads a row
-    /// at a time.
+    /// Row-major `P = Σ⁻¹`. A sweep reads one row at a time.
     precision: Vec<f64>,
     n: usize,
 }
@@ -54,21 +53,26 @@ impl GibbsSystem {
         if n == 0 {
             return Err(SimError::InsufficientData("no sites".into()));
         }
-        let sill = vg.total_sill();
-        let mut sigma = DMatrix::<f64>::zeros(n, n);
-        for i in 0..n {
-            for j in 0..n {
-                sigma[(i, j)] = vg.cov_points(&locs[i], &locs[j]) / sill;
+        let inv_sill = 1.0 / vg.total_sill();
+        let mut a = vec![0.0; n * n];
+        a.par_chunks_mut(n).enumerate().for_each(|(i, row)| {
+            for j in 0..=i {
+                row[j] = vg.cov_points(&locs[i], &locs[j]) * inv_sill;
             }
-            sigma[(i, i)] += 1e-9; // jitter
-        }
-        let p = sigma
-            .try_inverse()
-            .ok_or_else(|| SimError::Estimation("covariance not invertible".into()))?;
+            row[i] += 1e-9;
+        });
+        cholesky_lower(&mut a, n)?;
+        let mut columns = vec![0.0; n * n];
+        columns
+            .par_chunks_mut(n)
+            .enumerate()
+            .for_each(|(j, column)| {
+                precision_column(&a, n, j, column);
+            });
         let mut precision = vec![0.0; n * n];
-        for i in 0..n {
-            for j in 0..n {
-                precision[i * n + j] = p[(i, j)];
+        for j in 0..n {
+            for i in 0..n {
+                precision[i * n + j] = columns[j * n + i];
             }
         }
         Ok(Self { precision, n })
@@ -96,21 +100,81 @@ impl GibbsSystem {
                 if pii.abs() < 1e-300 {
                     continue;
                 }
-                // Conditional mean = −(1/Pii) Σ_{j≠i} Pij Yj ; variance = 1/Pii.
-                // `0..i` then `i+1..n` is the same order as skipping `j == i`.
-                let mut acc = 0.0;
-                for j in 0..i {
-                    acc += row[j] * y[j];
-                }
-                for j in i + 1..n {
-                    acc += row[j] * y[j];
-                }
+                // Full row, then drop `Pii Yi`, so the dot stays one contiguous span.
+                let acc = dot(row, &y) - pii * y[i];
                 let mean = -acc / pii;
                 let sd = (1.0 / pii).sqrt();
                 y[i] = draw_truncated(&mut rng, mean, sd, bounds[i].0, bounds[i].1);
             }
         }
         Ok(y)
+    }
+}
+
+/// Eight partial sums, then this tree. Multiply and add stay separate, and the
+/// width does not change, so a seed is the same bits on every CPU.
+fn reduce8(acc: [f64; 8]) -> f64 {
+    let s0 = (acc[0] + acc[1]) + (acc[2] + acc[3]);
+    let s1 = (acc[4] + acc[5]) + (acc[6] + acc[7]);
+    s0 + s1
+}
+
+fn dot(a: &[f64], b: &[f64]) -> f64 {
+    let mut acc = [0.0; 8];
+    for (a8, b8) in a.chunks_exact(8).zip(b.chunks_exact(8)) {
+        acc[0] += a8[0] * b8[0];
+        acc[1] += a8[1] * b8[1];
+        acc[2] += a8[2] * b8[2];
+        acc[3] += a8[3] * b8[3];
+        acc[4] += a8[4] * b8[4];
+        acc[5] += a8[5] * b8[5];
+        acc[6] += a8[6] * b8[6];
+        acc[7] += a8[7] * b8[7];
+    }
+    let mut tail = 0.0;
+    let start = a.len() / 8 * 8;
+    for (&x, &y) in a[start..].iter().zip(&b[start..]) {
+        tail += x * y;
+    }
+    reduce8(acc) + tail
+}
+
+/// In-place lower Cholesky of the lower triangle of row-major `a`.
+fn cholesky_lower(a: &mut [f64], n: usize) -> Result<()> {
+    for i in 0..n {
+        for j in 0..i {
+            let sum = dot(&a[i * n..i * n + j], &a[j * n..j * n + j]);
+            a[i * n + j] = (a[i * n + j] - sum) / a[j * n + j];
+        }
+        let sum = dot(&a[i * n..i * n + i], &a[i * n..i * n + i]);
+        let d = a[i * n + i] - sum;
+        if d.partial_cmp(&0.0) != Some(std::cmp::Ordering::Greater) {
+            return Err(SimError::Estimation("covariance not invertible".into()));
+        }
+        a[i * n + i] = d.sqrt();
+    }
+    Ok(())
+}
+
+/// Column `j` of `L⁻ᵀ L⁻¹`, with `l` the lower Cholesky factor, row-major.
+fn precision_column(l: &[f64], n: usize, j: usize, p: &mut [f64]) {
+    p[j] = 1.0 / l[j * n + j];
+    for i in (j + 1)..n {
+        let sum = dot(&l[i * n + j..i * n + i], &p[j..i]);
+        p[i] = -sum / l[i * n + i];
+    }
+    for i in (0..n).rev() {
+        let pi = p[i] / l[i * n + i];
+        p[i] = pi;
+        scale_add(-pi, &l[i * n..i * n + i], &mut p[..i]);
+    }
+}
+
+/// `y[i] += alpha * x[i]`. `x` and `y` do not alias. Multiply and add stay separate.
+fn scale_add(alpha: f64, x: &[f64], y: &mut [f64]) {
+    for (slot, &xi) in y.iter_mut().zip(x) {
+        let prod = alpha * xi;
+        *slot += prod;
     }
 }
 
@@ -212,5 +276,35 @@ mod tests {
             den += (yi - m).powi(2);
         }
         assert!(num / den > 0.2, "lag-1 corr {}", num / den);
+    }
+
+    #[test]
+    fn precision_inverts_the_covariance() {
+        let locs: Vec<(f64, f64, f64)> = (0..17)
+            .map(|i| ((i % 5) as f64 * 4.0, (i / 5) as f64 * 6.0, (i % 3) as f64))
+            .collect();
+        let vg = Variogram::single(Model::Spherical, 1.7, 12.0);
+        let system = GibbsSystem::new(&locs, &vg).unwrap();
+        let n = locs.len();
+        let inv_sill = 1.0 / vg.total_sill();
+        let mut sigma = vec![0.0; n * n];
+        for i in 0..n {
+            for j in 0..n {
+                sigma[i * n + j] = vg.cov_points(&locs[i], &locs[j]) * inv_sill;
+            }
+            sigma[i * n + i] += 1e-9;
+        }
+        let mut worst = 0.0f64;
+        for i in 0..n {
+            for j in 0..n {
+                let mut s = 0.0;
+                for k in 0..n {
+                    s += system.precision[i * n + k] * sigma[k * n + j];
+                }
+                let want = if i == j { 1.0 } else { 0.0 };
+                worst = worst.max((s - want).abs());
+            }
+        }
+        assert!(worst < 1e-8, "P Σ max error {worst}");
     }
 }
