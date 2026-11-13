@@ -314,6 +314,13 @@ def test_localize_realizations_within_panels():
         bt.localize(smus, "missing", panels, s.realizations)
 
 
+def test_turning_bands_refuse_local_anisotropy():
+    tb = bt.TurningBands(gaussian, bands=100, step=1.0).fit(coords, values)
+    la = bt.LocalAnisotropy([[0.0, 0.0, 0.0], [5.0, 0.0, 0.0]], np.zeros((2, 3)), np.ones((2, 2)))
+    with pytest.raises(bt.InvalidInput, match="simulate with SGS or DSS"):
+        tb.simulate(grid, n=2, anisotropy=la)
+
+
 def test_turning_bands_summary():
     tb = bt.TurningBands(gaussian, bands=100, step=1.0).fit(coords, values)
     s = tb.simulate(grid, n=2, seed=1, cutoffs=[1.0, 2.0])
