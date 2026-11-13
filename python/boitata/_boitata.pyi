@@ -1303,6 +1303,8 @@ class DSS:
         density: float | ArrayLike | Column | None = None,
         tonnage: ArrayLike | Column | None = None,
         categories: Labels | Column | None = None,
+        path: Literal["shared", "random"] | None = None,
+        batch: int | None = None,
         memory: float | None = None,
     ) -> SimulationSummary: ...
 
