@@ -244,8 +244,8 @@ save(fig, "checks")
 </details>
 
 ```text
-Global             [0.02  0.47  0.35  0.161] data [0.013 0.512 0.319 0.156]
-Local proportions  [0.028 0.448 0.335 0.189] data [0.013 0.512 0.319 0.156]
+Global             [0.017 0.489 0.34  0.155] data [0.013 0.512 0.319 0.156]
+Local proportions  [0.028 0.447 0.338 0.187] data [0.013 0.512 0.319 0.156]
 ```
 
 ![checks](checks.png)

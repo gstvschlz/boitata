@@ -941,6 +941,45 @@ pub fn categorical_bounded(
     in_flight: usize,
     simulate: impl Fn(usize) -> Result<Vec<usize>> + Sync,
 ) -> Result<CategoricalSummary> {
+    summarize(n, k, keep, |add| run(n, in_flight, simulate, add))
+}
+
+/// As [`categorical`], simulating realizations `batch` at a time:
+/// `simulate(range)` prepares a batch and `realization(&batch, i)` returns
+/// its `i`-th realization, in order. The summary does not depend on `batch`.
+pub fn categorical_in_batches<B>(
+    n: usize,
+    k: usize,
+    keep: &Keep,
+    batch: usize,
+    mut simulate: impl FnMut(std::ops::Range<usize>) -> Result<B>,
+    realization: impl Fn(&B, usize) -> Result<Vec<usize>>,
+) -> Result<CategoricalSummary> {
+    if n == 0 {
+        return Err(SimError::InvalidParameters(
+            "need at least one realization".into(),
+        ));
+    }
+    let batch = batch.clamp(1, n);
+    summarize(n, k, keep, |add| {
+        for start in (0..n).step_by(batch) {
+            let ks = start..(start + batch).min(n);
+            let prepared = simulate(ks.clone())?;
+            for i in 0..ks.len() {
+                add(realization(&prepared, i)?)?;
+            }
+        }
+        Ok(())
+    })
+}
+
+/// The summary of the realizations `drive` hands to its callback, in order.
+fn summarize(
+    n: usize,
+    k: usize,
+    keep: &Keep,
+    drive: impl FnOnce(&mut dyn FnMut(Vec<usize>) -> Result<()>) -> Result<()>,
+) -> Result<CategoricalSummary> {
     if k == 0 {
         return Err(SimError::InvalidParameters(
             "need at least one category".into(),
@@ -950,7 +989,7 @@ pub fn categorical_bounded(
     let mut counts: Vec<Vec<u32>> = vec![];
     let mut proportions = Vec::with_capacity(n);
     let mut realizations = vec![];
-    run(n, in_flight, simulate, |cats: Vec<usize>| {
+    drive(&mut |cats: Vec<usize>| {
         if counts.is_empty() {
             counts = vec![vec![0; cats.len()]; k];
         }
