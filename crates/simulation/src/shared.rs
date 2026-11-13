@@ -1,18 +1,22 @@
 //! SGS along one multigrid path shared by every realization. A node's
 //! neighbors (data and nodes earlier on the path) and its simple-kriging
-//! weights depend only on the path, so they are found once for a batch of
-//! realizations and applied to all of them; only neighbor values and noise
-//! differ. Noise is drawn from the realization's seed and the node, so a
-//! realization does not depend on the batch, the chunking or the threads.
+//! weights depend only on the path and, when set, that node's anisotropy,
+//! so they are found once for a batch of realizations and applied to all of
+//! them; only neighbor values and noise differ. Noise is drawn from the
+//! realization's seed and the node, so a realization does not depend on the
+//! batch, the chunking or the threads.
 
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use std::ops::Range;
 
 use boitata_core::rng::{gaussian, realization_seed};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
+use estimation::lva::LocalAnisotropy;
 use estimation::search::{Search, SearchTree};
 use rayon::prelude::*;
-use variogram::Variogram;
+use variogram::{Anisotropy, Variogram};
 
 use crate::error::{Result, SimError};
 use crate::lattice::{Lattice, Template, default_levels, multigrid_path};
@@ -36,6 +40,8 @@ pub(crate) struct Context<'a> {
     pub rank: Vec<u32>,
     /// Variance of a draw without neighbors.
     pub marginal: f64,
+    /// One anisotropy per node, fixed for the run.
+    pub local: Option<&'a LocalAnisotropy>,
 }
 
 /// A node's draw in every realization: `constant` (the weighted data
@@ -71,7 +77,12 @@ pub(crate) fn datum_nodes(
 }
 
 /// [`Context::fallback`] of the `search` passes.
-pub(crate) fn fallback(samples: &[Sample], search: &[Search], vg: &Variogram) -> SearchTree {
+pub(crate) fn fallback(
+    samples: &[Sample],
+    search: &[Search],
+    vg: &Variogram,
+    local: Option<&LocalAnisotropy>,
+) -> SearchTree {
     let last = search.last().expect("at least one search");
     let loose = Search {
         min_samples: 1,
@@ -80,30 +91,33 @@ pub(crate) fn fallback(samples: &[Sample], search: &[Search], vg: &Variogram) ->
         min_holes: None,
         ..last.clone()
     };
-    tree(samples, &loose, vg, None)
+    tree(samples, &loose, vg, local)
 }
 
 /// The plan of `node`: the pass is the first whose tree finds enough data, or
 /// the last, with whatever data it has then; its neighbors the nearest
 /// `max_samples` of those data and of the nodes earlier on the path within its
-/// template. A multigrid node can have few neighbors in every realization, so
+/// search. Without local anisotropy that search is the pass's template; with
+/// it, the ellipsoid of the node's anisotropy, and the variogram uses the same
+/// ellipsoid. A multigrid node can have few neighbors in every realization, so
 /// `min_samples` chooses the pass and does not discard the data of a node.
 pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
     let target = ctx.lattice.location(node);
     let domain = ctx.node_domains.map(|d| d[node]);
+    let aniso = ctx.local.map(|l| l.anisotropy(node));
     let last = ctx.trees.len() - 1;
     let (pass, found) = ctx
         .trees
         .iter()
         .enumerate()
         .find_map(|(p, t)| {
-            find(t, &target, domain, None)
+            find(t, &target, domain, aniso.as_ref())
                 .ok()
                 .filter(|f| !f.is_empty())
                 .map(|f| (p, f))
         })
         .unwrap_or_else(|| {
-            let found = find(&ctx.fallback, &target, domain, None).unwrap_or_default();
+            let found = find(&ctx.fallback, &target, domain, aniso.as_ref()).unwrap_or_default();
             (last, found)
         });
     let tree = &ctx.trees[pass];
@@ -112,21 +126,36 @@ pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
     // (distance, is a node, index)
     let mut near: Vec<(f64, bool, u32)> = found
         .iter()
-        .map(|&k| (tree.distance(&target, &ctx.samples[k].loc), false, k as u32))
+        .map(|&k| {
+            let d = match &aniso {
+                Some(a) => a.lag(&target, &ctx.samples[k].loc),
+                None => tree.distance(&target, &ctx.samples[k].loc),
+            };
+            (d, false, k as u32)
+        })
         .collect();
-    let mut taken = 0;
-    for &(delta, d) in ctx.templates[pass].offsets() {
-        if taken == max {
-            break;
+    match &aniso {
+        None => {
+            let mut taken = 0;
+            for &(delta, d) in ctx.templates[pass].offsets() {
+                if taken == max {
+                    break;
+                }
+                let Some(m) = ctx.lattice.shifted(node, delta) else {
+                    continue;
+                };
+                if ctx.rank[m] >= own || ctx.node_domains.is_some_and(|nd| Some(nd[m]) != domain) {
+                    continue;
+                }
+                near.push((d, true, m as u32));
+                taken += 1;
+            }
         }
-        let Some(m) = ctx.lattice.shifted(node, delta) else {
-            continue;
-        };
-        if ctx.rank[m] >= own || ctx.node_domains.is_some_and(|nd| Some(nd[m]) != domain) {
-            continue;
+        Some(a) => {
+            for (d, m) in earlier_local(ctx, node, a, pass, max, domain, own) {
+                near.push((d, true, m));
+            }
         }
-        near.push((d, true, m as u32));
-        taken += 1;
     }
     near.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
     near.truncate(max);
@@ -147,7 +176,18 @@ pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
             Sample::new(loc, 0.0)
         })
         .collect();
-    let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, ctx.vg)
+    let vg_node;
+    let vg = match &aniso {
+        Some(a) => {
+            vg_node = Variogram {
+                anisotropy: Some(a.clone()),
+                ..ctx.vg.clone()
+            };
+            &vg_node
+        }
+        None => ctx.vg,
+    };
+    let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, vg)
         .map_err(|e| SimError::Estimation(e.to_string()))?;
     let mut constant = 0.0;
     let mut nodes = Vec::with_capacity(near.len());
@@ -162,6 +202,92 @@ pub(crate) fn plan(ctx: &Context, node: usize) -> Result<Plan> {
         nodes,
         variance: est.variance.max(0.0),
     })
+}
+
+/// Farthest of the neighbors kept so far. Greater means worse, so it sits
+/// at the top of a [`BinaryHeap`].
+#[derive(Clone, Copy)]
+struct Ranked {
+    dist: f64,
+    offset: [i32; 3],
+}
+
+impl PartialEq for Ranked {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for Ranked {}
+
+impl PartialOrd for Ranked {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Ranked {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.dist
+            .total_cmp(&other.dist)
+            .then(self.offset.cmp(&other.offset))
+    }
+}
+
+/// Up to `max` nodes earlier than `node` inside its anisotropy ellipsoid.
+/// The pass template is the circumscribed sphere in world distance, nearest
+/// first. `lag` is at least that distance divided by the major range, so
+/// once the bound exceeds the farthest neighbor kept, the rest cannot
+/// replace it.
+fn earlier_local(
+    ctx: &Context,
+    node: usize,
+    aniso: &Anisotropy,
+    pass: usize,
+    max: usize,
+    domain: Option<u32>,
+    own: u32,
+) -> Vec<(f64, u32)> {
+    if max == 0 {
+        return vec![];
+    }
+    let target = ctx.lattice.location(node);
+    let radius = ctx.search[pass].radius;
+    let major = aniso.angles.major;
+    let slack = 1.0 + 1e-8;
+    let mut kept: BinaryHeap<(Ranked, u32)> = BinaryHeap::new();
+    for &(delta, world) in ctx.templates[pass].offsets() {
+        if world > radius * major * slack {
+            break;
+        }
+        if kept.len() == max {
+            let worst = kept.peek().map(|w| w.0.dist).expect("full");
+            if world > worst * major * slack {
+                break;
+            }
+        }
+        let Some(m) = ctx.lattice.shifted(node, delta) else {
+            continue;
+        };
+        if ctx.rank[m] >= own || ctx.node_domains.is_some_and(|nd| Some(nd[m]) != domain) {
+            continue;
+        }
+        let lag = aniso.lag(&target, &ctx.lattice.location(m));
+        if lag > radius {
+            continue;
+        }
+        let ranked = Ranked {
+            dist: lag,
+            offset: delta,
+        };
+        if kept.len() < max {
+            kept.push((ranked, m as u32));
+        } else if ranked < kept.peek().expect("full").0 {
+            kept.pop();
+            kept.push((ranked, m as u32));
+        }
+    }
+    kept.into_iter().map(|(r, m)| (r.dist, m)).collect()
 }
 
 /// Where and how a shared path runs: the lattice of the nodes, the search
@@ -229,7 +355,8 @@ impl SharedBatch<'_> {
 /// Realizations `realizations` of SGS over `shared.lattice` along one
 /// multigrid path. `vg_nscore`, the data, `domains` and `trend` are as in
 /// [`crate::sgs_in`]; `collocated` cosimulates with a secondary variable
-/// under the Markov model, as [`crate::cosgs`] does.
+/// under the Markov model, as [`crate::cosgs`] does. `local`, one anisotropy
+/// per node, orients that node's search and variogram.
 #[allow(clippy::too_many_arguments)]
 pub fn sgs_shared<'a>(
     data_locs: &[(f64, f64, f64)],
@@ -242,8 +369,9 @@ pub fn sgs_shared<'a>(
     shared: &SharedSgs,
     realizations: Range<usize>,
     collocated: Option<&Collocated>,
+    local: Option<&LocalAnisotropy>,
 ) -> Result<SharedBatch<'a>> {
-    if let Some(why) = shared_unsupported(shared.search, false, false) {
+    if let Some(why) = shared_unsupported(shared.search, false) {
         return Err(SimError::InvalidParameters(format!(
             "a shared path does not support {why}"
         )));
@@ -272,6 +400,11 @@ pub fn sgs_shared<'a>(
             "one trend value per node".into(),
         ));
     }
+    if local.is_some_and(|l| l.len() != n) {
+        return Err(SimError::InvalidParameters(
+            "one local anisotropy per grid node".into(),
+        ));
+    }
     if collocated.is_some_and(|c| c.scores.is_empty() || c.scores.iter().any(|r| r.len() != n)) {
         return Err(SimError::InvalidParameters(
             "one secondary value per node".into(),
@@ -289,13 +422,24 @@ pub fn sgs_shared<'a>(
     let trees: Vec<SearchTree> = shared
         .search
         .iter()
-        .map(|s| tree(&samples, s, vg_nscore, None))
+        .map(|s| tree(&samples, s, vg_nscore, local))
         .collect();
-    let templates = trees
-        .iter()
-        .zip(shared.search)
-        .map(|(t, s)| Template::new(lattice, t.frame(), s.radius))
-        .collect::<Result<Vec<_>>>()?;
+    let templates = match local {
+        None => trees
+            .iter()
+            .zip(shared.search)
+            .map(|(t, s)| Template::new(lattice, t.frame(), s.radius))
+            .collect::<Result<Vec<_>>>()?,
+        Some(local) => {
+            let scale = local.scales.iter().copied().reduce(f64::max).unwrap_or(1.0);
+            let frame = trees[0].frame();
+            shared
+                .search
+                .iter()
+                .map(|s| Template::new(lattice, frame, s.radius * scale))
+                .collect::<Result<Vec<_>>>()?
+        }
+    };
     let top = shared
         .levels
         .unwrap_or_else(|| default_levels(lattice, &templates[0]));
@@ -318,7 +462,7 @@ pub fn sgs_shared<'a>(
     }
     let sill = vg_nscore.total_sill();
     let ctx = Context {
-        fallback: fallback(&samples, shared.search, vg_nscore),
+        fallback: fallback(&samples, shared.search, vg_nscore, local),
         lattice,
         samples,
         scores: transforms.scores.clone(),
@@ -329,6 +473,7 @@ pub fn sgs_shared<'a>(
         node_domains: domains.map(|d| d.1),
         rank,
         marginal: if collocated.is_some() { sill } else { 1.0 },
+        local,
     };
     for chunk in path.chunks(CHUNK) {
         let plans: Vec<Plan> = chunk
@@ -433,12 +578,8 @@ fn draw(
 /// of the features it leaves to the random path.
 pub fn shared_unsupported(
     search: &[Search],
-    local_anisotropy: bool,
     per_realization_domains: bool,
 ) -> Option<&'static str> {
-    if local_anisotropy {
-        return Some("local anisotropy");
-    }
     if per_realization_domains {
         return Some("simulated domains");
     }
@@ -519,7 +660,7 @@ mod tests {
         let skip: Vec<bool> = (0..l.len()).map(|m| on.iter().any(|d| d.0 == m)).collect();
         let (_, rank) = multigrid_path(l, 2, 3, &skip).unwrap();
         Context {
-            fallback: fallback(&samples, search, vg),
+            fallback: fallback(&samples, search, vg, None),
             lattice: l,
             samples,
             scores,
@@ -530,6 +671,7 @@ mod tests {
             node_domains: None,
             rank,
             marginal: 1.0,
+            local: None,
         }
     }
 
@@ -607,7 +749,7 @@ mod tests {
             seed: 11,
         };
         sgs_shared(
-            &locs, &vals, None, None, None, None, &vg, &shared, reals, None,
+            &locs, &vals, None, None, None, None, &vg, &shared, reals, None, None,
         )
         .unwrap()
     }
@@ -666,15 +808,11 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(
-            shared_unsupported(std::slice::from_ref(&plain), false, false),
+            shared_unsupported(std::slice::from_ref(&plain), false),
             None
         );
         assert_eq!(
-            shared_unsupported(std::slice::from_ref(&plain), true, false),
-            Some("local anisotropy")
-        );
-        assert_eq!(
-            shared_unsupported(std::slice::from_ref(&plain), false, true),
+            shared_unsupported(std::slice::from_ref(&plain), true),
             Some("simulated domains")
         );
         let octant = Search {
@@ -682,7 +820,7 @@ mod tests {
             ..plain.clone()
         };
         assert_eq!(
-            shared_unsupported(&[plain.clone(), octant], false, false),
+            shared_unsupported(&[plain.clone(), octant], false),
             Some("octant or sector searches")
         );
         let hg = Search {
@@ -690,25 +828,19 @@ mod tests {
             ..plain.clone()
         };
         assert_eq!(
-            shared_unsupported(&[hg], false, false),
+            shared_unsupported(&[hg], false),
             Some("high-grade restrictions")
         );
         let soft = Search {
             soft: Some(estimation::Soft::All(3.0)),
             ..plain.clone()
         };
-        assert_eq!(
-            shared_unsupported(&[soft], false, false),
-            Some("soft boundaries")
-        );
+        assert_eq!(shared_unsupported(&[soft], false), Some("soft boundaries"));
         let holes = Search {
             min_holes: Some(2),
             ..plain
         };
-        assert_eq!(
-            shared_unsupported(&[holes], false, false),
-            Some("min_holes")
-        );
+        assert_eq!(shared_unsupported(&[holes], false), Some("min_holes"));
     }
 
     #[test]
@@ -736,6 +868,7 @@ mod tests {
             &vg,
             &shared,
             0..1,
+            None,
             None,
         );
         assert!(matches!(r, Err(SimError::InvalidParameters(_))));
@@ -784,6 +917,7 @@ mod tests {
             &vg,
             &shared,
             0..4,
+            None,
             None,
         )
         .unwrap();
@@ -840,6 +974,7 @@ mod tests {
             &smooth,
             0..1,
             None,
+            None,
         )
         .unwrap();
         let secondary: Vec<f64> = (0..l.len()).map(|m| other.scores[m] as f64).collect();
@@ -865,6 +1000,7 @@ mod tests {
             &shared,
             0..4,
             Some(&c),
+            None,
         )
         .unwrap();
         for r in 0..4 {
@@ -917,6 +1053,7 @@ mod tests {
             &vg,
             &shared,
             0..2,
+            None,
             None,
         )
         .unwrap();
@@ -993,6 +1130,7 @@ mod tests {
             &shared,
             0..reals,
             None,
+            None,
         )
         .unwrap();
         (0..reals)
@@ -1067,6 +1205,7 @@ mod tests {
             &shared,
             0..60,
             None,
+            None,
         )
         .unwrap();
         let t = Transforms::fit(&vals, None, None, None).unwrap();
@@ -1078,6 +1217,267 @@ mod tests {
         for &m in &[5 * 96 + 5, 10 * 96 + 2, 3 * 96 + 14] {
             let target = l.location(m);
             let sk = krige(Kind::Simple { mean: 0.0 }, &target, &samples, &vg).unwrap();
+            let mean = (0..60).map(|r| b.scores[m * 60 + r] as f64).sum::<f64>() / 60.0;
+            assert!(
+                (mean - sk.value).abs() < 0.35,
+                "node {m}: mean {mean} kriged {}",
+                sk.value
+            );
+        }
+    }
+
+    fn varying(l: &Lattice) -> LocalAnisotropy {
+        let n = l.len();
+        let nx = l.geometry().count[0].max(1) as f64;
+        LocalAnisotropy::new(
+            (0..n).map(|m| l.location(m)).collect(),
+            (0..n)
+                .map(|m| [(m % l.geometry().count[0]) as f64 / nx * 160.0, 0.0, 0.0])
+                .collect(),
+            vec![[0.4, 1.0]; n],
+        )
+        .unwrap()
+    }
+
+    fn run_lva(l: &Lattice, reals: Range<usize>, seed: u64) -> SharedBatch<'static> {
+        let locs = vec![(2.5, 3.5, 0.5), (10.2, 11.7, 0.5), (17.5, 4.5, 0.5)];
+        let vals = vec![1.0, 4.0, 2.5];
+        let search = [Search {
+            min_samples: 1,
+            max_samples: 12,
+            radius: 10.0,
+            ..Default::default()
+        }];
+        let vg = Variogram::single(Model::Spherical, 1.0, 8.0);
+        let local = varying(l);
+        let shared = SharedSgs {
+            lattice: l,
+            search: &search,
+            levels: None,
+            seed,
+        };
+        sgs_shared(
+            &locs,
+            &vals,
+            None,
+            None,
+            None,
+            None,
+            &vg,
+            &shared,
+            reals,
+            None,
+            Some(&local),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn shared_lva_realizations_honor_data_on_centroids() {
+        let l = square(20);
+        let b = run_lva(&l, 0..3, 11);
+        for r in 0..3 {
+            let v = b.realization(r);
+            assert_eq!(v[l.node_at(3 * 20 + 2).unwrap()], 1.0);
+            assert_eq!(v[l.node_at(4 * 20 + 17).unwrap()], 2.5);
+        }
+    }
+
+    #[test]
+    fn shared_lva_follows_the_seed_not_the_threads() {
+        let l = square(16);
+        let with = |t: usize| {
+            rayon::ThreadPoolBuilder::new()
+                .num_threads(t)
+                .build()
+                .unwrap()
+                .install(|| run_lva(&l, 0..2, 9).realization(1))
+        };
+        assert_eq!(with(1), with(4));
+    }
+
+    /// Neighbors a full scan would keep: the nearest `max` earlier nodes by
+    /// (lag, cell offset), merged with the data the pass found.
+    fn scanned<'a>(
+        ctx: &Context<'a>,
+        node: usize,
+        aniso: &Anisotropy,
+    ) -> (f64, Vec<(u32, f64)>, f64) {
+        let target = ctx.lattice.location(node);
+        let domain = None;
+        let last = ctx.trees.len() - 1;
+        let (pass, found) = ctx
+            .trees
+            .iter()
+            .enumerate()
+            .find_map(|(p, t)| {
+                find(t, &target, domain, Some(aniso))
+                    .ok()
+                    .filter(|f| !f.is_empty())
+                    .map(|f| (p, f))
+            })
+            .unwrap_or_else(|| {
+                let found = find(&ctx.fallback, &target, domain, Some(aniso)).unwrap_or_default();
+                (last, found)
+            });
+        let max = ctx.search[pass].max_samples;
+        let radius = ctx.search[pass].radius;
+        let own = ctx.rank[node];
+        let ijk = |m: usize| ctx.lattice.geometry().ijk(ctx.lattice.cell(m));
+        let here = ijk(node);
+        let mut earlier = vec![];
+        for m in 0..ctx.lattice.len() {
+            if ctx.rank[m] >= own {
+                continue;
+            }
+            let lag = aniso.lag(&target, &ctx.lattice.location(m));
+            if lag > radius {
+                continue;
+            }
+            let at = ijk(m);
+            let offset = [0, 1, 2].map(|a| at[a] as i32 - here[a] as i32);
+            earlier.push((lag, offset, m as u32));
+        }
+        earlier.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+        earlier.truncate(max);
+        let mut near: Vec<(f64, bool, u32)> = found
+            .iter()
+            .map(|&k| (aniso.lag(&target, &ctx.samples[k].loc), false, k as u32))
+            .chain(earlier.iter().map(|&(d, _, m)| (d, true, m)))
+            .collect();
+        near.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+        near.truncate(max);
+        let vg = Variogram {
+            anisotropy: Some(aniso.clone()),
+            ..ctx.vg.clone()
+        };
+        if near.is_empty() {
+            return (0.0, vec![], ctx.marginal);
+        }
+        let selected: Vec<Sample> = near
+            .iter()
+            .map(|&(_, is_node, i)| {
+                let loc = match is_node {
+                    true => ctx.lattice.location(i as usize),
+                    false => ctx.samples[i as usize].loc,
+                };
+                Sample::new(loc, 0.0)
+            })
+            .collect();
+        let est = krige(Kind::Simple { mean: 0.0 }, &target, &selected, &vg).unwrap();
+        let mut constant = 0.0;
+        let mut nodes = vec![];
+        for (&(_, is_node, i), &w) in near.iter().zip(&est.weights) {
+            match is_node {
+                true => nodes.push((i, w)),
+                false => constant += w * ctx.scores[i as usize],
+            }
+        }
+        (constant, nodes, est.variance.max(0.0))
+    }
+
+    fn lva_context<'a>(
+        l: &'a Lattice,
+        search: &'a [Search],
+        vg: &'a Variogram,
+        locs: &[(f64, f64, f64)],
+        local: &'a LocalAnisotropy,
+    ) -> Context<'a> {
+        let vals: Vec<f64> = (0..locs.len()).map(|i| i as f64).collect();
+        let samples = data(locs, &vals, vec![None; locs.len()], None);
+        let scores = Transforms::fit(&vals, None, None, None).unwrap().scores;
+        let trees: Vec<SearchTree> = search
+            .iter()
+            .map(|s| tree(&samples, s, vg, Some(local)))
+            .collect();
+        let scale = local.scales.iter().copied().reduce(f64::max).unwrap_or(1.0);
+        let frame = trees[0].frame();
+        let templates = search
+            .iter()
+            .map(|s| Template::new(l, frame, s.radius * scale).unwrap())
+            .collect();
+        let skip = vec![false; l.len()];
+        let (_, rank) = multigrid_path(l, 2, 3, &skip).unwrap();
+        Context {
+            fallback: fallback(&samples, search, vg, Some(local)),
+            lattice: l,
+            samples,
+            scores,
+            trees,
+            templates,
+            search,
+            vg,
+            node_domains: None,
+            rank,
+            marginal: 1.0,
+            local: Some(local),
+        }
+    }
+
+    #[test]
+    fn a_local_plan_matches_a_full_scan_and_that_kriging() {
+        let l = square(12);
+        let search = [Search {
+            min_samples: 1,
+            max_samples: 6,
+            radius: 5.0,
+            ..Default::default()
+        }];
+        let vg = Variogram::single(Model::Spherical, 1.0, 8.0);
+        let local = varying(&l);
+        let locs = [(1.2, 2.4, 0.5), (8.8, 7.1, 0.5)];
+        let ctx = lva_context(&l, &search, &vg, &locs, &local);
+        for m in 0..l.len() {
+            let aniso = local.anisotropy(m);
+            let (constant, nodes, variance) = scanned(&ctx, m, &aniso);
+            let p = plan(&ctx, m).unwrap();
+            assert!((p.constant - constant).abs() < 1e-9, "node {m}");
+            assert!((p.variance - variance).abs() < 1e-9, "node {m}");
+            assert_eq!(p.nodes.len(), nodes.len(), "node {m}");
+            for (got, want) in p.nodes.iter().zip(&nodes) {
+                assert_eq!(got.0, want.0);
+                assert!((got.1 - want.1).abs() < 1e-9);
+            }
+        }
+    }
+
+    #[test]
+    fn the_shared_lva_ensemble_mean_approximates_lva_kriging() {
+        let (l, locs, vals, vg, search) = field();
+        let local = varying(&l);
+        let shared = SharedSgs {
+            lattice: &l,
+            search: &search,
+            levels: None,
+            seed: 8,
+        };
+        let b = sgs_shared(
+            &locs,
+            &vals,
+            None,
+            None,
+            None,
+            None,
+            &vg,
+            &shared,
+            0..60,
+            None,
+            Some(&local),
+        )
+        .unwrap();
+        let t = Transforms::fit(&vals, None, None, None).unwrap();
+        let samples: Vec<Sample> = locs
+            .iter()
+            .zip(&t.scores)
+            .map(|(&p, &s)| Sample::new(p, s))
+            .collect();
+        for &m in &[5 * 96 + 5, 10 * 96 + 2, 3 * 96 + 14] {
+            let target = l.location(m);
+            let vg_m = Variogram {
+                anisotropy: Some(local.anisotropy(m)),
+                ..vg.clone()
+            };
+            let sk = krige(Kind::Simple { mean: 0.0 }, &target, &samples, &vg_m).unwrap();
             let mean = (0..60).map(|r| b.scores[m * 60 + r] as f64).sum::<f64>() / 60.0;
             assert!(
                 (mean - sk.value).abs() < 0.35,
