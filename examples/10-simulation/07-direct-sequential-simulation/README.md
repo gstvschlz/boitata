@@ -100,8 +100,8 @@ print(
 </details>
 
 ```text
-16.79% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
-DSS: mean 281, variance 66235, at 0 ppm 20.4%, above 500 ppm 20.4%
+16.90% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
+DSS: mean 281, variance 66395, at 0 ppm 20.4%, above 500 ppm 20.6%
 corrected DSS: mean 285, variance 64081, at 0 ppm 4.8%, above 500 ppm 19.0%
 SGS: mean 274, variance 61131, at 0 ppm 4.0%, above 500 ppm 18.2%
 true: mean 280, variance 65444, at 0 ppm 5.1%, above 500 ppm 18.7%
@@ -217,7 +217,7 @@ print(
 </details>
 
 ```text
-LVM DSS: mean 322 ppm, correlation of E-type with trend 0.84
+LVM DSS: mean 321 ppm, correlation of E-type with trend 0.85
 ```
 
 On a regular or masked BlockModel such as this grid, `simulate` walks one multigrid path for every realization, as
