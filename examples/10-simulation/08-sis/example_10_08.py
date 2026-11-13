@@ -142,3 +142,30 @@ box = bt.BlockModel(origin=(0.3, 0.4), size=(0.1, 0.1), count=(47, 54))
 for path in ("shared", "random"):
     s = sis.simulate(box, n=20, seed=3, path=path)
     print(f"{path:<7} mean entropy {s.entropy.mean():.2f}, Portlandian {s.proportions[:, 3].mean():.3f}")
+
+# %% [markdown]
+# ## Cleaning short-scale noise
+#
+# SIS realizations are noisier at short range than their indicator variograms say. `clean`, an odd window side in
+# blocks, replaces each block by the most probable category in the window around it (maximum a-posteriori selection,
+# Deutsch 1998): nearer blocks weigh more, blocks on a sample keep their type, and each type is scaled by its sample
+# proportion over its proportion in the realization. Here a 5 by 5 window counts the type changes between
+# neighboring blocks along X:
+
+
+# %%
+def changes(realizations):
+    r = np.asarray(realizations).reshape(len(realizations), 54, 47)
+    return np.mean(r[:, :, 1:] != r[:, :, :-1])
+
+
+raw = sis.simulate(box, n=20, seed=3, keep=True)
+cleaned = sis.simulate(box, n=20, seed=3, keep=True, clean=5)
+for name, s in (("raw", raw), ("clean=5", cleaned)):
+    print(
+        f"{name:<8} type changes {changes(s.realizations):.3f}, Portlandian {s.proportions[:, 3].mean():.3f}"
+    )
+
+# %% [markdown]
+# Cleaning cuts the type changes between neighbors by more than half. It cannot recover Portlandian: its target is
+# the 1 % share of the samples, against 5 % of the true grid, so the proportion term has nothing to pull toward.
