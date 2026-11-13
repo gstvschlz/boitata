@@ -1257,6 +1257,20 @@ def test_block_models_default_to_the_shared_path():
     assert not np.array_equal(default.realizations, random.realizations)
 
 
+def test_local_anisotropy_defaults_to_the_shared_path():
+    sgs, blocks = _shared_case()
+    n = len(blocks.coords)
+    angles = np.zeros((n, 3))
+    angles[:, 0] = np.linspace(0.0, 120.0, n)
+    field = bt.LocalAnisotropy(blocks.coords, angles, np.tile([0.4, 1.0], (n, 1)))
+    default = sgs.simulate(blocks, n=3, seed=1, keep=True, anisotropy=field)
+    shared = sgs.simulate(blocks, n=3, seed=1, keep=True, anisotropy=field, path="shared")
+    random = sgs.simulate(blocks, n=3, seed=1, keep=True, anisotropy=field, path="random")
+    np.testing.assert_array_equal(default.realizations, shared.realizations)
+    assert not np.array_equal(shared.realizations, random.realizations)
+    assert np.isfinite(shared.realizations).all()
+
+
 def test_points_default_to_the_random_path_and_refuse_a_shared_one():
     sgs, blocks = _shared_case()
     points = np.asarray(blocks.coords)[:, :2]

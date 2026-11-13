@@ -268,6 +268,7 @@ fn shared(c: &mut Criterion) {
                     &shared,
                     0..16,
                     None,
+                    None,
                 )
                 .unwrap(),
             )

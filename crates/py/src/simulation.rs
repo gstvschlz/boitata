@@ -1481,9 +1481,12 @@ impl Sgs {
     /// first), so each node's neighbors and kriging weights are found once
     /// for a batch of realizations; a node on a datum takes its grade.
     /// "random" draws a new random path per realization, which points,
-    /// sub-blocked models, local anisotropy, simulated domains, octant
-    /// searches, high-grade restrictions and soft boundaries need and the
-    /// default then uses; "shared" raises InvalidInput where it cannot run.
+    /// sub-blocked models, simulated domains, octant searches, high-grade
+    /// restrictions and soft boundaries need and the default then uses;
+    /// "shared" raises InvalidInput where it cannot run. Local anisotropy
+    /// uses the shared path on a regular or masked block model, the same
+    /// choice as a run without it: a node's anisotropy does not change
+    /// between realizations, so its neighbors and weights are found once.
     /// `batch`, on a shared path, is the number of realizations simulated
     /// together, by default as many as fit in `memory`; a run whose
     /// quantiles, tolerances and kept realizations alone exceed it raises
@@ -1564,12 +1567,10 @@ impl Sgs {
         let secondary = self.secondary_at(d, targets, count, n, secondary)?;
         let search = resolved(&self.search, fitted)?;
         let at_nodes = trend_at(d, targets, count, trend)?;
-        let unsupported = match (&lattice, anisotropy.is_some()) {
-            (None, _) => Some("targets that are not a regular or masked BlockModel"),
-            (_, true) => Some("local anisotropy"),
-            _ => simulation::shared_unsupported(
+        let unsupported = match &lattice {
+            None => Some("targets that are not a regular or masked BlockModel"),
+            Some(_) => simulation::shared_unsupported(
                 &search,
-                false,
                 nodes.as_ref().is_some_and(|rows| rows.len() > 1),
             ),
         };
@@ -1582,7 +1583,7 @@ impl Sgs {
                 )));
             }
         };
-        if grid.is_none() && (lattice.is_none() || blocks.is_some()) {
+        if grid.is_none() && (lattice.is_none() || blocks.is_some() || anisotropy.is_some()) {
             grid = Some(crate::estimation::leveled(targets, d.locs.iter().copied())?);
         }
         let grid = grid.unwrap_or_default();
@@ -1666,6 +1667,7 @@ impl Sgs {
                                 &shared,
                                 range,
                                 collocated.as_ref(),
+                                local.as_ref(),
                             )
                         },
                         |b, i| upscale.of(b.realization(i)),
