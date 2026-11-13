@@ -1387,6 +1387,8 @@ class MultivariateSimulation:
         self,
         transform: PCA | MAF | StepwiseConditional | PPMT,
         simulators: Sequence[SGS | TurningBands],
+        *,
+        classes: int = 10,
     ) -> None: ...
     def fit(
         self,
@@ -1396,6 +1398,7 @@ class MultivariateSimulation:
         weights: ArrayLike | Column | None = None,
         holes: Holes | Column | None = None,
         impute: bool | GaussianImputer | None = None,
+        trend: Sequence[ArrayLike | Column | None] | None = None,
     ) -> MultivariateSimulation: ...
     def simulate(
         self,
@@ -1408,6 +1411,7 @@ class MultivariateSimulation:
         keep: bool | Sequence[int] = False,
         anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
+        trend: Sequence[ArrayLike | Column | None] | None = None,
         memory: float | None = None,
     ) -> list[SimulationSummary]: ...
 

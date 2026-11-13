@@ -729,6 +729,7 @@ impl World {
             &shared,
             0..REALIZATIONS,
             None,
+            None,
         )
         .unwrap();
         let mut h = 0u64;
@@ -763,13 +764,13 @@ impl World {
 
     fn run_dss(&self, lva: bool) -> u64 {
         let local = lva.then_some(&self.anisotropy);
-        let fitted = Dss::new(&self.data, &self.values, None, None, None, &self.variogram).unwrap();
+        let fitted = Dss::new(&self.data, &self.values, None, None, None, None, &self.variogram).unwrap();
         // Realizations run in parallel, as post::run schedules them for users.
         (0..REALIZATIONS)
             .into_par_iter()
             .map(|k| {
                 let values = fitted
-                    .simulate(None, &self.grid, &self.sgs_params(k), local)
+                    .simulate(None, None, &self.grid, &self.sgs_params(k), local)
                     .unwrap()
                     .values;
                 mix_nodes(&values)
@@ -823,6 +824,7 @@ impl World {
             &transform,
             &ContinuousOptions::default(),
             None,
+            None,
             |_, j, seed| {
                 let column: Vec<f64> = factors.iter().map(|row| row[j]).collect();
                 Ok(sgs(
@@ -869,6 +871,7 @@ impl World {
                         seed: realization_seed(SEED, k as u64),
                     },
                     proportions,
+                    None,
                 )
                 .unwrap()
                 .categories;
