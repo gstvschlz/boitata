@@ -115,7 +115,8 @@ impl GibbsSystem {
             }
             let e = sigma.symmetric_eigen();
             let floored = e.eigenvalues.map(|l| l.max(1e-9));
-            let sigma = &e.eigenvectors * DMatrix::from_diagonal(&floored) * e.eigenvectors.transpose();
+            let sigma =
+                &e.eigenvectors * DMatrix::from_diagonal(&floored) * e.eigenvectors.transpose();
             for i in 0..n {
                 for j in 0..=i {
                     a[i * n + j] = sigma[(i, j)];

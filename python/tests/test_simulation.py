@@ -415,6 +415,28 @@ def test_sis_clean():
         sis.simulate(blocks, n=1, clean=4)
 
 
+def test_dss_shared_path():
+    dss = bt.DSS(gaussian, bt.Search(radius=40, max_samples=12)).fit(coords, values)
+    blocks = bt.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
+    default = dss.simulate(blocks, n=3, seed=2, keep=True)
+    one = dss.simulate(blocks, n=3, seed=2, keep=True, path="shared", batch=1)
+    random = dss.simulate(blocks, n=3, seed=2, keep=True, path="random")
+    np.testing.assert_array_equal(default.realizations, one.realizations)
+    assert not np.array_equal(one.realizations, random.realizations)
+    points = np.asarray(blocks.coords)
+    np.testing.assert_array_equal(
+        dss.simulate(points, n=2, seed=2, keep=True).realizations,
+        dss.simulate(points, n=2, seed=2, keep=True, path="random").realizations,
+    )
+    with pytest.raises(bt.InvalidInput, match="BlockModel"):
+        dss.simulate(points, n=1, path="shared")
+    trended = bt.DSS(gaussian, bt.Search(radius=40, max_samples=12)).fit(
+        coords, values, trend=np.zeros(len(values))
+    )
+    with pytest.raises(bt.InvalidInput, match="trend"):
+        trended.simulate(blocks, n=1, path="shared", trend=np.zeros(len(np.asarray(blocks.coords))))
+
+
 def test_sis_follows_local_proportions():
     far = np.array([[-1e3, 0.0], [-1e3, 5.0]])
     line = np.c_[np.arange(200) + 0.5, np.zeros(200)]
@@ -1381,7 +1403,7 @@ def test_collocated_dss_follows_the_secondary(tmp_path):
     got = np.mean([np.corrcoef(r, s)[0, 1] for r in reals])
     assert got == pytest.approx(dss.correlation, abs=0.15)
 
-    plain = bt.DSS(model, search).fit(points, "v").simulate(nodes, n=2, seed=1, keep=True)
+    plain = bt.DSS(model, search).fit(points, "v").simulate(nodes, n=2, seed=1, keep=True, path="random")
     zero = bt.DSS(model, search).fit(points, "v", secondary="s", correlation=0.0)
     assert zero.correlation == 0.0
     same = zero.simulate(nodes, n=2, seed=1, secondary=secondary, keep=True).realizations

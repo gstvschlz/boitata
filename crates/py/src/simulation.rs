@@ -2081,6 +2081,17 @@ impl Dss {
     ///     with row ``k``.
     /// grade_tonnage_cutoffs, density, tonnage, categories : optional
     ///     Grade–tonnage curves per realization, as in SGS.simulate.
+    /// path : {"shared", "random"}, optional
+    ///     "shared" walks one multigrid path for every realization on a
+    ///     regular or masked BlockModel, so each node's neighbors and kriging
+    ///     weights are found once for a batch of realizations; "random" draws
+    ///     a new random path per realization. The default is "shared" where
+    ///     it can run and "random" otherwise (points, local anisotropy,
+    ///     domains, a secondary variable, a trend, octant or sector searches,
+    ///     min_holes, soft boundaries); "shared" raises InvalidInput there.
+    /// batch : int, optional
+    ///     On a shared path, the realizations simulated together; by default
+    ///     as many as fit in `memory`. The realizations do not depend on it.
     /// memory : int or float, optional
     ///     Bytes the run may take, at least 1; default 70 % of the memory
     ///     available now. It bounds the realizations simulated at once;
@@ -2096,7 +2107,7 @@ impl Dss {
     /// UserWarning
     ///     With the fraction of nodes whose kriged mean and variance no draw
     ///     from the histogram reaches, drawn from the nearest reachable pair.
-    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, memory=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, cutoffs=None, quantiles=vec![], tolerances=vec![], keep=None, anisotropy=None, blocks=None, window=None, groups=None, trend=None, domains=None, domain_column=None, secondary=None, grade_tonnage_cutoffs=None, density=None, tonnage=None, categories=None, path=None, batch=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2120,6 +2131,8 @@ impl Dss {
         density: Option<&Bound<PyAny>>,
         tonnage: Option<&Bound<PyAny>>,
         categories: Option<&Bound<PyAny>>,
+        path: Option<&str>,
+        batch: Option<usize>,
         memory: Option<f64>,
     ) -> PyResult<SimulationSummary> {
         let grade = self.unit.as_deref();
@@ -2184,16 +2197,73 @@ impl Dss {
                 Some((fitted, rows))
             }
         };
+        let lattice = leveled_lattice(targets, d.locs.iter().copied());
+        let unsupported = match (&lattice, &local, &secondary) {
+            (None, _, _) => Some("targets that are not a regular or masked BlockModel"),
+            (_, Some(_), _) => Some("local anisotropy"),
+            (_, _, Some(_)) => Some("a secondary variable"),
+            _ if d.domains.is_some() => Some("domains"),
+            _ if d.trend.is_some() => Some("a trend"),
+            _ => simulation::shared_unsupported(&search, false),
+        };
+        let lattice = match (path, unsupported) {
+            (Some("random"), _) | (None, Some(_)) => None,
+            (None | Some("shared"), None) => lattice,
+            (Some("shared"), Some(why)) => {
+                return Err(invalid(format!(
+                    "path='shared' does not support {why}; use path='random'"
+                )));
+            }
+            (Some(other), _) => {
+                return Err(invalid(format!(
+                    "path must be 'shared' or 'random', got {other:?}"
+                )));
+            }
+        };
         let rows = upscale.len(grid.len());
-        let in_flight = simulation::in_flight(
-            options.bytes(rows, n),
-            grid.len() as u64 * sequential_node_bytes(search.len()) + 8 * rows as u64,
-            memory_budget(py, memory)?,
-            n,
-        )
-        .map_err(err)?;
-        let summary = py
-            .detach(|| {
+        let budget = memory_budget(py, memory)?;
+        let summary = if let Some(lattice) = lattice {
+            let size = simulation::in_flight(
+                options.bytes(rows, n),
+                grid.len() as u64 * 8 + 8 * rows as u64,
+                budget,
+                n,
+            )
+            .map_err(err)?;
+            let shared = simulation::SharedSgs {
+                lattice: &lattice,
+                search: &search,
+                levels: None,
+                seed,
+            };
+            py.detach(|| {
+                simulation::continuous_in_batches(
+                    n,
+                    &options,
+                    batch.map_or(size, |b| b.max(1)),
+                    |range| {
+                        let b = dss.simulate_shared(&shared, range)?;
+                        clamped.fetch_add(b.clamped, std::sync::atomic::Ordering::Relaxed);
+                        Ok(b)
+                    },
+                    |b, i| {
+                        let values = b.realization(i);
+                        let done = values.iter().filter(|v| !v.is_nan()).count();
+                        simulated.fetch_add(done, std::sync::atomic::Ordering::Relaxed);
+                        upscale.of(values)
+                    },
+                )
+            })
+            .map_err(err)?
+        } else {
+            let in_flight = simulation::in_flight(
+                options.bytes(rows, n),
+                grid.len() as u64 * sequential_node_bytes(search.len()) + 8 * rows as u64,
+                budget,
+                n,
+            )
+            .map_err(err)?;
+            py.detach(|| {
                 simulation::continuous_bounded(n, &options, in_flight, |k| {
                     let params = SgsParams {
                         search: search.clone(),
@@ -2220,7 +2290,8 @@ impl Dss {
                     upscale.of(r.values)
                 })
             })
-            .map_err(err)?;
+            .map_err(err)?
+        };
         let clamped = clamped.into_inner();
         if clamped > 0 {
             let share = 100.0 * clamped as f64 / simulated.into_inner() as f64;
@@ -2926,9 +2997,7 @@ impl Sis {
         let unsupported = match &lattice {
             None => Some("targets that are not a regular or masked BlockModel"),
             Some(_) if anisotropy.is_some() => Some("a local anisotropy"),
-            Some(_) => {
-                simulation::shared_unsupported(std::slice::from_ref(&self.search), false)
-            }
+            Some(_) => simulation::shared_unsupported(std::slice::from_ref(&self.search), false),
         };
         let lattice = match (path, unsupported) {
             (Some("random"), _) | (None, Some(_)) => None,

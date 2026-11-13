@@ -203,7 +203,7 @@ print(
 </details>
 
 ```text
-most likely type matches at 58%; mean entropy 0.52
+most likely type matches at 57%; mean entropy 0.53
 ```
 
 ## A shared path on block models

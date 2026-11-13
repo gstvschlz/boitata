@@ -100,8 +100,8 @@ print(
 </details>
 
 ```text
-16.85% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
-DSS: mean 284, variance 66316, at 0 ppm 20.4%, above 500 ppm 20.8%
+16.90% of simulated nodes had a kriged mean and variance no draw reaches; drew them from the nearest reachable pair
+DSS: mean 281, variance 66395, at 0 ppm 20.4%, above 500 ppm 20.6%
 corrected DSS: mean 285, variance 64081, at 0 ppm 4.8%, above 500 ppm 19.0%
 SGS: mean 274, variance 61131, at 0 ppm 4.0%, above 500 ppm 18.2%
 true: mean 280, variance 65444, at 0 ppm 5.1%, above 500 ppm 18.7%
@@ -217,8 +217,14 @@ print(
 </details>
 
 ```text
-LVM DSS: mean 322 ppm, correlation of E-type with trend 0.84
+LVM DSS: mean 321 ppm, correlation of E-type with trend 0.85
 ```
+
+On a regular or masked BlockModel such as this grid, `simulate` walks one multigrid path for every realization, as
+SGS does: each node's neighbors and kriging weights are found once for the whole batch and each realization still
+draws its own values. On 100 000 nodes this ran about five times faster than a new random path per realization,
+with the spread between realizations within one seed-to-seed standard deviation of the random path's.
+`path="random"` keeps a new random path per realization.
 
 [Sequential Gaussian simulation](../../10-simulation/01-sgs/README.md) covers the summary that `simulate`
 returns, [simulation at block support](../../10-simulation/02-simulation-at-block-support/README.md)
