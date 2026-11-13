@@ -2865,6 +2865,16 @@ impl Sis {
     /// proportions : array_like or Table, optional
     ///     Shape ``(targets, k)`` local category proportions at the targets,
     ///     when `fit` had them at the samples.
+    /// clean : int or sequence of int, optional
+    ///     Odd window side in nodes, or one per axis. Cleans each realization
+    ///     on a regular or masked BlockModel by maximum a-posteriori selection
+    ///     (Deutsch 1998): every node takes the category with the largest
+    ///     count in the window around it, nearer nodes weighing more, nodes on
+    ///     a datum keeping their category and weighing 5 times more, and each
+    ///     category scaled by its target proportion (the samples', or the
+    ///     local proportions) over its proportion in the realization. It
+    ///     removes short-scale noise and pulls proportions toward the target;
+    ///     a large window smooths more than the variograms imply.
     /// path : {"shared", "random"}, optional
     ///     "shared", one multigrid path for every realization on a regular or
     ///     masked BlockModel, so each node's neighbors and kriging weights are
@@ -2884,7 +2894,7 @@ impl Sis {
     /// Returns
     /// -------
     /// CategoricalSummary
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, anisotropy=None, blocks=None, proportions=None, path=None, batch=None, memory=None))]
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, anisotropy=None, blocks=None, proportions=None, clean=None, path=None, batch=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2896,12 +2906,23 @@ impl Sis {
         anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
+        clean: Option<&Bound<PyAny>>,
         path: Option<&str>,
         batch: Option<usize>,
         memory: Option<f64>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
+        let half = clean.map(clean_window).transpose()?;
         let lattice = leveled_lattice(targets, locs.iter().copied());
+        let cleaning = match half {
+            Some(half) => Some((
+                lattice.clone().ok_or_else(|| {
+                    invalid("clean needs a regular or masked BlockModel as targets")
+                })?,
+                half,
+            )),
+            None => None,
+        };
         let unsupported = match &lattice {
             None => Some("targets that are not a regular or masked BlockModel"),
             Some(_) if anisotropy.is_some() => Some("a local anisotropy"),
@@ -2936,6 +2957,25 @@ impl Sis {
         };
         let local = self.local.as_deref().zip(at_grid.as_deref());
         let anisotropy = anisotropy.map(|a| a.at_targets(&grid));
+        let mut shares = vec![0.0; k];
+        for &c in cats {
+            shares[c] += 1.0;
+        }
+        let tidy = |r: Vec<usize>| -> simulation::Result<Vec<usize>> {
+            match &cleaning {
+                Some((lattice, half)) => simulation::clean::maps(
+                    lattice,
+                    &r,
+                    k,
+                    *half,
+                    &shares,
+                    at_grid.as_deref(),
+                    locs,
+                    5.0,
+                ),
+                None => Ok(r),
+            }
+        };
         let support = support(targets, &grid, blocks)?;
         let keep = keep_arg(keep)?;
         let rows = support.as_ref().map_or(grid.len(), BlockSupport::len);
@@ -2973,7 +3013,7 @@ impl Sis {
                                 range,
                             )
                         },
-                        |b, i| majority(&support, b.realization(i), k),
+                        |b, i| tidy(b.realization(i)).and_then(|r| majority(&support, r, k)),
                     )
                 })
                 .map(CategoricalSummary)
@@ -3004,11 +3044,31 @@ impl Sis {
                     local,
                     anisotropy.as_ref(),
                 )
-                .and_then(|r| majority(&support, r.categories, k))
+                .and_then(|r| tidy(r.categories))
+                .and_then(|r| majority(&support, r, k))
             })
         })
         .map(CategoricalSummary)
         .map_err(err)
+    }
+}
+
+/// The half-widths of a MAPS window given as an odd side in nodes, one for
+/// every axis or one per axis.
+fn clean_window(window: &Bound<PyAny>) -> PyResult<[usize; 3]> {
+    let sides: Vec<usize> = match window.extract::<usize>() {
+        Ok(side) => vec![side; 3],
+        Err(_) => window.extract()?,
+    };
+    match sides.as_slice() {
+        [x, y] | [x, y, _] if sides.iter().all(|s| s % 2 == 1) => Ok([
+            (x - 1) / 2,
+            (y - 1) / 2,
+            sides.get(2).map_or(0, |z| (z - 1) / 2),
+        ]),
+        _ => Err(invalid(
+            "clean is an odd window side in nodes, or two or three of them",
+        )),
     }
 }
 

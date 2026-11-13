@@ -395,6 +395,26 @@ def test_sis_shared_path():
     )
 
 
+def test_sis_clean():
+    rng = np.random.default_rng(3)
+    xy = np.c_[rng.uniform(0, 100, 80), rng.uniform(0, 100, 80)]
+    xy = np.floor(xy / 5) * 5 + 2.5
+    xyz = np.c_[np.unique(xy, axis=0), np.full(len(np.unique(xy, axis=0)), 0.5)]
+    cats = (xyz[:, 0] + 20 * np.sin(xyz[:, 1] / 15) > 50).astype(int)
+    sis = bt.SIS([gaussian, gaussian], bt.Search(radius=40, max_samples=12)).fit(xyz, cats)
+    blocks = bt.BlockModel(origin=(0, 0), size=(5, 5), count=(20, 20))
+    raw = sis.simulate(blocks, n=3, seed=1, keep=True).realizations
+    clean = sis.simulate(blocks, n=3, seed=1, keep=True, clean=5).realizations
+    nodes = ((xyz[:, 1] - 2.5) / 5).astype(int) * 20 + ((xyz[:, 0] - 2.5) / 5).astype(int)
+    np.testing.assert_array_equal(clean[:, nodes], np.tile(cats, (3, 1)))
+    flips = lambda r: np.sum(r.reshape(-1, 20, 20)[:, :, 1:] != r.reshape(-1, 20, 20)[:, :, :-1])
+    assert flips(clean) < flips(raw)
+    with pytest.raises(bt.InvalidInput, match="BlockModel"):
+        sis.simulate(np.asarray(blocks.coords), n=1, clean=3)
+    with pytest.raises(bt.InvalidInput, match="odd"):
+        sis.simulate(blocks, n=1, clean=4)
+
+
 def test_sis_follows_local_proportions():
     far = np.array([[-1e3, 0.0], [-1e3, 5.0]])
     line = np.c_[np.arange(200) + 0.5, np.zeros(200)]
