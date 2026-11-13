@@ -832,7 +832,7 @@ impl SearchTree {
         let reach = params.radius * axes.major.max(axes.semi).max(axes.minor);
         let radius2 = reach * reach;
         let mut near = vec![];
-        self.index.nearest(&query, radius2, |_, i| {
+        self.index.within(&query, radius2, |_, i| {
             near.push(i);
             false
         });
