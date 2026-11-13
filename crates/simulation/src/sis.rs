@@ -10,6 +10,7 @@
 use crate::error::{Result, SimError};
 use estimation::Sample;
 use estimation::krige::{Kind, krige};
+use estimation::lva::LocalAnisotropy;
 use estimation::search::{Search, SearchTree};
 use rand::Rng;
 use rand::SeedableRng;
@@ -40,7 +41,8 @@ pub struct CategoricalRealization {
 /// indicator variogram for category `c`. `data_holes` tag the data by drill
 /// hole for `max_per_hole`, simulated nodes belonging to none. `proportions`
 /// holds local proportions of the categories at the data and at the grid, one
-/// row each, rescaled to sum 1.
+/// row each, rescaled to sum 1. `local` (one entry per grid node) orients each
+/// node's search and every category's indicator variogram.
 #[allow(clippy::too_many_arguments)]
 pub fn sis(
     data_locs: &[(f64, f64, f64)],
@@ -51,6 +53,7 @@ pub fn sis(
     variograms: &[Variogram],
     params: &SisParams,
     proportions: Option<(&[Vec<f64>], &[Vec<f64>])>,
+    local: Option<&LocalAnisotropy>,
 ) -> Result<CategoricalRealization> {
     simulate(
         data_locs,
@@ -61,6 +64,7 @@ pub fn sis(
         variograms,
         params,
         proportions,
+        local,
         None,
     )
 }
@@ -75,6 +79,7 @@ fn simulate(
     variograms: &[Variogram],
     params: &SisParams,
     proportions: Option<(&[Vec<f64>], &[Vec<f64>])>,
+    local: Option<&LocalAnisotropy>,
     batch: Option<usize>,
 ) -> Result<CategoricalRealization> {
     if data_locs.len() != data_cats.len() {
@@ -93,6 +98,11 @@ fn simulate(
             "need one variogram per category".into(),
         ));
     }
+    if local.is_some_and(|l| l.len() != grid.len()) {
+        return Err(SimError::InvalidParameters(
+            "one local anisotropy per grid node".into(),
+        ));
+    }
     for &c in data_cats {
         if c >= n_categories {
             return Err(SimError::InvalidParameters(format!(
@@ -101,7 +111,7 @@ fn simulate(
         }
     }
     let holes = crate::holes(data_holes, data_locs.len())?;
-    let (mut means, local) = match proportions {
+    let (mut means, grid_means) = match proportions {
         Some((at_data, at_grid)) => {
             if at_data.len() != data_locs.len() || at_grid.len() != grid.len() {
                 return Err(SimError::InvalidParameters(
@@ -143,7 +153,7 @@ fn simulate(
             domain: None,
         })
         .collect();
-    let mut tree = SearchTree::new(&all, &params.search, Some(&variograms[0]));
+    let mut tree = crate::sgs::tree(&all, &params.search, &variograms[0], local);
 
     let mut rng = StdRng::seed_from_u64(params.seed);
     let mut path: Vec<usize> = (0..grid.len()).collect();
@@ -151,12 +161,12 @@ fn simulate(
 
     let on_datum = crate::sgs::datum_index(data_locs);
     let mut out = vec![0usize; grid.len()];
-    let kind = match local {
+    let kind = match grid_means {
         Some(_) => Kind::Simple { mean: 0.0 },
         None => Kind::Ordinary,
     };
-    let (reps, groups) = variogram_groups(variograms);
-    let local_rows = local.as_deref();
+    let (reps, groups) = variogram_groups(variograms, local.is_some());
+    let local_rows = grid_means.as_deref();
     let most = params.search.max_samples;
 
     // The weights of a neighborhood depend on the neighbor locations and the
@@ -172,12 +182,16 @@ fn simulate(
             Some(rows) => &rows[node],
             None => &marg,
         };
-        let found = tree.neighbors(&target);
+        let aniso = local.map(|l| l.anisotropy(node));
+        let found = crate::sgs::find(tree, &target, None, aniso.as_ref());
         if let Some(earlier) = earlier {
             // Stale when a node simulated since `all` would join the search:
             // within the farthest neighbor of a full search, or within the
             // radius of one that is not.
-            let d = |p: &(f64, f64, f64)| tree.distance(&target, p);
+            let d = |p: &(f64, f64, f64)| match &aniso {
+                Some(a) => a.lag(&target, p),
+                None => tree.distance(&target, p),
+            };
             let reach = match &found {
                 Ok(idx) if idx.len() >= most => {
                     idx.iter().map(|&k| d(&all[k].loc)).fold(0.0, f64::max)
@@ -211,7 +225,13 @@ fn simulate(
             .collect();
         let mut p = vec![0.0; n_categories];
         for (g, cats) in groups.iter().enumerate() {
-            match krige(kind, &target, &zeros, &variograms[reps[g]]) {
+            let vg = &variograms[reps[g]];
+            let vg_node = aniso.as_ref().map(|a| Variogram {
+                anisotropy: Some(a.clone()),
+                ..vg.clone()
+            });
+            let vg = vg_node.as_ref().unwrap_or(vg);
+            match krige(kind, &target, &zeros, vg) {
                 Ok(est) => {
                     for &c in cats {
                         let z_at = |k: usize| {
@@ -284,7 +304,7 @@ fn simulate(
             };
             tree.add(&sample);
             all.push(sample);
-            if let Some(rows) = &local {
+            if let Some(rows) = &grid_means {
                 means.push(rows[node].clone());
             }
         }
@@ -301,13 +321,13 @@ enum Step {
 }
 
 /// Categories that share a variogram, and the index of each group's variogram.
-fn variogram_groups(variograms: &[Variogram]) -> (Vec<usize>, Vec<Vec<usize>>) {
+fn variogram_groups(variograms: &[Variogram], local: bool) -> (Vec<usize>, Vec<Vec<usize>>) {
     let mut reps: Vec<usize> = Vec::new();
     let mut groups: Vec<Vec<usize>> = Vec::new();
     for (c, vg) in variograms.iter().enumerate() {
         match reps
             .iter()
-            .position(|&r| same_variogram(&variograms[r], vg))
+            .position(|&r| same_variogram(&variograms[r], vg, local))
         {
             Some(g) => groups[g].push(c),
             None => {
@@ -319,14 +339,15 @@ fn variogram_groups(variograms: &[Variogram]) -> (Vec<usize>, Vec<Vec<usize>>) {
     (reps, groups)
 }
 
-fn same_variogram(a: &Variogram, b: &Variogram) -> bool {
+fn same_variogram(a: &Variogram, b: &Variogram, local: bool) -> bool {
     a.nugget == b.nugget
         && a.structures == b.structures
-        && match (&a.anisotropy, &b.anisotropy) {
-            (None, None) => true,
-            (Some(x), Some(y)) => x.angles == y.angles,
-            _ => false,
-        }
+        && (local
+            || match (&a.anisotropy, &b.anisotropy) {
+                (None, None) => true,
+                (Some(x), Some(y)) => x.angles == y.angles,
+                _ => false,
+            })
 }
 
 /// Normalize probabilities to sum 1; fall back to marginals if degenerate.
@@ -397,7 +418,10 @@ mod tests {
             },
             seed: 1,
         };
-        let real = sis(&data_locs, &data_cats, None, &grid, 2, &vgs, &params, None).unwrap();
+        let real = sis(
+            &data_locs, &data_cats, None, &grid, 2, &vgs, &params, None, None,
+        )
+        .unwrap();
         assert_eq!(real.categories[0], 0);
     }
 
@@ -423,8 +447,14 @@ mod tests {
             },
             seed: 5,
         };
-        let a = sis(&data_locs, &data_cats, None, &grid, 3, &vgs, &params, None).unwrap();
-        let b = sis(&data_locs, &data_cats, None, &grid, 3, &vgs, &params, None).unwrap();
+        let a = sis(
+            &data_locs, &data_cats, None, &grid, 3, &vgs, &params, None, None,
+        )
+        .unwrap();
+        let b = sis(
+            &data_locs, &data_cats, None, &grid, 3, &vgs, &params, None, None,
+        )
+        .unwrap();
         assert_eq!(a.categories, b.categories);
         assert!(a.categories.iter().all(|&c| c < 3));
     }
@@ -445,7 +475,7 @@ mod tests {
                 ..Default::default()
             };
             let params = SisParams { search, seed: 2 };
-            sis(&locs, &cats, holes, &grid, 2, &vgs, &params, None)
+            sis(&locs, &cats, holes, &grid, 2, &vgs, &params, None, None)
                 .unwrap()
                 .categories
         };
@@ -480,6 +510,7 @@ mod tests {
                 &vgs,
                 &params,
                 proportions,
+                None,
             )
             .unwrap()
             .categories
@@ -512,7 +543,132 @@ mod tests {
             search: Search::default(),
             seed: 0,
         };
-        assert!(sis(&data_locs, &data_cats, None, &grid, 3, &vgs, &params, short).is_err());
+        assert!(
+            sis(
+                &data_locs, &data_cats, None, &grid, 3, &vgs, &params, short, None
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn uniform_local_anisotropy_matches_global_anisotropy() {
+        let data_locs: Vec<_> = (0..40)
+            .map(|i| {
+                let jitter = (i as f64 * std::f64::consts::SQRT_2).fract();
+                (
+                    (i * 7 % 50) as f64 + jitter,
+                    (i * 11 % 50) as f64 + jitter * 0.37,
+                    0.0,
+                )
+            })
+            .collect();
+        let data_cats: Vec<_> = (0..40).map(|i| (i * 3 + i / 5) % 3).collect();
+        let grid: Vec<_> = (0..100)
+            .map(|i| {
+                let jitter = (i as f64 * 0.414).fract();
+                (
+                    (i % 10) as f64 * 5.0 + jitter,
+                    (i / 10) as f64 * 5.0 + jitter * 0.71,
+                    0.0,
+                )
+            })
+            .collect();
+        let local = LocalAnisotropy::new(
+            grid.clone(),
+            vec![[30.0, 0.0, 0.0]; 100],
+            vec![[0.4, 1.0]; 100],
+        )
+        .unwrap();
+        let params = SisParams {
+            search: Search {
+                min_samples: 1,
+                max_samples: 12,
+                radius: 18.0,
+                ..Default::default()
+            },
+            seed: 3,
+        };
+        let shared = vec![Variogram::single(Model::Spherical, 0.22, 20.0); 3];
+        let distinct: Vec<_> = (0..3)
+            .map(|c| Variogram::single(Model::Spherical, 0.22, 16.0 + 4.0 * c as f64))
+            .collect();
+        for base in [shared, distinct] {
+            let global: Vec<_> = base
+                .iter()
+                .map(|v| Variogram {
+                    anisotropy: Some(local.anisotropy(0)),
+                    ..v.clone()
+                })
+                .collect();
+            let a = sis(
+                &data_locs,
+                &data_cats,
+                None,
+                &grid,
+                3,
+                &base,
+                &params,
+                None,
+                Some(&local),
+            )
+            .unwrap();
+            let b = sis(
+                &data_locs, &data_cats, None, &grid, 3, &global, &params, None, None,
+            )
+            .unwrap();
+            assert_eq!(a.categories, b.categories);
+        }
+        let summary = crate::categorical(12, 3, &crate::Keep::None, |i| {
+            let p = SisParams {
+                seed: i as u64,
+                ..params.clone()
+            };
+            let vgs = vec![Variogram::single(Model::Spherical, 0.22, 20.0); 3];
+            Ok(sis(
+                &data_locs,
+                &data_cats,
+                None,
+                &grid,
+                3,
+                &vgs,
+                &p,
+                None,
+                Some(&local),
+            )?
+            .categories)
+        })
+        .unwrap();
+        for node in 0..grid.len() {
+            let mut sum = 0.0;
+            for c in 0..3 {
+                let p = summary.probabilities[c][node];
+                assert!((0.0..=1.0).contains(&p));
+                sum += p;
+            }
+            assert!((sum - 1.0).abs() < 1e-12);
+        }
+        let short = LocalAnisotropy::new(
+            grid[..10].to_vec(),
+            vec![[30.0, 0.0, 0.0]; 10],
+            vec![[0.4, 1.0]; 10],
+        )
+        .unwrap();
+        let vgs = vec![Variogram::single(Model::Spherical, 0.22, 20.0); 3];
+        assert!(
+            sis(
+                &data_locs,
+                &data_cats,
+                None,
+                &grid,
+                3,
+                &vgs,
+                &params,
+                None,
+                Some(&short),
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -539,13 +695,21 @@ mod tests {
             .iter()
             .map(|p| vec![0.5, 0.3 * p.0 / 15.0, 0.2])
             .collect();
-        for (vgs, proportions) in [
-            (shared, None),
-            (distinct, None),
+        let varying = LocalAnisotropy::new(
+            grid.clone(),
+            grid.iter().map(|p| [p.0 * 5.0, 0.0, 0.0]).collect(),
+            vec![[0.4, 1.0]; grid.len()],
+        )
+        .unwrap();
+        for (vgs, proportions, local) in [
+            (shared.clone(), None, None),
+            (distinct, None, None),
             (
                 vec![Variogram::single(Model::Exponential, 0.2, 14.0); 3],
                 Some((&at_data[..], &at_grid[..])),
+                None,
             ),
+            (shared, None, Some(&varying)),
         ] {
             let run = |threads, batch| {
                 let params = SisParams {
@@ -566,6 +730,7 @@ mod tests {
                             &vgs,
                             &params,
                             proportions,
+                            local,
                             batch,
                         )
                         .unwrap()

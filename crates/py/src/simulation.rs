@@ -2812,16 +2812,37 @@ impl Sis {
     }
 
     /// Summary of `n` realizations, each seeded from `seed` and its index; the ``(n, targets)``
-    /// realizations themselves only when `keep`. With `blocks` (a
-    /// coarser BlockModel), each block takes the category filling most of its
-    /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
-    /// `SGS.simulate`. `proportions`, shape ``(targets, k)``, are the local
-    /// category proportions at the targets, when `fit` had them at the samples.
-    /// `memory`, the bytes the run may take (at least 1, default 70 % of the
-    /// memory available now), bounds the realizations simulated at once; a
-    /// run whose single realization does not fit raises InvalidInput.
-    /// Realizations do not depend on `memory`.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, memory=None))]
+    /// realizations themselves only when `keep`.
+    ///
+    /// Parameters
+    /// ----------
+    /// targets : array_like, PointSet or BlockModel
+    /// n : int, default 100
+    ///     Number of realizations.
+    /// seed : int, default 0
+    ///     Base RNG seed; realization ``i`` is seeded from `seed` and ``i``.
+    /// keep : bool or sequence of int, default False
+    ///     Keep all realizations, or those indices, as an ``(n, targets)``
+    ///     array.
+    /// anisotropy : LocalAnisotropy, optional
+    ///     Orients each node's variograms and search.
+    /// blocks : BlockModel, optional
+    ///     Coarser BlockModel: each block takes the category filling most of
+    ///     its node volume, ties to the smallest, as in `BlockModel.regularize`;
+    ///     blocks as in `SGS.simulate`.
+    /// proportions : array_like or Table, optional
+    ///     Shape ``(targets, k)`` local category proportions at the targets,
+    ///     when `fit` had them at the samples.
+    /// memory : int or float, optional
+    ///     Bytes the run may take, at least 1; default 70 % of the memory
+    ///     available now. It bounds the realizations simulated at once; a run
+    ///     whose single realization does not fit raises InvalidInput.
+    ///     Realizations do not depend on `memory`.
+    ///
+    /// Returns
+    /// -------
+    /// CategoricalSummary
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, anisotropy=None, blocks=None, proportions=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2830,6 +2851,7 @@ impl Sis {
         n: usize,
         seed: u64,
         keep: Option<&Bound<PyAny>>,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
         memory: Option<f64>,
@@ -2847,6 +2869,7 @@ impl Sis {
             }
         };
         let local = self.local.as_deref().zip(at_grid.as_deref());
+        let anisotropy = anisotropy.map(|a| a.at_targets(&grid));
         let support = support(targets, &grid, blocks)?;
         let keep = keep_arg(keep)?;
         let rows = support.as_ref().map_or(grid.len(), BlockSupport::len);
@@ -2873,6 +2896,7 @@ impl Sis {
                     &self.variograms,
                     &params,
                     local,
+                    anisotropy.as_ref(),
                 )
                 .and_then(|r| majority(&support, r.categories, k))
             })

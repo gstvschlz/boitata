@@ -1429,6 +1429,7 @@ class SIS:
         n: int = 100,
         seed: int = 0,
         keep: bool | Sequence[int] = False,
+        anisotropy: LocalAnisotropy | None = None,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
         memory: float | None = None,

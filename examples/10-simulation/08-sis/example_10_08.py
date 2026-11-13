@@ -126,3 +126,24 @@ save(fig, "realizations")
 # recovers its 5 % of the area from 3 of 259 samples. The most likely type matches at 57 %, more than any
 # realization, though it is a smooth estimate and no possible map looks like it. Entropy peaks at the contacts and
 # far from the samples.
+
+# %% [markdown]
+# ## Locally varying anisotropy
+#
+# `anisotropy=` takes a [LocalAnisotropy](../../09-estimation/14-local-anisotropy/README.md) as `SGS` does: each node
+# searches its own ellipse and every category's indicator variogram turns with it. Here the directions follow the
+# Argovian probability map on a regular grid, smoothed over 0.5 km, with across-strike ranges 40 % of along-strike:
+
+# %%
+box = bt.BlockModel(origin=(0.3, 0.4), size=(0.1, 0.1), count=(47, 54))
+guide = bt.OrdinaryKriging(variograms[0], bt.Search(radius=1.5, max_samples=16)).fit(
+    train, (rock == 0).astype(float)
+)
+lva = bt.LocalAnisotropy.from_grid(
+    box.with_column("p", guide.predict(box)), "p", window=3, ratios=(0.4, 1.0)
+).smooth(0.5)
+anisotropic = sis.simulate(grid, n=20, seed=3, anisotropy=lva)
+print(
+    f"most likely type matches at {np.mean(anisotropic.most_likely == true_rock):.0%}; "
+    f"mean entropy {anisotropic.entropy.mean():.2f}"
+)
