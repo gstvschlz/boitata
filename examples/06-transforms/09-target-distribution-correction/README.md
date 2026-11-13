@@ -23,7 +23,7 @@ from common import map_axes, save
 Metal survey V simulated as in [realization checks](../../11-validation-and-reporting/04-realization-checks/README.md):
 declustered normal scores, their variogram along N170° and across it, and 20 SGS realizations on a 5 m grid. The field
 is only a few variogram ranges across, so each realization samples the histogram of the data unevenly: their means
-stray up to 9 % from the declustered mean.
+stray up to 10 % from the declustered mean.
 
 <details><summary>Python</summary>
 
@@ -58,7 +58,7 @@ print(
 </details>
 
 ```text
-declustered mean 285 ppm; realization means 260 to 287 ppm
+declustered mean 285 ppm; realization means 257 to 288 ppm
 ```
 
 ## Correcting to the declustered data
@@ -96,8 +96,8 @@ save(fig, "histograms")
 </details>
 
 ```text
-SGS realizations  means    260 to    287 ppm
-strength 0.5      means    272 to    286 ppm
+SGS realizations  means    257 to    288 ppm
+strength 0.5      means    271 to    286 ppm
 strength 1        means    285 to    285 ppm
 order kept in every realization: True
 ```
@@ -143,7 +143,7 @@ print(f"{len(outside)} of {len(reals)} realizations corrected; means now {m.min(
 </details>
 
 ```text
-9 of 20 realizations corrected; means now 272 to 287 ppm
+7 of 20 realizations corrected; means now 271 to 288 ppm
 ```
 
 ## A smooth reference

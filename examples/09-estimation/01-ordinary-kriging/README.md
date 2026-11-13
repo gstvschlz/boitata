@@ -66,9 +66,9 @@ BlockModel  regular, 3,120 blocks
   size    5 × 5 × 1
   origin  0.5, 0.5, 0
   bounds  x 0.5 to 260.5, y 0.5 to 300.5, z 0 to 1
-  column    type     unit  nulls      min     mean      max
-  estimate  float64            0  -0.6739    283.4   1379.4
-  variance  float64            0   8901.1  39192.4  66726.8
+  column    type     unit  nulls      min     mean     max
+  estimate  float64            0  -0.6781    283.4  1382.6
+  variance  float64            0        0  39087.6   66723
 ```
 
 Compare with the true values at the grid nodes, and re-estimate every sample with itself left out:
@@ -91,7 +91,7 @@ print(
 
 ```text
 grid: mean estimate 283.4, true 279.6
-variance of estimates 43066 vs true 65444
+variance of estimates 43126 vs true 65444
 cross-validation: ME 6.7  RMSE 153.2  r 0.84  slope 1.04  error²/variance 0.72
 ```
 

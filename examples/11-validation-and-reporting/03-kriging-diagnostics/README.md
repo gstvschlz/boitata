@@ -79,8 +79,8 @@ for g, label in enumerate(("efficiency < 0.5", "0.5 to 0.7", ">= 0.7")):
 ```text
 slope of regression: predicted mean 0.98, observed 1.02
 efficiency < 0.5:  11 blocks, RMSE 149.5 ppm, correlation with truth 0.05
-      0.5 to 0.7: 357 blocks, RMSE  97.1 ppm, correlation with truth 0.79
-          >= 0.7: 412 blocks, RMSE  82.4 ppm, correlation with truth 0.94
+      0.5 to 0.7: 355 blocks, RMSE  97.3 ppm, correlation with truth 0.79
+          >= 0.7: 414 blocks, RMSE  82.2 ppm, correlation with truth 0.94
 ```
 
 ## Neighborhood
@@ -116,9 +116,9 @@ print(f"{np.sum(d['value'] < 0)} negative estimates")
 ```text
     full search:  93% of blocks, mean distance 28.4 m, mean slope 0.99
 ellipse ran out:   7% of blocks, mean distance 39.2 m, mean slope 0.91
-negative weights    below -0.05: 222 blocks, RMSE  85.8 ppm, mean 123 ppm against 121 true
-negative weights -0.05 to -0.03: 205 blocks, RMSE  97.9 ppm, mean 265 ppm against 251 true
-negative weights    above -0.03: 353 blocks, RMSE  89.2 ppm, mean 396 ppm against 396 true
+negative weights    below -0.05: 224 blocks, RMSE  85.9 ppm, mean 124 ppm against 122 true
+negative weights -0.05 to -0.03: 204 blocks, RMSE  97.9 ppm, mean 266 ppm against 251 true
+negative weights    above -0.03: 352 blocks, RMSE  89.1 ppm, mean 396 ppm against 396 true
 2 negative estimates
 ```
 

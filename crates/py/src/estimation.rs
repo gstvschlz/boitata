@@ -957,6 +957,40 @@ fn block_points(t: &Point, size: &Point, disc: &Discretization, rotation: [f64; 
         .collect()
 }
 
+/// The elevation of `data` when `obj` is a single-layer BlockModel turned
+/// only in azimuth and every datum shares one finite elevation: a 2D
+/// workflow, whose block centres then take that elevation so that z stays
+/// out of every distance and a block on a datum sits on it.
+pub fn plane(obj: &Bound<PyAny>, data: impl IntoIterator<Item = Point>) -> Option<f64> {
+    let model = obj.cast::<PyBlockModel>().ok()?;
+    data_plane(model.get().0.geometry(), data)
+}
+
+/// [`plane`] for a block model of geometry `g`.
+pub fn data_plane(
+    g: &boitata_core::Geometry,
+    data: impl IntoIterator<Item = Point>,
+) -> Option<f64> {
+    if g.count[2] != 1 || g.rotation[1] != 0.0 || g.rotation[2] != 0.0 {
+        return None;
+    }
+    let mut data = data.into_iter();
+    let z = data.next()?.2;
+    (z.is_finite() && data.all(|p| p.2 == z)).then_some(z)
+}
+
+/// [`targets`], with the centres of a single-layer BlockModel at the
+/// elevation of 2D `data` (see [`plane`]).
+pub fn leveled(obj: &Bound<PyAny>, data: impl IntoIterator<Item = Point>) -> PyResult<Vec<Point>> {
+    let mut points = targets(obj)?;
+    if let Some(z) = plane(obj, data) {
+        for p in &mut points {
+            p.2 = z;
+        }
+    }
+    Ok(points)
+}
+
 pub fn targets(obj: &Bound<PyAny>) -> PyResult<Vec<Point>> {
     let rows = if let Ok(p) = obj.cast::<PyPointSet>() {
         p.get().0.coords().to_vec()
@@ -1498,7 +1532,7 @@ impl Estimator {
         };
         let (locs, values, keep) = fitted.store(py, coords, values, None, None, None, None)?;
         let samples = fitted.fitted()?;
-        let targets = self::targets(targets)?;
+        let targets = leveled(targets, samples.iter().map(|s| s.loc))?;
         let search = fitted.passes()?;
         let vg = fitted.variogram.as_ref();
         let per_target = py
@@ -1605,7 +1639,7 @@ impl Estimator {
             *rotation = model.get().0.geometry().rotation;
         }
         let method = &method;
-        let targets = self::targets(targets)?;
+        let targets = leveled(targets, samples.iter().map(|s| s.loc))?;
         for c in &target_drift {
             same_length(targets.len(), c.len(), "drift")?;
         }
@@ -1882,7 +1916,7 @@ impl Dual {
             .as_ref()
             .ok_or_else(|| invalid("DualKriging is not fitted; call fit first"))?;
         let dual = DualKriging::new(samples, &self.variogram, self.degree).map_err(invalid)?;
-        let values = self::targets(targets)?
+        let values = leveled(targets, samples.iter().map(|s| s.loc))?
             .iter()
             .map(|t| dual.estimate(t))
             .collect();

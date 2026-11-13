@@ -78,8 +78,8 @@ print(f"true blocks: variance {true_smu.var():.0f}")
 </details>
 
 ```text
-kriged: variance 41398, correlation with truth 0.92
-localized: variance 54909, correlation with truth 0.85
+kriged: variance 41415, correlation with truth 0.92
+localized: variance 54973, correlation with truth 0.85
 true blocks: variance 50084
 ```
 
@@ -130,15 +130,15 @@ save(fig, "localized-mik")
 </details>
 
 ```text
-above 300 ppm: localized 47.5%, kriged 42.3%, true 38.9%
+above 300 ppm: localized 47.6%, kriged 42.3%, true 38.9%
 above 500 ppm: localized 19.9%, kriged 14.0%, true 16.9%
 above 800 ppm: localized 4.4%, kriged 1.6%, true 2.7%
 ```
 
 ![localized-mik](localized-mik.png)
 
-The localized blocks spread wider than the true ones (variance 54 909 against 50 084), while kriging smooths them to
-41 398. Block by block they follow the truth a little less well than kriging (correlation 0.85 against 0.92). The
+The localized blocks spread wider than the true ones (variance 54 973 against 50 084), while kriging smooths them to
+41 415. Block by block they follow the truth a little less well than kriging (correlation 0.85 against 0.92). The
 affine correction keeps the shape of each point distribution, so its long upper tail survives the shrinking: at 500
 ppm the localized blocks put 19.9% above cutoff against a true 16.9%, overshooting by as much as kriging falls short.
 [Uniform conditioning](../../09-estimation/17-uniform-conditioning/README.md) localizes the same panels

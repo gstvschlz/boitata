@@ -780,6 +780,10 @@ impl PyPolylines {
 }
 
 /// Regular or masked grid of blocks, 2D or 3D, optionally rotated.
+///
+/// A single layer turned only in azimuth, estimated or simulated from samples
+/// that all share one elevation (2D samples have z = 0), is placed at that
+/// elevation: z stays out of every distance and a block on a sample sits on it.
 #[pyclass(module = "boitata", name = "BlockModel", frozen)]
 pub struct PyBlockModel(pub BlockModel);
 

@@ -159,8 +159,8 @@ save(fig, "localized")
 </details>
 
 ```text
-kriged: variance 41398, correlation with truth 0.92
-localized: variance 52518, correlation with truth 0.88
+kriged: variance 41415, correlation with truth 0.92
+localized: variance 52516, correlation with truth 0.88
 true blocks: variance 50084
 ```
 

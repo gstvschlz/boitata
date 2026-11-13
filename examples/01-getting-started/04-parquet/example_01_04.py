@@ -42,7 +42,7 @@ print(grid)
 print(rich)
 
 # %% [markdown]
-# The masked model keeps 11361 of the 78000 cells and stores its cell index with the attributes.
+# The masked model keeps 11368 of the 78000 cells and stores its cell index with the attributes.
 
 # %%
 folder = Path(tempfile.mkdtemp())

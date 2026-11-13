@@ -143,7 +143,7 @@ At a panel centroid the distribution describes Cd at that one point. Kriging the
 with `discretization=(4, 4, 1)`, gives the distribution of the point values within it, and `localize` takes the same
 argument. Each panel probability averages those of the points inside, so panels differ a little less and the order
 relations need less correction. Within 1 km the indicator variograms rise mostly at the nugget, which kriging at a
-centroid already filters, so the two stay close here:
+centroid already filters; the two differ by 0.05 in probability on average:
 
 <details><summary>Python</summary>
 
@@ -163,9 +163,9 @@ print(f"mean |panel - centroid| probability {shift:.3f}")
 </details>
 
 ```text
-centroids: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0137
-1 km panels: std of P(Cd > 0.8) across panels 0.117, mean correction 0.0110
-mean |panel - centroid| probability 0.000
+centroids: std of P(Cd > 0.8) across panels 0.137, mean correction 0.0649
+1 km panels: std of P(Cd > 0.8) across panels 0.110, mean correction 0.0109
+mean |panel - centroid| probability 0.051
 ```
 
 Full script: [`example_09_11.py`](example_09_11.py)

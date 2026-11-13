@@ -14,7 +14,7 @@ use crate::args::{
 };
 use crate::categorical::by_target;
 use crate::containers::PyBlockModel;
-use crate::estimation::{sample_columns, samples_from, searches, targets};
+use crate::estimation::{sample_columns, samples_from, searches};
 use crate::invalid;
 use crate::persist::{self, Columns, Found, Tabular};
 use crate::table::Table;
@@ -273,7 +273,7 @@ impl MultipleIndicatorKriging {
                 Some(offsets(&model.get().0, d)?)
             }
         };
-        let targets = self::targets(targets)?;
+        let targets = crate::estimation::leveled(targets, samples.iter().map(|s| s.loc))?;
         let local = anisotropy.map(|a| a.at_targets(&targets));
         py.detach(|| {
             self.model.predict(
@@ -398,7 +398,13 @@ impl MultipleIndicatorKriging {
             .map(|d| offsets(&panels.0, d).map(|_| disc(d)))
             .transpose()?;
         let rank = nullable(&smus, ranking)?;
-        let (panel_model, smu_model) = (&panels.0, &smus.0);
+        let (panel_model, smu_model) =
+            match crate::estimation::data_plane(panels.0.geometry(), samples.iter().map(|s| s.loc))
+            {
+                Some(z) => (panels.0.at_elevation(z), smus.0.at_elevation(z)),
+                None => (panels.0.clone(), smus.0.clone()),
+            };
+        let (panel_model, smu_model) = (&panel_model, &smu_model);
         let f = match variance_factor {
             None => None,
             Some(v) => Some(match v.extract::<PyRef<Variogram>>() {

@@ -1228,7 +1228,7 @@ def test_multiple_indicator_localization():
         by_rank = out[mine][np.argsort(rank[mine], kind="stable")]
         assert by_rank.mean() == pytest.approx(m, abs=1e-9)
         assert (np.diff(by_rank) >= -1e-12).all()
-        point = mik.predict(panels.coords[p : p + 1], cutoffs=list(s.quantile_values[p]))
+        point = mik.predict(panels.coords[p : p + 1, :2], cutoffs=list(s.quantile_values[p]))
         top = np.cumsum(by_rank[::-1])[:-1] / k
         np.testing.assert_allclose(top, m + np.sqrt(f) * (point.mean_above[0] - m), atol=1e-9)
     assert np.isnan(s.mean).any() and not np.isnan(s.mean).all()
@@ -1417,7 +1417,7 @@ def test_block_kriging_follows_a_rotated_model():
     vg = bt.Variogram([("spherical", 1.0, 20.0)])
     model = bt.BlockModel((0, 0, 0), (50, 5, 1), (1, 1, 1), rotation=(90, 0, 0))
     block = lambda size, targets: bt.BlockKriging(vg, search, size).fit(xy, z).predict(targets)
-    assert block((50, 5, 1), model) == pytest.approx(block((5, 50, 1), model.coords))
+    assert block((50, 5, 1), model) == pytest.approx(block((5, 50, 1), model.coords[:, :2]))
 
 
 def test_hole_distance_int_and_float_domain_labels_pair():

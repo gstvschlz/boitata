@@ -88,10 +88,10 @@ print(f"expected area above 500 ppm {p500.mean():.1%}, true {np.mean(true_at_nod
 </details>
 
 ```text
-mean E-type 274 ppm, true 280
+mean E-type 275 ppm, true 280
 correlation with the truth 0.83
 truth inside the 80% interval at 75% of nodes
-expected area above 500 ppm 18.3%, true 18.7%
+expected area above 500 ppm 18.4%, true 18.7%
 ```
 
 The E-type is smooth like kriging. The probability map says where grade above 500 ppm is likely, and the interval
@@ -179,7 +179,7 @@ for p, a in zip([0.5, 0.8, 0.9], cv.accuracy([0.5, 0.8, 0.9])):
 </details>
 
 ```text
-mean E-type 274 ppm, declustered sample mean 285 ppm
+mean E-type 275 ppm, declustered sample mean 285 ppm
 cross-validation: ME 4.2  RMSE 150.6  goodness 0.95
 inside the central 50% interval: 47%
 inside the central 80% interval: 79%

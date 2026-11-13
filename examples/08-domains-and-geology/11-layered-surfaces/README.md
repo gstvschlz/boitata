@@ -208,7 +208,7 @@ for name in [*LAYERS, "ROCK"]:
 </details>
 
 ```text
-BlockModel  sub-blocked, 254,048 sub-blocks in 144,000 blocks
+BlockModel  sub-blocked, 254,039 sub-blocks in 144,000 blocks
   count   80 × 60 × 30
   size    25 × 25 × 10
   origin  60000, 22250, 950

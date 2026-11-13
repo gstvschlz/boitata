@@ -460,7 +460,7 @@ def test_simulation_with_a_trend_follows_it_and_honors_data():
     np.testing.assert_array_equal(
         sgs.simulate(model, n=3, seed=4, keep=True, path="random", trend="drift").realizations, by_array
     )
-    points = bt.PointSet(model.coords, {"drift": node_trend})
+    points = bt.PointSet(model.coords[:, :2], {"drift": node_trend})
     np.testing.assert_array_equal(
         sgs.simulate(points, n=3, seed=4, keep=True, path="random", trend="drift").realizations, by_array
     )
@@ -795,7 +795,7 @@ def test_each_dss_domain_keeps_its_own_declustered_mean_and_range():
 
 
 def test_dss_warns_with_the_clamped_fraction():
-    smooth = bt.Variogram([("gaussian", 1.0, 200.0)])
+    smooth = bt.Variogram([("gaussian", 1.0, 200.0)], nugget=0.001)
     dss = bt.DSS(smooth, bt.Search(radius=60, max_samples=16)).fit(coords, values)
     with pytest.warns(UserWarning, match=r"\d+\.\d+% of simulated nodes"):
         dss.simulate(grid, n=2, seed=1)
@@ -1556,3 +1556,25 @@ def test_turning_bands_rejects_a_model_invalid_in_3d():
     bands = bt.TurningBands(bt.Variogram([("circular", 1.0, 100.0)]), bands=20, search=bt.Search(50.0))
     with pytest.raises(bt.InvalidInput, match="valid in 3-D"):
         bands.fit(d, g.standard_normal(50)).simulate(t, n=2)
+
+
+def test_two_d_samples_sit_on_a_two_d_block_model():
+    rng = np.random.default_rng(0)
+    xy = np.unique(np.floor(rng.uniform(0, 20, (40, 2))) + 0.5, axis=0)
+    v = rng.normal(size=len(xy))
+    box = bt.BlockModel(origin=(0, 0), size=(1, 1), count=(20, 20))
+    node = (xy[:, 1] - 0.5).astype(int) * 20 + (xy[:, 0] - 0.5).astype(int)
+    vg = bt.Variogram([("spherical", 1.0, 6.0)])
+    search = bt.Search(radius=10, max_samples=12)
+    sk = bt.SimpleKriging(vg, search, mean=0.0).fit(xy, v)
+    np.testing.assert_allclose(np.asarray(sk.predict(box))[node], v, atol=1e-9)
+    for model, values in (
+        (bt.SGS(vg, search), v),
+        (bt.DSS(vg, search), v),
+        (bt.TurningBands(vg, search=search), v),
+        (bt.SIS([vg, vg], search), (v > 0).astype(int)),
+    ):
+        r = np.asarray(model.fit(xy, values).simulate(box, n=2, seed=1, keep=True).realizations)
+        np.testing.assert_allclose(r[:, node], np.tile(values, (2, 1)), atol=1e-9)
+    deep = bt.BlockModel(origin=(0, 0, 0), size=(1, 1, 1), count=(20, 20, 2))
+    assert not np.allclose(np.asarray(sk.predict(deep))[node], v)

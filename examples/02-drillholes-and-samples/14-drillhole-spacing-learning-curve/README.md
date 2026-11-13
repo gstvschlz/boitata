@@ -145,8 +145,8 @@ for side in (40, 80):
 </details>
 
 ```text
-40 m windows: 924, MEE median 24.1%, 24.0% at or below 15 %
-80 m windows: 168, MEE median 12.1%, 67.3% at or below 15 %
+40 m windows: 924, MEE median 23.6%, 25.1% at or below 15 %
+80 m windows: 168, MEE median 11.9%, 69.0% at or below 15 %
 ```
 
 !!! step "Step 3: The learning curve"
@@ -173,12 +173,12 @@ for side, (summary, at_window, _) in windows.items():
 </details>
 
 ```text
-40 m windows: required spacing 11.3 m (median), 9.9 m (P90)
-80 m windows: required spacing 15.8 m (median), 14.5 m (P90)
+40 m windows: required spacing 11.5 m (median), 10.3 m (P90)
+80 m windows: required spacing 15.9 m (median), 14.7 m (P90)
 ```
 
-A quarterly window meets ±15 % at the median up to 11.3 m of data spacing and at the P90 up to 9.9 m; a yearly
-window up to 15.8 m and 14.5 m.
+A quarterly window meets ±15 % at the median up to 11.5 m of data spacing and at the P90 up to 10.3 m; a yearly
+window up to 15.9 m and 14.7 m.
 
 !!! step "Step 4: Overlay the virtual grids"
     Wilde (2010, §5.3) checks one method with the other. `spacing_study` repeats the quarterly virtual grids of the
@@ -224,19 +224,19 @@ for s, p50 in zip(grid["spacing"], grid["P50"], strict=True):
 </details>
 
 ```text
-virtual grid  5.0 m: median MEE 7.0%
-virtual grid  7.5 m: median MEE 10.7%
-virtual grid 10.0 m: median MEE 13.7%
-virtual grid 12.5 m: median MEE 17.8%
-virtual grid 15.0 m: median MEE 22.3%
-virtual grid 20.0 m: median MEE 28.5%
-virtual grid 25.0 m: median MEE 34.8%
+virtual grid  5.0 m: median MEE 7.4%
+virtual grid  7.5 m: median MEE 10.8%
+virtual grid 10.0 m: median MEE 14.1%
+virtual grid 12.5 m: median MEE 18.4%
+virtual grid 15.0 m: median MEE 21.8%
+virtual grid 20.0 m: median MEE 27.6%
+virtual grid 25.0 m: median MEE 35.1%
 ```
 
 ![learning_curve](learning_curve.png)
 
 Up to 12.5 m the virtual grids lie up to 4 points above the quarterly median of the learning curve: their
-median crosses 15 % near 11 m, against 11.3 m. Beyond 13 m they fall below it. The sparse windows of the learning
+median crosses 15 % near 10.5 m, against 11.5 m. Beyond 13 m they fall below it. The sparse windows of the learning
 curve sit at the edges of the area, with data on one side only, while a virtual grid has holes all around every
 window. Where the deposit has both kinds of data, the two methods agree within 2 m on the required spacing.
 
@@ -260,16 +260,16 @@ for side, (summary, _, true_window) in windows.items():
 </details>
 
 ```text
-40 m windows: truth within the MEE in 91.5%
-80 m windows: truth within the MEE in 87.5%
+40 m windows: truth within the MEE in 90.9%
+80 m windows: truth within the MEE in 83.3%
 ```
 
-The MEE covers the truth in 78.1 % of the quarterly windows and 84.5 % of the yearly ones, short of 90 %: the
-model understates the uncertainty a little, so read the required spacings as upper bounds.
+The MEE covers the truth in 90.9 % of the quarterly windows and 83.3 % of the yearly ones. The yearly windows fall
+short of 90 %: there the model understates the uncertainty a little, so read the yearly spacing as an upper bound.
 
 ## The decision
 
-On the learning curve, 90 % of the yearly windows meet ±15 % where the data spacing is 14.5 m or less; the
+On the learning curve, 90 % of the yearly windows meet ±15 % where the data spacing is 14.7 m or less; the
 virtual grids gave 13.5 m. Drill to about 13 m for yearly planning, and leave the quarters to grade control.
 
 Full script: [`example_02_14.py`](example_02_14.py)

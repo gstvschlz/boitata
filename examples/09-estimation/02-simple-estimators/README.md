@@ -57,7 +57,7 @@ for name, e in estimates.items():
 ```text
            method  RMSE   corr   variance ratio
  nearest neighbor  177.1  0.755  0.95
- inverse distance  160.5  0.799  0.60
+ inverse distance  160.4  0.799  0.60
    moving average  208.8  0.687  0.41
  ordinary kriging  144.7  0.825  0.66
 ```

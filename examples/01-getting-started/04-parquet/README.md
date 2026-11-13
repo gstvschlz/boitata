@@ -48,21 +48,21 @@ BlockModel  regular, 78,000 blocks
   origin  0.5, 0.5, 0
   crs     local grid
   bounds  x 0.5 to 260.5, y 0.5 to 300.5, z 0 to 1
-  column    type     unit  nulls     min     mean      max
-  estimate  float64            0  -1.924    283.1   1447.1
-  variance  float64            0  8299.8  39229.2  72516.1
-BlockModel  masked, 11,361 of 78,000 blocks
+  column    type     unit  nulls     min     mean     max
+  estimate  float64            0  -1.938    283.1  1547.1
+  variance  float64            0       0  39123.9   72513
+BlockModel  masked, 11,368 of 78,000 blocks
   count   260 × 300 × 1
   size    1 × 1 × 1
   origin  0.5, 0.5, 0
   crs     local grid
-  bounds  x 16.5 to 259.5, y 0.5 to 300.5, z 0 to 1
-  column    type     unit  nulls     min     mean     max
-  estimate  float64            0     500    651.2  1447.1
-  variance  float64            0  8914.9  30476.5   56006
+  bounds  x 7.5 to 259.5, y 0.5 to 300.5, z 0 to 1
+  column    type     unit  nulls  min     mean      max
+  estimate  float64            0  500    651.5   1547.1
+  variance  float64            0    0  30212.2  56001.2
 ```
 
-The masked model keeps 11361 of the 78000 cells and stores its cell index with the attributes.
+The masked model keeps 11368 of the 78000 cells and stores its cell index with the attributes.
 
 <details><summary>Python</summary>
 
@@ -84,16 +84,16 @@ print("same cells:", np.array_equal(back.index, rich.index), "| crs:", back.crs)
 ```text
  grid.parquet: 1.04 MB
  rich.parquet: 0.16 MB
-     grid.csv: 4.05 MB
-BlockModel  masked, 11,361 of 78,000 blocks
+     grid.csv: 4.04 MB
+BlockModel  masked, 11,368 of 78,000 blocks
   count   260 × 300 × 1
   size    1 × 1 × 1
   origin  0.5, 0.5, 0
   crs     local grid
-  bounds  x 16.5 to 259.5, y 0.5 to 300.5, z 0 to 1
-  column    type     unit  nulls     min     mean     max
-  estimate  float64            0     500    651.2  1447.1
-  variance  float64            0  8914.9  30476.5   56006
+  bounds  x 7.5 to 259.5, y 0.5 to 300.5, z 0 to 1
+  column    type     unit  nulls  min     mean      max
+  estimate  float64            0  500    651.5   1547.1
+  variance  float64            0    0  30212.2  56001.2
 same cells: True | crs: local grid
 ```
 
@@ -126,9 +126,9 @@ shape: (6, 3)
 │ ---           ┆ ---    ┆ ---         │
 │ i64           ┆ f64    ┆ f64         │
 ╞═══════════════╪════════╪═════════════╡
-│ 0             ┆ 371.0  ┆ 0.225       │
+│ 0             ┆ 371.0  ┆ 0.224       │
 │ 50            ┆ 402.0  ┆ 0.302       │
-│ 100           ┆ 304.0  ┆ 0.134       │
+│ 100           ┆ 304.0  ┆ 0.135       │
 │ 150           ┆ 266.0  ┆ 0.172       │
 │ 200           ┆ 175.0  ┆ 0.024       │
 │ 250           ┆ 181.0  ┆ 0.017       │
@@ -196,9 +196,9 @@ shape: (3, 3)
 │ ---        ┆ ---      ┆ ---      │
 │ f64        ┆ f64      ┆ f64      │
 ╞════════════╪══════════╪══════════╡
-│ 1.2490e-16 ┆ 0.063047 ┆ 0.936953 │
-│ 2.3592e-16 ┆ 0.087127 ┆ 0.912873 │
-│ 0.0        ┆ 0.114355 ┆ 0.885645 │
+│ 0.0        ┆ 0.062929 ┆ 0.937071 │
+│ 0.0        ┆ 0.086895 ┆ 0.913105 │
+│ 4.9960e-16 ┆ 0.113849 ┆ 0.886151 │
 └────────────┴──────────┴──────────┘
 same scheme: True | same probabilities: True
 ```
