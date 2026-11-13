@@ -112,6 +112,39 @@ save(fig, "local-proportions")
 # matches the true rock type at 55 % of the nodes, against 52 % with global proportions.
 
 # %% [markdown]
+# ## Local anisotropy
+#
+# The Jurassic stages run about N132°E and are shorter across that strike. `anisotropy` turns the latent fields with
+# the nodes: azimuth 90° in the west to 150° in the east, with a semi-major ratio of 0.45, so the stages stay about
+# twice as long along strike. Each latent field is simulated sequentially, and a node's search and kriging use that
+# node's anisotropy. The local proportions stay in force.
+
+# %%
+x = grid.coords[:, 0]
+azimuth = 90 + 60 * (x - x.min()) / (x.max() - x.min())
+angles = np.column_stack([azimuth, np.zeros_like(x), np.zeros_like(x)])
+ratios = np.column_stack([np.full_like(x, 0.45), np.ones_like(x)])
+fan = bt.LocalAnisotropy(grid.coords, angles, ratios)
+by_fan = hierarchy.simulate(grid, n=1, seed=3, keep=True, proportions=at_nodes, anisotropy=fan).realizations[
+    0
+]
+print(
+    f"rule, local proportions, anisotropy: {np.mean(by_fan == true_rock):.0%} of nodes match the true rock type"
+)
+
+# %%
+fig, ax = plt.subplots(figsize=(6.4, 5.4), layout="constrained")
+ax.scatter(*xy, c=by_fan, cmap=cmap, norm=norm, s=7, marker="s", linewidths=0)
+ax.set_aspect("equal")
+ax.set(title="Local proportions and anisotropy", xlabel="X (km)", ylabel="Y (km)")
+bt.plot.category_legend(rock_types, fig, loc="outside lower center", ncol=5)
+save(fig, "local-anisotropy")
+
+# %% [markdown]
+# The stage bands bend from east-west toward the south-east, and the realization matches the true rock type at 52 %
+# of the nodes, against 55 % with the local proportions alone.
+
+# %% [markdown]
 # ## Latent variograms
 #
 # The latent variograms so far were guesses. The rule and the latent variograms imply each rock type's indicator

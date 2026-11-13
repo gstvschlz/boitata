@@ -3213,10 +3213,45 @@ impl Plurigaussian {
     }
 
     /// Summary of `n` realizations; same options as `SIS.simulate`, `memory`
-    /// included, and
-    /// `proportions` of shape ``(targets, k)``, the local facies proportions
-    /// at the targets, when `fit` had them at the samples.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, memory=None))]
+    /// included, and `proportions` of shape ``(targets, k)``, the local facies
+    /// proportions at the targets, when `fit` had them at the samples.
+    ///
+    /// Without `anisotropy`, each latent field is a turning-bands simulation
+    /// conditioned on a Gibbs sample at the data. With `anisotropy`, the Gibbs
+    /// covariance between data `i` and `j` is the average of the covariances
+    /// in the anisotropy at `i` and at `j`. The average is symmetric. It is
+    /// the covariance locally varying anisotropy kriging uses for a pair that
+    /// shares one anisotropy, and here each datum is read in the anisotropy
+    /// of its nearest node. Each field is then a sequential Gaussian
+    /// simulation: the search and the simple kriging at a node use that
+    /// node's anisotropy. An anisotropy that repeats the variograms'
+    /// anisotropy at every node leaves the Gibbs covariance unchanged. The
+    /// field is still sequential, so it differs from turning bands.
+    ///
+    /// Parameters
+    /// ----------
+    /// targets : array_like, PointSet or BlockModel
+    /// n : int, default 100
+    ///     Number of realizations.
+    /// seed : int, default 0
+    /// keep : bool or sequence of int, default False
+    ///     Keep all realizations, or those indices.
+    /// anisotropy : LocalAnisotropy, optional
+    ///     Orientation of each target. A field given on other locations is
+    ///     transferred by nearest neighbor.
+    /// blocks : BlockModel, optional
+    ///     Coarser blocks each realization is summarized at, as in
+    ///     `SIS.simulate`.
+    /// proportions : array_like, shape (targets, k), optional
+    ///     Local facies proportions at the targets, when `fit` had them at
+    ///     the samples.
+    /// memory : int or float, optional
+    ///     Bytes the run may take. The realizations do not depend on it.
+    ///
+    /// Returns
+    /// -------
+    /// CategoricalSummary
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, anisotropy=None, blocks=None, proportions=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -3225,6 +3260,7 @@ impl Plurigaussian {
         n: usize,
         seed: u64,
         keep: Option<&Bound<PyAny>>,
+        anisotropy: Option<PyRef<crate::lva::LocalAnisotropy>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
         memory: Option<f64>,
@@ -3252,13 +3288,19 @@ impl Plurigaussian {
             n,
         )
         .map_err(err)?;
+        let anisotropy = anisotropy.map(|a| a.at_targets(&grid));
         py.detach(|| {
-            let prepared = simulation::pgs::LatentFields::new(
-                locs,
-                &grid,
-                &self.variograms,
-                &TurningBandsParams::default(),
-            )?;
+            let bands = TurningBandsParams::default();
+            let prepared = match &anisotropy {
+                Some(local) => simulation::pgs::LatentFields::with_anisotropy(
+                    locs,
+                    &grid,
+                    &self.variograms,
+                    &bands,
+                    local,
+                )?,
+                None => simulation::pgs::LatentFields::new(locs, &grid, &self.variograms, &bands)?,
+            };
             let rule = &self.rule;
             simulation::categorical_bounded(n, k, &keep, in_flight, |i| {
                 let params = PgsParams {

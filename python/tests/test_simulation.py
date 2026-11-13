@@ -457,6 +457,50 @@ def test_plurigaussian_follows_local_proportions():
         bt.Plurigaussian(gaussian, regions=[([(-np.inf, np.inf)], 0)]).fit(xy, [0], proportions=[[1.0]])
 
 
+def _anisotropy(nodes, azimuth, semi=0.45):
+    azimuth = np.broadcast_to(np.asarray(azimuth, float), len(nodes))
+    angles = np.column_stack([azimuth, np.zeros(len(nodes)), np.zeros(len(nodes))])
+    ratios = np.column_stack([np.full(len(nodes), semi), np.ones(len(nodes))])
+    return bt.LocalAnisotropy(nodes, angles, ratios)
+
+
+def test_plurigaussian_local_anisotropy_honors_data_and_proportions():
+    nodes = grid.coords
+    data = nodes[::20]
+    facies = np.arange(len(data)) % 3
+    vg = bt.Variogram([("spherical", 1.0, 25.0)], rotation=(40, 0, 0), ratios=(0.45, 1.0))
+    local = _anisotropy(nodes, 40.0)
+    rule = (0, [0, (1, [1, 2])])
+    pgs = bt.Plurigaussian([vg, vg], proportions=[0.5, 0.3, 0.2], rule=rule).fit(data, facies)
+    s = pgs.simulate(grid, n=8, seed=3, keep=True, anisotropy=local)
+    idx = np.arange(0, len(nodes), 20)
+    for real in s.realizations:
+        np.testing.assert_array_equal(real[idx], facies)
+    np.testing.assert_allclose(s.probabilities.mean(axis=0), [0.5, 0.3, 0.2], atol=0.08)
+    fan = _anisotropy(nodes, 20 + 80 * nodes[:, 0] / nodes[:, 0].max())
+    other = pgs.simulate(grid, n=1, seed=3, keep=True, anisotropy=fan).realizations
+    assert not np.array_equal(other[0], s.realizations[0])
+    again = pgs.simulate(grid, n=1, seed=3, keep=True, anisotropy=fan).realizations
+    np.testing.assert_array_equal(again, other)
+
+
+def test_plurigaussian_local_anisotropy_follows_local_proportions():
+    def west_to_east(xy):
+        p0 = 0.9 - 0.8 * xy[:, 0] / 100
+        return np.column_stack([p0, (1 - p0) / 2, (1 - p0) / 2])
+
+    nodes = grid.coords[:, :2]
+    rule = (0, [0, (1, [1, 2])])
+    vg = bt.Variogram([("spherical", 1.0, 25.0)])
+    pgs = bt.Plurigaussian([vg, vg], proportions=[0.5, 0.25, 0.25], rule=rule)
+    pgs.fit(nodes[:1], [1], proportions=west_to_east(nodes[:1]))
+    local = _anisotropy(grid.coords, 30 + 40 * nodes[:, 0] / 100, semi=0.5)
+    s = pgs.simulate(grid, n=8, seed=1, proportions=west_to_east(nodes), anisotropy=local)
+    west, east = nodes[:, 0] < 30, nodes[:, 0] > 70
+    assert s.probabilities[west, 0].mean() > 0.55
+    assert s.probabilities[east, 0].mean() < 0.45
+
+
 def test_gibbs_respects_bounds():
     pts = rng.uniform(0, 50, (20, 2))
     bounds = np.column_stack([np.zeros(20), np.full(20, np.inf)])
