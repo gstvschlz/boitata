@@ -49,9 +49,10 @@ pub use pgs::{
 };
 pub use post::{
     BlockSupport, CategoricalSummary, ContinuousOptions, ContinuousSummary, Keep, Window,
-    categorical, categorical_bounded, categorical_bytes, continuous, continuous_batched,
-    continuous_bounded, continuous_in_batches, continuous_in_parts, continuous_many,
-    continuous_many_batched, continuous_many_bounded, in_flight, localize, quantile_sorted,
+    categorical, categorical_bounded, categorical_bytes, categorical_in_batches, continuous,
+    continuous_batched, continuous_bounded, continuous_in_batches, continuous_in_parts,
+    continuous_many, continuous_many_batched, continuous_many_bounded, in_flight, localize,
+    quantile_sorted,
 };
 pub use select::select_realizations;
 pub use sgs::{
@@ -61,7 +62,7 @@ pub use sgs::{
 pub use shared::{
     Collocated, SharedBatch, SharedSgs, sgs_shared, shared_batch, shared_unsupported,
 };
-pub use sis::{CategoricalRealization, SisParams, sis};
+pub use sis::{CategoricalRealization, SharedCategories, SisParams, sis, sis_shared};
 pub use training_image::{NO_CODE, TrainingImage, TrainingValues, unify};
 pub use trend::TrendConditioning;
 pub use turning_bands::{

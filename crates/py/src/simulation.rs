@@ -2793,11 +2793,18 @@ impl Sis {
     /// node volume, ties to the smallest, as in `BlockModel.regularize`; blocks as in
     /// `SGS.simulate`. `proportions`, shape ``(targets, k)``, are the local
     /// category proportions at the targets, when `fit` had them at the samples.
+    /// `path` is "shared", one multigrid path for every realization on a
+    /// regular or masked BlockModel, so each node's neighbors and kriging
+    /// weights are found once for a batch of realizations, or "random", a new
+    /// random path per realization. The default is "shared" where it can run
+    /// and "random" otherwise (points, octant or sector searches, min_holes,
+    /// soft boundaries); "shared" raises InvalidInput there. `batch`, on a shared path, is the number of realizations
+    /// simulated together, by default as many as fit in `memory`.
     /// `memory`, the bytes the run may take (at least 1, default 70 % of the
     /// memory available now), bounds the realizations simulated at once; a
     /// run whose single realization does not fit raises InvalidInput.
-    /// Realizations do not depend on `memory`.
-    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, memory=None))]
+    /// Realizations do not depend on `memory` or `batch`.
+    #[pyo3(signature = (targets, *, n=100, seed=0, keep=None, blocks=None, proportions=None, path=None, batch=None, memory=None))]
     #[allow(clippy::too_many_arguments)]
     fn simulate(
         &self,
@@ -2808,9 +2815,32 @@ impl Sis {
         keep: Option<&Bound<PyAny>>,
         blocks: Option<PyRef<PyBlockModel>>,
         proportions: Option<&Bound<PyAny>>,
+        path: Option<&str>,
+        batch: Option<usize>,
         memory: Option<f64>,
     ) -> PyResult<CategoricalSummary> {
         let (locs, cats) = self.data.as_ref().ok_or_else(not_fitted)?;
+        let lattice = lattice_of(targets);
+        let unsupported = match &lattice {
+            None => Some("targets that are not a regular or masked BlockModel"),
+            Some(_) => {
+                simulation::shared_unsupported(std::slice::from_ref(&self.search), false, false)
+            }
+        };
+        let lattice = match (path, unsupported) {
+            (Some("random"), _) | (None, Some(_)) => None,
+            (None | Some("shared"), None) => lattice,
+            (Some("shared"), Some(why)) => {
+                return Err(invalid(format!(
+                    "path='shared' does not support {why}; use path='random'"
+                )));
+            }
+            (Some(other), _) => {
+                return Err(invalid(format!(
+                    "path must be 'shared' or 'random', got {other:?}"
+                )));
+            }
+        };
         let grid = self::targets(targets)?;
         let k = self.variograms.len();
         let at_grid = match (&self.local, proportions) {
@@ -2826,10 +2856,50 @@ impl Sis {
         let support = support(targets, &grid, blocks)?;
         let keep = keep_arg(keep)?;
         let rows = support.as_ref().map_or(grid.len(), BlockSupport::len);
+        let budget = memory_budget(py, memory)?;
+        if let Some(lattice) = lattice {
+            let size = simulation::in_flight(
+                simulation::categorical_bytes(rows, n, k, &keep),
+                grid.len() as u64 * 9 + 8 * rows as u64,
+                budget,
+                n,
+            )
+            .map_err(err)?;
+            let shared = simulation::SharedSgs {
+                lattice: &lattice,
+                search: std::slice::from_ref(&self.search),
+                levels: None,
+                seed,
+            };
+            return py
+                .detach(|| {
+                    simulation::categorical_in_batches(
+                        n,
+                        k,
+                        &keep,
+                        batch.map_or(size, |b| b.max(1)),
+                        |range| {
+                            simulation::sis_shared(
+                                locs,
+                                cats,
+                                self.holes.as_deref(),
+                                k,
+                                &self.variograms,
+                                local,
+                                &shared,
+                                range,
+                            )
+                        },
+                        |b, i| majority(&support, b.realization(i), k),
+                    )
+                })
+                .map(CategoricalSummary)
+                .map_err(err);
+        }
         let in_flight = simulation::in_flight(
             simulation::categorical_bytes(rows, n, k, &keep),
             grid.len() as u64 * (sequential_node_bytes(1) + 16 * k as u64) + 8 * rows as u64,
-            memory_budget(py, memory)?,
+            budget,
             n,
         )
         .map_err(err)?;

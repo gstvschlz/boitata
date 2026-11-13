@@ -1430,6 +1430,8 @@ class SIS:
         keep: bool | Sequence[int] = False,
         blocks: BlockModel | None = None,
         proportions: ArrayLike | Table | None = None,
+        path: Literal["shared", "random"] | None = None,
+        batch: int | None = None,
         memory: float | None = None,
     ) -> CategoricalSummary: ...
 
